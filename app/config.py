@@ -1,7 +1,8 @@
 import os
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
     SLSKD_API_URL: str = "http://localhost:5030/api/v0"
     SLSKD_API_KEY: str = "your-slskd-api-key"
 
@@ -36,9 +37,5 @@ class Settings(BaseSettings):
     # The user asked for quality ranking order: FLAC, ALAC, WAV, AAC, MP3 320, MP3 V0, everything else
     # Let's specify it as a comma-separated list of formats
     QUALITY_RANKING: str = "flac,alac,wav,aac,mp3_320,mp3_v0"
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 settings = Settings()

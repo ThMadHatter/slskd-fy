@@ -313,6 +313,28 @@ async def post_search_results(
         })
     except Exception as e:
         logger.error(f"Error executing search: {e}")
+        error_msg = str(e)
+        if "Name or service not known" in error_msg or "ConnectError" in error_msg or "ConnectTimeout" in error_msg or "gaierror" in error_msg:
+            return f"""
+            <div class='p-6 border border-rose-500/30 bg-rose-500/10 rounded-xl space-y-4 max-w-2xl mx-auto my-4 text-left'>
+                <div class='flex items-start space-x-3 text-rose-400'>
+                    <i class='fa-solid fa-triangle-exclamation text-2xl shrink-0 mt-0.5'></i>
+                    <div>
+                        <h4 class='font-bold text-lg'>Connection to slskd API Failed</h4>
+                        <p class='text-sm mt-1'>Track Portal was unable to resolve or reach the slskd server address at <strong class='underline'>{settings.SLSKD_API_URL}</strong>.</p>
+                    </div>
+                </div>
+                <div class='text-xs text-slate-300 space-y-2 border-t border-slate-700/80 pt-3 pl-9'>
+                    <p class='font-semibold text-slate-200'>Troubleshooting & Guidance:</p>
+                    <ul class='list-disc pl-4 space-y-1.5'>
+                        <li>Verify that <strong>SLSKD_API_URL</strong> in your <code>.env</code> file is correct and accessible.</li>
+                        <li>If running in Docker Compose, ensure both Track Portal and slskd are on the <strong>same Docker network</strong>.</li>
+                        <li>Check if the slskd container is currently running and healthy.</li>
+                        <li>The raw error was: <code class='text-rose-300 bg-rose-950/40 px-1 py-0.5 rounded font-mono'>{error_msg}</code></li>
+                    </ul>
+                </div>
+            </div>
+            """
         return f"<div class='p-6 text-center text-rose-400'>Error executing search: {e}</div>"
 
 @router.post("/downloads/create")

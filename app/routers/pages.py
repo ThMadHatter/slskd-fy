@@ -314,7 +314,7 @@ async def post_search_results(
     except Exception as e:
         logger.error(f"Error executing search: {e}")
         error_msg = str(e)
-        if "Name or service not known" in error_msg or "ConnectError" in error_msg or "ConnectTimeout" in error_msg or "gaierror" in error_msg:
+        if "Name or service not known" in error_msg or "ConnectError" in error_msg or "ConnectTimeout" in error_msg or "gaierror" in error_msg or "connection attempts failed" in error_msg.lower():
             return f"""
             <div class='p-6 border border-rose-500/30 bg-rose-500/10 rounded-xl space-y-4 max-w-2xl mx-auto my-4 text-left'>
                 <div class='flex items-start space-x-3 text-rose-400'>

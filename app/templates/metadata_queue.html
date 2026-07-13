@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Metadata Queue - Track Portal{% endblock %}
+{% block header_title %}Metadata Queue{% endblock %}
+{% block header_subtitle %}Edit tags, manage completed single tracks, and import them{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+
+    <!-- Metadata Editor Modal / Panel (Conditional if editing is active) -->
+    {% if edit_item %}
+    <div class="bg-darkPanel border border-emerald-500/30 rounded-xl shadow-2xl p-6 space-y-6">
+        <div class="flex items-center justify-between border-b border-slate-700 pb-4">
+            <h3 class="text-xl font-bold text-slate-100 flex items-center space-x-2">
+                <i class="fa-solid fa-pen-to-square text-emerald-400"></i>
+                <span>Edit Metadata: <strong class="text-emerald-400">{{ edit_item.artist }} - {{ edit_item.track }}</strong></span>
+            </h3>
+            <a href="/metadata-queue" class="text-slate-400 hover:text-slate-200">
+                <i class="fa-solid fa-circle-xmark text-xl"></i>
+            </a>
+        </div>
+
+        <form action="/metadata-queue/{{ edit_item.id }}/save" method="post" enctype="multipart/form-data" class="space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Title / Track -->
+                <div>
+                    <label for="title" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Track Title</label>
+                    <input type="text" id="title" name="title" value="{{ metadata.title or edit_item.track }}" required
+                           class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <!-- Artist -->
+                <div>
+                    <label for="artist" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Artist</label>
+                    <input type="text" id="artist" name="artist" value="{{ metadata.artist or edit_item.artist }}" required
+                           class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <!-- Album -->
+                <div>
+                    <label for="album" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Album</label>
+                    <input type="text" id="album" name="album" value="{{ metadata.album or edit_item.album }}" required
+                           class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <!-- Album Artist -->
+                <div>
+                    <label for="album_artist" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Album Artist</label>
+                    <input type="text" id="album_artist" name="album_artist" value="{{ metadata.album_artist or edit_item.artist }}"
+                           class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <!-- Track Number -->
+                <div>
+                    <label for="track_number" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Track Number</label>
+                    <input type="text" id="track_number" name="track_number" value="{{ metadata.track_number or '1' }}"
+                           class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <!-- Year -->
+                <div>
+                    <label for="year" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Year</label>
+                    <input type="text" id="year" name="year" value="{{ metadata.year or '' }}"
+                           class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500"
+                           placeholder="e.g. 2024">
+                </div>
+
+                <!-- Genre -->
+                <div>
+                    <label for="genre" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Genre</label>
+                    <input type="text" id="genre" name="genre" value="{{ metadata.genre or '' }}"
+                           class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500"
+                           placeholder="e.g. Electronic">
+                </div>
+
+                <!-- Comment -->
+                <div>
+                    <label for="comment" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Comment</label>
+                    <input type="text" id="comment" name="comment" value="{{ metadata.comment or '' }}"
+                           class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <!-- Cover Art Upload -->
+                <div>
+                    <label for="cover_art" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Cover Art Image (Optional)</label>
+                    <input type="file" id="cover_art" name="cover_art" accept="image/jpeg,image/png"
+                           class="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 text-sm file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-slate-200 hover:file:bg-slate-600 focus:outline-none">
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-4 pt-4 border-t border-slate-700">
+                <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-lg shadow-lg flex items-center space-x-2 transition">
+                    <i class="fa-solid fa-save"></i>
+                    <span>Save Tags</span>
+                </button>
+                <a href="/metadata-queue" class="text-slate-400 hover:text-slate-200 text-sm font-medium">Cancel</a>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- Queue List -->
+    <div class="bg-darkPanel border border-slate-700 rounded-xl shadow overflow-hidden">
+        <div class="px-6 py-4 bg-slate-800/40 border-b border-slate-700 flex items-center justify-between">
+            <h3 class="font-bold text-slate-200">Metadata Queue ({{ queue|length }} files)</h3>
+            <span class="text-xs text-slate-400">Tracks downloaded to Singles folder, ready for tags & import</span>
+        </div>
+
+        <div class="divide-y divide-slate-800">
+            {% if queue %}
+                {% for item in queue %}
+                <div class="p-6 hover:bg-slate-800/10 transition flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-3">
+                            <h4 class="font-bold text-slate-100">{{ item.artist }} - {{ item.track }}</h4>
+                            {% if item.status == 'tagged' %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-400/20 capitalize">Tagged</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/10 text-sky-400 border border-sky-400/20 capitalize">Downloaded</span>
+                            {% endif %}
+                        </div>
+                        <p class="text-xs text-slate-400">File: <strong class="text-slate-300 font-mono">{{ item.filename }}</strong></p>
+                    </div>
+
+                    <div class="flex items-center space-x-2 shrink-0">
+                        {% if filebrowser_url %}
+                        <a href="{{ filebrowser_url }}/files/uploads/Singles/{{ item.filename }}" target="_blank" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-2.5 rounded-lg border border-slate-600 text-xs transition" title="Open Downloaded File">
+                            <i class="fa-solid fa-folder-open"></i>
+                        </a>
+                        {% endif %}
+
+                        <a href="/metadata-queue?edit={{ item.id }}" class="bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white px-3 py-2 rounded-lg text-xs border border-emerald-500/20 font-medium transition flex items-center space-x-1">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                            <span>Edit Tags</span>
+                        </a>
+
+                        <form action="/metadata-queue/{{ item.id }}/import" method="post">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-semibold transition shadow flex items-center space-x-1">
+                                <i class="fa-solid fa-file-import"></i>
+                                <span>Import to Library</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="text-center py-16 text-slate-500">
+                <i class="fa-solid fa-tags text-4xl mb-2 block"></i>
+                <span class="text-sm">Metadata Queue is empty. No untagged downloaded tracks present.</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

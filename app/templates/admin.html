@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Administration - Track Portal{% endblock %}
+{% block header_title %}Administration{% endblock %}
+{% block header_subtitle %}Manage single administrator user and security settings{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-8">
+
+    <!-- Password Change Card -->
+    <div class="bg-darkPanel border border-slate-700 rounded-xl p-6 shadow">
+        <h3 class="font-bold text-lg text-slate-200 mb-4 flex items-center space-x-2">
+            <i class="fa-solid fa-key text-emerald-400"></i>
+            <span>Change Administrator Password</span>
+        </h3>
+
+        {% if success_message %}
+        <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4 flex items-start space-x-3 text-emerald-400 text-sm mb-6">
+            <i class="fa-solid fa-circle-check text-lg mt-0.5 shrink-0"></i>
+            <span>{{ success_message }}</span>
+        </div>
+        {% endif %}
+
+        {% if error_message %}
+        <div class="bg-rose-500/10 border border-rose-500/20 rounded-lg p-4 flex items-start space-x-3 text-rose-400 text-sm mb-6">
+            <i class="fa-solid fa-circle-exclamation text-lg mt-0.5 shrink-0"></i>
+            <span>{{ error_message }}</span>
+        </div>
+        {% endif %}
+
+        <form action="/admin/change-password" method="post" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <!-- Current Password -->
+            <div>
+                <label for="current_password" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Current Password</label>
+                <input type="password" id="current_password" name="current_password" required
+                       class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <!-- New Password -->
+            <div>
+                <label for="new_password" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">New Password</label>
+                <input type="password" id="new_password" name="new_password" required
+                       class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500"
+                       placeholder="Must be at least 8 characters">
+            </div>
+
+            <!-- Confirm New Password -->
+            <div>
+                <label for="confirm_password" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Confirm New Password</label>
+                <input type="password" id="confirm_password" name="confirm_password" required
+                       class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition">
+                Update Password
+            </button>
+        </form>
+    </div>
+
+    <!-- Security Information and Path Status -->
+    <div class="bg-darkPanel border border-slate-700 rounded-xl p-6 shadow space-y-4">
+        <h3 class="font-bold text-lg text-slate-200 flex items-center space-x-2 border-b border-slate-700 pb-3">
+            <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+            <span>System Status & Security Status</span>
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+            <div class="space-y-2">
+                <p class="text-slate-400">Admin Username: <strong class="text-slate-200">{{ user.username }}</strong></p>
+                <p class="text-slate-400">Session Cookie Name: <strong class="text-slate-200 font-mono">track_portal_session</strong></p>
+                <p class="text-slate-400">CSRF Cookie: <strong class="text-slate-200 font-mono">csrf_token</strong></p>
+                <p class="text-slate-400">Password Encryption: <strong class="text-slate-200">Bcrypt (5.0.0)</strong></p>
+            </div>
+            <div class="space-y-2">
+                <p class="text-slate-400">Singles Directory (SINGLES_PATH): <strong class="text-slate-200 truncate block font-mono">{{ settings.SINGLES_PATH }}</strong></p>
+                <p class="text-slate-400">Slskd Downloads (DOWNLOADS_PATH): <strong class="text-slate-200 truncate block font-mono">{{ settings.DOWNLOADS_PATH }}</strong></p>
+                <p class="text-slate-400">Music Library (MUSIC_LIBRARY_PATH): <strong class="text-slate-200 truncate block font-mono">{{ settings.MUSIC_LIBRARY_PATH }}</strong></p>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Wishlist - Track Portal{% endblock %}
+{% block header_title %}Track Wishlist{% endblock %}
+{% block header_subtitle %}Keep track of requested single tracks{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+    <!-- Left Column: Add Wishlist Item Form -->
+    <div class="bg-darkPanel border border-slate-700 rounded-xl p-6 shadow h-fit">
+        <h3 class="font-bold text-lg text-slate-200 mb-4 flex items-center space-x-2">
+            <i class="fa-solid fa-plus-circle text-emerald-400"></i>
+            <span>Add Wishlist Item</span>
+        </h3>
+
+        <form action="/wishlist/create" method="post" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div>
+                <label for="artist" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Artist *</label>
+                <input type="text" id="artist" name="artist" required
+                       class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                       placeholder="e.g. Daft Punk">
+            </div>
+
+            <div>
+                <label for="track" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Song Title *</label>
+                <input type="text" id="track" name="track" required
+                       class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                       placeholder="e.g. Instant Crush">
+            </div>
+
+            <div>
+                <label for="album" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Album (Optional)</label>
+                <input type="text" id="album" name="album"
+                       class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                       placeholder="e.g. Random Access Memories">
+            </div>
+
+            <div>
+                <label for="notes" class="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Notes (Optional)</label>
+                <textarea id="notes" name="notes" rows="3"
+                          class="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                          placeholder="e.g. Looking for high bitrate FLAC or vinyl rip"></textarea>
+            </div>
+
+            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-lg shadow transition">
+                Add to Wishlist
+            </button>
+        </form>
+    </div>
+
+    <!-- Right Column: Wishlist Items List -->
+    <div class="lg:col-span-2 bg-darkPanel border border-slate-700 rounded-xl shadow overflow-hidden">
+        <div class="px-6 py-4 bg-slate-800/40 border-b border-slate-700 flex items-center justify-between">
+            <h3 class="font-bold text-slate-200">Track Wishlist List</h3>
+            <span class="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded font-semibold">{{ wishlist|length }} items</span>
+        </div>
+
+        <div class="divide-y divide-slate-800">
+            {% if wishlist %}
+                {% for item in wishlist %}
+                <div class="p-6 hover:bg-slate-800/10 transition flex items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-3">
+                            <h4 class="font-bold text-slate-100">{{ item.artist }} - {{ item.track }}</h4>
+                            {% if item.status == 'imported' %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 capitalize">Imported</span>
+                            {% elif item.status == 'downloaded' %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/10 text-sky-400 border border-sky-500/20 capitalize">Downloaded</span>
+                            {% elif item.status == 'searching' %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 capitalize">Searching</span>
+                            {% elif item.status == 'failed' %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 capitalize">Failed</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-300 capitalize">Pending</span>
+                            {% endif %}
+                        </div>
+                        {% if item.album %}
+                        <p class="text-xs text-slate-400">Album: <strong class="text-slate-300">{{ item.album }}</strong></p>
+                        {% endif %}
+                        {% if item.notes %}
+                        <p class="text-xs text-slate-400 italic">Notes: "{{ item.notes }}"</p>
+                        {% endif %}
+                        <p class="text-[10px] text-slate-500">Added: {{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                        <!-- slskd Search action -->
+                        <a href="/search?artist={{ item.artist }}&track={{ item.track }}" class="bg-sky-600/10 hover:bg-sky-600 text-sky-400 hover:text-white px-3 py-1.5 rounded text-xs transition border border-sky-500/20 font-medium flex items-center space-x-1">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <span>Search slskd</span>
+                        </a>
+
+                        <!-- Delete action -->
+                        <form action="/wishlist/{{ item.id }}/delete" method="post" onsubmit="return confirm('Are you sure you want to delete this wishlist item?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="bg-rose-600/10 hover:bg-rose-600 text-rose-400 hover:text-white p-2 rounded text-xs transition border border-rose-500/20">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="text-center py-16 text-slate-500">
+                <i class="fa-solid fa-clipboard-list text-4xl mb-2 block"></i>
+                <span class="text-sm">Wishlist is empty. Add items on the left side form.</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

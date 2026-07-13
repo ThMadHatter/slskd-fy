@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}History & Metadata Editor - Track Portal{% endblock %}
+{% block header_title %}Download History{% endblock %}
+{% block header_subtitle %}Keep track of downloads, edit metadata and import tracks{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+
+    <!-- Downloads History List -->
+    <div class="bg-darkPanel border border-slate-700 rounded-xl shadow overflow-hidden">
+        <div class="px-6 py-4 bg-slate-800/40 border-b border-slate-700 flex items-center justify-between">
+            <h3 class="font-bold text-slate-200">Downloads and Import Log</h3>
+            <span class="text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded font-semibold">{{ history|length }} entries</span>
+        </div>
+
+        <div class="divide-y divide-slate-800">
+            {% if history %}
+                {% for log in history %}
+                <div class="p-6 hover:bg-slate-800/10 transition flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-3">
+                            <h4 class="font-bold text-slate-100">{{ log.artist }} - {{ log.track }}</h4>
+                            {% if log.status == 'imported' %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 capitalize">Imported</span>
+                            {% elif log.status == 'completed' %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/10 text-sky-400 border border-sky-500/20 capitalize">Completed</span>
+                            {% elif log.status == 'failed' %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 capitalize">Failed</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 capitalize">{{ log.status }}</span>
+                            {% endif %}
+                        </div>
+                        <p class="text-xs text-slate-400">File: <strong class="text-slate-300 font-mono">{{ log.filename }}</strong></p>
+                        <div class="text-xs text-slate-500 flex items-center space-x-4 pt-1">
+                            <span>Format: <strong class="text-slate-400 uppercase">{{ log.format }}</strong></span>
+                            {% if log.bitrate %}
+                            <span>Bitrate: <strong class="text-slate-400">{{ log.bitrate }} kbps</strong></span>
+                            {% endif %}
+                            <span>User: <strong class="text-slate-400">{{ log.source_user }}</strong></span>
+                            <span>Time: {{ log.downloaded_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Right Quick Actions -->
+                    <div class="flex items-center space-x-2 justify-end shrink-0">
+                        <!-- Favorite Toggle -->
+                        <form action="/favorites/toggle" method="post">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="artist" value="{{ log.artist }}">
+                            <input type="hidden" name="track" value="{{ log.track }}">
+                            <input type="hidden" name="album" value="{{ log.album or '' }}">
+                            <input type="hidden" name="source" value="{{ log.source_user }}">
+                            <button type="submit" class="bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-400 p-2.5 rounded-lg border border-rose-500/20 text-xs transition">
+                                <i class="fa-solid fa-heart"></i>
+                            </button>
+                        </form>
+
+                        <!-- Edit/Import or metadata edit -->
+                        {% if log.status == 'completed' %}
+                        <a href="/metadata-queue?edit={{ log.id }}" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3.5 py-2 rounded-lg text-xs transition shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                            <span>Edit Tags</span>
+                        </a>
+                        {% elif log.status == 'imported' and navidrome_ui_url %}
+                        <a href="{{ navidrome_ui_url }}" target="_blank" class="bg-slate-700 hover:bg-slate-600 text-slate-100 font-medium px-3.5 py-2 rounded-lg text-xs transition shadow flex items-center space-x-1">
+                            <i class="fa-solid fa-square-caret-right text-emerald-400"></i>
+                            <span>Open in Navidrome</span>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="text-center py-16 text-slate-500">
+                <i class="fa-solid fa-clock-rotate-left text-4xl mb-2 block"></i>
+                <span class="text-sm">Download log is empty. Get started on the <a href="/search" class="text-sky-400 hover:underline">Search</a> page!</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,87 @@
+<div class="divide-y divide-slate-800">
+    {% if downloads %}
+        {% for dl in downloads %}
+        <div class="p-6 hover:bg-slate-800/10 transition flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <!-- Left Info -->
+            <div class="space-y-1 max-w-xl">
+                <div class="flex items-center space-x-3">
+                    <h4 class="font-bold text-slate-100">{{ dl.artist }} - {{ dl.track }}</h4>
+                    {% if dl.status == 'downloading' %}
+                    <span class="px-2 py-0.5 rounded text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20 capitalize">Downloading</span>
+                    {% elif dl.status == 'completed' %}
+                    <span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 capitalize">Completed</span>
+                    {% elif dl.status == 'failed' %}
+                    <span class="px-2 py-0.5 rounded text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20 capitalize">Failed</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 capitalize">Queued</span>
+                    {% endif %}
+                </div>
+                <p class="text-xs text-slate-400 truncate font-mono">{{ dl.filename }}</p>
+                <div class="text-xs text-slate-400 flex items-center space-x-4 pt-1">
+                    <span>Source User: <strong class="text-slate-300">{{ dl.source_user }}</strong></span>
+                    <span>Format: <strong class="text-slate-300 uppercase">{{ dl.format }}</strong></span>
+                    {% if dl.bitrate %}
+                    <span>Bitrate: <strong class="text-slate-300">{{ dl.bitrate }} kbps</strong></span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Middle Status & Progress -->
+            <div class="flex-1 max-w-xs space-y-1">
+                {% if dl.status == 'downloading' %}
+                    <div class="flex justify-between text-xs text-slate-300 font-medium">
+                        <span>Progress: {{ dl.progress|round(1) }}%</span>
+                        <span>{{ dl.speed }}</span>
+                    </div>
+                    <!-- Progress Bar -->
+                    <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700">
+                        <div class="bg-sky-500 h-2 rounded-full" style="width: {{ dl.progress }}%"></div>
+                    </div>
+                    <div class="text-right text-[10px] text-slate-400">
+                        ETA: {{ dl.eta }}
+                    </div>
+                {% elif dl.status == 'completed' %}
+                    <div class="flex justify-between text-xs text-slate-300 font-medium">
+                        <span>Progress: 100%</span>
+                        <span class="text-emerald-400">Ready</span>
+                    </div>
+                    <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700">
+                        <div class="bg-emerald-500 h-2 rounded-full" style="width: 100%"></div>
+                    </div>
+                {% elif dl.status == 'failed' %}
+                    <div class="text-xs text-rose-400 font-medium">
+                        Download failed or aborted
+                    </div>
+                {% else %}
+                    <div class="flex justify-between text-xs text-slate-300 font-medium">
+                        <span>In Queue...</span>
+                    </div>
+                    <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700 animate-pulse">
+                        <div class="bg-amber-500 h-2 rounded-full w-1/4"></div>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Right Actions (Cancel / Clear) -->
+            <div class="flex items-center space-x-2 justify-end shrink-0">
+                {% if dl.status in ['downloading', 'queued', 'pending'] %}
+                <button hx-post="/downloads/{{ dl.id }}/cancel" hx-target="#downloads-list" class="bg-rose-600/10 hover:bg-rose-600 text-rose-400 hover:text-white px-3 py-1.5 rounded text-xs transition border border-rose-500/20 font-medium flex items-center space-x-1">
+                    <i class="fa-solid fa-rectangle-xmark"></i>
+                    <span>Cancel</span>
+                </button>
+                {% elif dl.status == 'completed' %}
+                <a href="/history?edit={{ dl.id }}" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded text-xs transition shadow font-medium flex items-center space-x-1">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <span>Edit & Import</span>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="text-center py-16 text-slate-500">
+        <i class="fa-solid fa-cloud-arrow-down text-4xl mb-2 block"></i>
+        <span class="text-sm">No active or recently queued downloads. Go to the <a href="/search" class="text-sky-400 hover:underline">Search</a> page to find songs.</span>
+    </div>
+    {% endif %}
+</div>

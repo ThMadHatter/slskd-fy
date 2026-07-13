@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Track Portal{% endblock %}
+{% block header_title %}Dashboard{% endblock %}
+{% block header_subtitle %}Overview of single track downloads and status{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+
+    <!-- Top Stats Row -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <!-- Wishlist Widget -->
+        <div class="bg-darkPanel border border-slate-700 rounded-xl p-6 flex items-center justify-between shadow">
+            <div>
+                <p class="text-sm font-medium text-slate-400">Wishlist Tracks</p>
+                <h3 class="text-3xl font-bold mt-1 text-emerald-400">{{ stats.wishlist_count }}</h3>
+            </div>
+            <div class="p-3 bg-emerald-500/10 rounded-lg text-emerald-400">
+                <i class="fa-solid fa-clipboard-list text-2xl"></i>
+            </div>
+        </div>
+
+        <!-- Active Downloads Widget -->
+        <div class="bg-darkPanel border border-slate-700 rounded-xl p-6 flex items-center justify-between shadow">
+            <div>
+                <p class="text-sm font-medium text-slate-400">Active Downloads</p>
+                <h3 class="text-3xl font-bold mt-1 text-sky-400">{{ stats.active_downloads_count }}</h3>
+            </div>
+            <div class="p-3 bg-sky-500/10 rounded-lg text-sky-400">
+                <i class="fa-solid fa-download text-2xl"></i>
+            </div>
+        </div>
+
+        <!-- Completed Today Widget -->
+        <div class="bg-darkPanel border border-slate-700 rounded-xl p-6 flex items-center justify-between shadow">
+            <div>
+                <p class="text-sm font-medium text-slate-400">Completed Tracks</p>
+                <h3 class="text-3xl font-bold mt-1 text-indigo-400">{{ stats.completed_count }}</h3>
+            </div>
+            <div class="p-3 bg-indigo-500/10 rounded-lg text-indigo-400">
+                <i class="fa-solid fa-circle-check text-2xl"></i>
+            </div>
+        </div>
+
+        <!-- Favorites Widget -->
+        <div class="bg-darkPanel border border-slate-700 rounded-xl p-6 flex items-center justify-between shadow">
+            <div>
+                <p class="text-sm font-medium text-slate-400">Favorites</p>
+                <h3 class="text-3xl font-bold mt-1 text-rose-400">{{ stats.favorites_count }}</h3>
+            </div>
+            <div class="p-3 bg-rose-500/10 rounded-lg text-rose-400">
+                <i class="fa-solid fa-heart text-2xl"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Duplicate Warnings Banner if duplicates detected on disk -->
+    {% if stats.duplicate_warnings %}
+    <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-6 shadow flex items-start space-x-4">
+        <div class="p-2 bg-amber-500/10 text-amber-400 rounded-lg">
+            <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+        </div>
+        <div>
+            <h4 class="font-bold text-amber-400 text-lg">Potential Duplicates Found</h4>
+            <p class="text-slate-300 text-sm mt-1">Some downloads in history or local folders match files currently present in your library.</p>
+            <div class="mt-4 space-y-2">
+                {% for dup in stats.duplicate_warnings %}
+                <div class="text-xs text-amber-300/80 flex items-center space-x-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+                    <span><strong>{{ dup.artist }} - {{ dup.track }}</strong> (Already present in library)</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Dashboard Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+        <!-- Active Downloads Card -->
+        <div class="bg-darkPanel border border-slate-700 rounded-xl shadow overflow-hidden">
+            <div class="p-6 border-b border-slate-700 flex items-center justify-between">
+                <h3 class="font-bold text-lg flex items-center space-x-2">
+                    <i class="fa-solid fa-spinner animate-spin text-sky-400"></i>
+                    <span>Active Downloads</span>
+                </h3>
+                <a href="/downloads" class="text-xs text-sky-400 hover:underline">View All</a>
+            </div>
+
+            <div class="p-6 space-y-4">
+                {% if stats.active_downloads %}
+                    {% for dl in stats.active_downloads %}
+                    <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700 space-y-2">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h4 class="font-bold text-sm text-slate-100 truncate">{{ dl.artist }} - {{ dl.track }}</h4>
+                                <p class="text-xs text-slate-400 mt-0.5 truncate">{{ dl.filename }}</p>
+                            </div>
+                            <span class="text-xs font-semibold px-2 py-1 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 capitalize">{{ dl.status }}</span>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+                            <span>User: <strong class="text-slate-300">{{ dl.source_user }}</strong></span>
+                            <span>Format: <strong class="text-slate-300">{{ dl.format }}</strong></span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else: %}
+                    <div class="text-center py-12 text-slate-500">
+                        <i class="fa-solid fa-cloud-arrow-down text-3xl mb-2 block"></i>
+                        <span class="text-sm">No active downloads</span>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Recent Downloads Card -->
+        <div class="bg-darkPanel border border-slate-700 rounded-xl shadow overflow-hidden">
+            <div class="p-6 border-b border-slate-700 flex items-center justify-between">
+                <h3 class="font-bold text-lg flex items-center space-x-2">
+                    <i class="fa-solid fa-clock-rotate-left text-indigo-400"></i>
+                    <span>Recently Completed</span>
+                </h3>
+                <a href="/history" class="text-xs text-indigo-400 hover:underline">View History</a>
+            </div>
+
+            <div class="p-6 space-y-4">
+                {% if stats.recent_downloads %}
+                    {% for dl in stats.recent_downloads %}
+                    <div class="bg-slate-800/30 p-4 rounded-lg border border-slate-700/80 flex items-center justify-between">
+                        <div>
+                            <h4 class="font-bold text-sm text-slate-100">{{ dl.artist }} - {{ dl.track }}</h4>
+                            <p class="text-xs text-slate-400 mt-0.5">Format: {{ dl.format }} | User: {{ dl.source_user }}</p>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            {% if dl.status == 'completed' %}
+                            <a href="/history?edit={{ dl.id }}" class="text-xs bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white px-2.5 py-1.5 rounded transition border border-emerald-500/30">
+                                <i class="fa-solid fa-pen-to-square mr-1"></i>Edit / Import
+                            </a>
+                            {% else %}
+                            <span class="text-xs bg-slate-700 text-slate-400 px-2.5 py-1.5 rounded border border-slate-600 font-semibold capitalize">{{ dl.status }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else: %}
+                    <div class="text-center py-12 text-slate-500">
+                        <i class="fa-solid fa-circle-check text-3xl mb-2 block"></i>
+                        <span class="text-sm">No completed downloads yet</span>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}

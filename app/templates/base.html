@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Track Portal{% endblock %}</title>
+    <!-- Tailwind CSS (via CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0f172a',
+                        darkPanel: '#1e293b',
+                        accentGreen: '#10b981',
+                        accentBlue: '#3b82f6',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- HTMX (via CDN) -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body class="bg-darkBg text-slate-100 font-sans min-h-screen flex flex-col md:flex-row" hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
+
+    <!-- Sidebar / Navigation -->
+    <aside class="w-full md:w-64 bg-darkPanel border-b md:border-b-0 md:border-r border-slate-700 flex flex-col justify-between shrink-0">
+        <div>
+            <!-- Branding -->
+            <div class="p-6 border-b border-slate-700 flex items-center justify-between">
+                <a href="/" class="flex items-center space-x-3 text-emerald-400 font-bold text-xl">
+                    <i class="fa-solid fa-record-vinyl text-2xl animate-spin-slow"></i>
+                    <span>Track Portal</span>
+                </a>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="p-4 space-y-1">
+                <a href="/dashboard" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-700 transition {% if active_page == 'dashboard' %}bg-slate-700 text-emerald-400{% endif %}">
+                    <i class="fa-solid fa-house w-6 text-center"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/search" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-700 transition {% if active_page == 'search' %}bg-slate-700 text-emerald-400{% endif %}">
+                    <i class="fa-solid fa-magnifying-glass w-6 text-center"></i>
+                    <span>Search</span>
+                </a>
+                <a href="/downloads" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-700 transition {% if active_page == 'downloads' %}bg-slate-700 text-emerald-400{% endif %}">
+                    <i class="fa-solid fa-download w-6 text-center"></i>
+                    <span>Downloads</span>
+                </a>
+                <a href="/metadata-queue" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-700 transition {% if active_page == 'metadata_queue' %}bg-slate-700 text-emerald-400{% endif %}">
+                    <i class="fa-solid fa-tags w-6 text-center"></i>
+                    <span>Metadata Queue</span>
+                </a>
+                <a href="/wishlist" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-700 transition {% if active_page == 'wishlist' %}bg-slate-700 text-emerald-400{% endif %}">
+                    <i class="fa-solid fa-clipboard-list w-6 text-center"></i>
+                    <span>Wishlist</span>
+                </a>
+                <a href="/favorites" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-700 transition {% if active_page == 'favorites' %}bg-slate-700 text-emerald-400{% endif %}">
+                    <i class="fa-solid fa-heart w-6 text-center"></i>
+                    <span>Favorites</span>
+                </a>
+                <a href="/history" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-700 transition {% if active_page == 'history' %}bg-slate-700 text-emerald-400{% endif %}">
+                    <i class="fa-solid fa-clock-rotate-left w-6 text-center"></i>
+                    <span>History</span>
+                </a>
+                <a href="/admin" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-700 transition {% if active_page == 'admin' %}bg-slate-700 text-emerald-400{% endif %}">
+                    <i class="fa-solid fa-user-gear w-6 text-center"></i>
+                    <span>Administration</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Sidebar Footer / Logout -->
+        <div class="p-4 border-t border-slate-700 flex flex-col space-y-3">
+            <div class="flex items-center space-x-3 px-4 py-2">
+                <i class="fa-solid fa-circle-user text-slate-400"></i>
+                <span class="text-sm font-semibold truncate">{{ user.username }}</span>
+            </div>
+            <a href="/logout" class="flex items-center space-x-3 px-4 py-2 rounded-lg text-rose-400 hover:bg-rose-500 hover:text-white transition">
+                <i class="fa-solid fa-right-from-bracket w-6 text-center"></i>
+                <span>Logout</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col overflow-y-auto">
+        <!-- Banner / Header -->
+        <header class="bg-darkPanel border-b border-slate-700 px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between space-y-2 md:space-y-0 shrink-0">
+            <div>
+                <h1 class="text-2xl font-semibold">{% block header_title %}Track Portal{% endblock %}</h1>
+                <p class="text-sm text-slate-400">{% block header_subtitle %}Single track discovery and downloads{% endblock %}</p>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="flex items-center space-x-4">
+                {% if filebrowser_url %}
+                <a href="{{ filebrowser_url }}" target="_blank" class="bg-slate-700 hover:bg-slate-600 text-slate-100 font-medium px-4 py-2 rounded-lg text-sm flex items-center space-x-2 transition shadow">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <span>Open Uploads Folder</span>
+                </a>
+                {% endif %}
+                <button hx-post="/navidrome/rescan" hx-swap="none" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded-lg text-sm flex items-center space-x-2 transition shadow">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    <span>Rescan Navidrome</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Body -->
+        <div class="p-8 flex-1">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+</body>
+</html>

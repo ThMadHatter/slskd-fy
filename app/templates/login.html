@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Track Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0f172a',
+                        darkPanel: '#1e293b',
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-darkBg text-slate-100 font-sans min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md bg-darkPanel rounded-2xl border border-slate-700 shadow-2xl overflow-hidden">
+        <!-- Logo & Branding -->
+        <div class="p-8 text-center border-b border-slate-700 bg-slate-900/50">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-400 mb-4 border border-emerald-500/20">
+                <i class="fa-solid fa-record-vinyl text-3xl animate-spin-slow"></i>
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight">Welcome to Track Portal</h1>
+            <p class="text-sm text-slate-400 mt-1">Please sign in to your administrator account</p>
+        </div>
+
+        <!-- Login Form -->
+        <form action="/login" method="post" class="p-8 space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            {% if error %}
+            <div class="bg-rose-500/10 border border-rose-500/20 rounded-lg p-4 flex items-start space-x-3 text-rose-400 text-sm">
+                <i class="fa-solid fa-circle-exclamation text-lg mt-0.5 shrink-0"></i>
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            <!-- Username -->
+            <div>
+                <label for="username" class="block text-sm font-medium text-slate-300 mb-1.5">Username</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+                        <i class="fa-solid fa-user"></i>
+                    </span>
+                    <input type="text" id="username" name="username" required
+                           class="block w-full pl-10 pr-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-100 placeholder-slate-500"
+                           placeholder="Enter admin username">
+                </div>
+            </div>
+
+            <!-- Password -->
+            <div>
+                <label for="password" class="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+                        <i class="fa-solid fa-lock"></i>
+                    </span>
+                    <input type="password" id="password" name="password" required
+                           class="block w-full pl-10 pr-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-100 placeholder-slate-500"
+                           placeholder="••••••••">
+                </div>
+            </div>
+
+            <!-- Remember Me -->
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <input id="remember_me" name="remember_me" type="checkbox"
+                           class="h-4 w-4 rounded border-slate-700 bg-slate-800 text-emerald-600 focus:ring-emerald-500">
+                    <label for="remember_me" class="ml-2 block text-sm text-slate-300">Remember me</label>
+                </div>
+            </div>
+
+            <!-- Submit -->
+            <button type="submit"
+                    class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-emerald-500/10 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition">
+                Sign In
+            </button>
+        </form>
+    </div>
+
+</body>
+</html>

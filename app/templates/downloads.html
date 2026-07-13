@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Downloads - Track Portal{% endblock %}
+{% block header_title %}Downloads{% endblock %}
+{% block header_subtitle %}Monitor track queues, progress and downloads{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+
+    <!-- Active Transfers List Wrapper with Auto Polling via HTMX -->
+    <div class="bg-darkPanel border border-slate-700 rounded-xl shadow overflow-hidden">
+        <div class="px-6 py-4 bg-slate-800/40 border-b border-slate-700 flex items-center justify-between">
+            <h3 class="font-bold text-slate-200">Active and Queued Transfers</h3>
+            <div class="flex items-center space-x-2 text-xs text-slate-400">
+                <i class="fa-solid fa-arrows-rotate animate-spin text-emerald-400"></i>
+                <span>Polling active queues every 5s</span>
+            </div>
+        </div>
+
+        <!-- This container gets polled and swapped by HTMX -->
+        <div id="downloads-list" hx-get="/downloads/list" hx-trigger="load, every 5s">
+            <div class="p-12 text-center text-slate-500">
+                <i class="fa-solid fa-spinner animate-spin text-emerald-400 text-3xl mb-3 block"></i>
+                <span>Loading active downloads...</span>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

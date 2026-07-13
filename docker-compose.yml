@@ -1,0 +1,49 @@
+services:
+  track-portal:
+    build: .
+    container_name: track_portal
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # slskd API connection
+      - SLSKD_API_URL=http://slskd:5030/api/v0
+      - SLSKD_API_KEY=your_slskd_api_key_here
+
+      # Container paths mapped to mounted directories
+      - MUSIC_LIBRARY_PATH=/music
+      - UPLOADS_PATH=/uploads
+      - SINGLES_PATH=/uploads/Singles
+      - DOWNLOADS_PATH=/downloads
+
+      # SQLite Database location inside config folder
+      - DATABASE_URL=sqlite:////config/track_portal.db
+
+      # Administration security & auth
+      - SECRET_KEY=supersecretkey_change_me_in_production
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=adminpasswordchange_me
+
+      # Navidrome connection
+      - NAVIDROME_URL=http://navidrome:4533
+      - NAVIDROME_USER=admin
+      - NAVIDROME_PASSWORD=navidromepassword_here
+
+      # Optional external dashboard links
+      - FILEBROWSER_URL=http://your-filebrowser-address:8080
+      - NAVIDROME_UI_URL=http://your-navidrome-address:4533
+
+      # Configurable quality preference ranking order
+      - QUALITY_RANKING=flac,alac,wav,aac,mp3_320,mp3_v0
+    volumes:
+      # Host path mounts based on context
+      - /mnt/music/Music:/music
+      - /mnt/music/Uploads:/uploads
+      - /mnt/music/Downloads/slskd:/downloads
+      - /mnt/music/Config:/config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

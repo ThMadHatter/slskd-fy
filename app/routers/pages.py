@@ -321,8 +321,6 @@ async def post_search_results(
         db.add(hist)
         db.commit()
 
-        await slskd_client.delete_search(search_id)
-
         return render_template("search_results.html", request, {
             "results": filtered_results,
             "user": user

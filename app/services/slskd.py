@@ -21,10 +21,14 @@ class SlskdClient:
         POST /api/v0/searches
         """
         url = f"{self.api_url}/searches"
+        # Include both camelCase and snake_case properties to ensure compatibility across all slskd versions
         payload = {
             "searchText": query,
+            "search_text": query,
             "searchTimeout": timeout_sec,
-            "filterResponses": True
+            "search_timeout": timeout_sec,
+            "filterResponses": True,
+            "filter_responses": True
         }
         logger.info(f"Submitting slskd search for query: '{query}'")
         async with httpx.AsyncClient() as client:

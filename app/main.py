@@ -19,14 +19,20 @@ from app.routers import pages
 from app.services.downloads_poller import start_background_poller
 
 # Configure Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger("track_portal")
+logger.setLevel(logging.INFO)
+
+# Intercept and attach to Uvicorn's logging handlers so logs print inside container console
+uvicorn_error_logger = logging.getLogger("uvicorn.error")
+if uvicorn_error_logger.handlers:
+    logger.handlers = uvicorn_error_logger.handlers
+    logger.propagate = False
+else:
+    # Fallback to standard console stream handler
+    sh = logging.StreamHandler()
+    sh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+    logger.addHandler(sh)
+    logger.propagate = False
 
 # Programmatically run Alembic migrations on startup
 def run_migrations():

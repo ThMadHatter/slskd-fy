@@ -310,9 +310,14 @@ async def post_search_results(
 
         filtered_results.sort(key=get_sort_key, reverse=True if sort_by in ["quality", "size_desc"] else False)
 
-        # Duplicate detection warning
+        # Duplicate detection warning with in-memory caching to prevent redundant Navidrome requests
+        dup_cache: Dict[tuple, Dict[str, Any]] = {}
         for r in filtered_results:
-            dup_info = await check_duplicate(db, r["artist"], r["track"])
+            cache_key = (r["artist"].lower().strip(), r["track"].lower().strip())
+            if cache_key not in dup_cache:
+                dup_cache[cache_key] = await check_duplicate(db, r["artist"], r["track"])
+
+            dup_info = dup_cache[cache_key]
             if dup_info["is_duplicate"]:
                 r["duplicate_warning"] = dup_info["warning_message"]
             else:

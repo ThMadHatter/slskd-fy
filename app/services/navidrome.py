@@ -124,5 +124,6 @@ class NavidromeClient:
                     logger.error(f"Subsonic search failed with HTTP status: {response.status_code}")
                     return False
             except Exception as e:
-                logger.error(f"Exception searching Navidrome: {e}")
+                # Log a simple warning to avoid spamming the logs when Navidrome is unreachable or unconfigured
+                logger.warning(f"Navidrome track search is currently unavailable: {e}")
                 return False

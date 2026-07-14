@@ -192,7 +192,9 @@ async def post_search_results(
         parts = []
         if clean_artist: parts.append(clean_artist)
         if clean_track: parts.append(clean_track)
-        search_query = " - ".join(parts)
+        # Use a space " " instead of " - " to join parts. Space acts as an AND operator on Soulseek,
+        # yielding significantly more matches than literal hyphens!
+        search_query = " ".join(parts)
 
     if not search_query:
         return "<div class='p-6 text-center text-rose-400'>Please enter a search query.</div>"

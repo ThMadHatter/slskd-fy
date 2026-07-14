@@ -30,13 +30,15 @@ class SlskdClient:
             "filterResponses": True,
             "filter_responses": True
         }
+        curl_cmd = f"curl -X POST -H \"X-API-KEY: {self.api_key}\" -H \"Content-Type: application/json\" -d '{{\"searchText\":\"{query}\"}}' {url}"
+        logger.info(f"Equivalent Curl Command:\n{curl_cmd}")
         logger.info(f"Submitting slskd search for query: '{query}'")
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(url, json=payload, headers=self.headers, timeout=20)
                 response.raise_for_status()
                 data = response.json()
-                logger.info(f"Successfully started search. Search ID: {data.get('id')}")
+                logger.info(f"Successfully started search. Search ID: {data.get('id')}. Response content: {data}")
                 return data
             except Exception as e:
                 logger.error(f"Failed to start search in slskd: {e}")
@@ -65,9 +67,13 @@ class SlskdClient:
         url = f"{self.api_url}/searches/{search_id}/responses"
         async with httpx.AsyncClient() as client:
             try:
+                logger.info(f"HTTP GET Request: {url}")
                 response = await client.get(url, headers=self.headers, timeout=30)
                 response.raise_for_status()
-                return response.json()
+                data = response.json()
+                # Log a summary and the first response to keep it readable, or print full raw response
+                logger.info(f"HTTP GET Response status={response.status_code}. Received {len(data)} responses. Raw: {data}")
+                return data
             except Exception as e:
                 logger.error(f"Failed to fetch search responses for {search_id}: {e}")
                 raise

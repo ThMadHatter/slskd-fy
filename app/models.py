@@ -70,3 +70,21 @@ class AuditLog(Base):
     details = Column(String, nullable=True)
     ip_address = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class CacheEntry(Base):
+    __tablename__ = "cache_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, index=True, nullable=False)
+    value = Column(String, nullable=False)  # JSON representation of the cached value
+    entity_type = Column(String, nullable=False)  # artist, album, track, musicbrainz
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class CacheMetric(Base):
+    __tablename__ = "cache_metrics"
+
+    id = Column(Integer, primary_key=True, index=True)
+    entity_type = Column(String, unique=True, nullable=False)  # artist, album, track, musicbrainz
+    hits = Column(Integer, default=0, nullable=False)
+    misses = Column(Integer, default=0, nullable=False)

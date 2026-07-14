@@ -19,6 +19,12 @@ from app.services.slskd import SlskdClient
 from app.services.navidrome import NavidromeClient
 from app.services.duplicate_detector import check_duplicate
 from app.services.tagger import read_tags, write_tags
+from app.services.cache_service import CacheService
+from app.services.artist_service import ArtistService
+from app.services.track_service import TrackService
+from app.services.search_ranking_service import SearchRankingService
+from app.services.filename_parser import parse_filename
+from app.services.musicbrainz_service import MusicBrainzService
 
 logger = logging.getLogger("track_portal.pages")
 
@@ -137,6 +143,38 @@ async def get_dashboard(request: Request, user: User = Depends(get_current_user)
         if dup["is_duplicate"]:
             duplicate_warnings.append({"artist": dl.artist, "track": dl.track})
 
+    # Connection Healthchecks
+    from sqlalchemy import text
+    db_connected = True
+    db_error = ""
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception as e:
+        db_connected = False
+        db_error = str(e)
+
+    slskd_connected = True
+    slskd_error = ""
+    try:
+        await SlskdClient().get_downloads()
+    except Exception as e:
+        slskd_connected = False
+        slskd_error = str(e)
+
+    navidrome_connected = True
+    navidrome_error = ""
+    try:
+        ping_res = await NavidromeClient().ping_check()
+        if not ping_res.get("connected"):
+            navidrome_connected = False
+            navidrome_error = ping_res.get("message", "Unknown error")
+    except Exception as e:
+        navidrome_connected = False
+        navidrome_error = str(e)
+
+    # Cache metrics
+    cache_metrics = CacheService.get_metrics(db)
+
     stats = {
         "wishlist_count": wishlist_count,
         "favorites_count": favorites_count,
@@ -144,7 +182,13 @@ async def get_dashboard(request: Request, user: User = Depends(get_current_user)
         "completed_count": completed_count,
         "active_downloads": active_downloads,
         "recent_downloads": recent_downloads,
-        "duplicate_warnings": duplicate_warnings
+        "duplicate_warnings": duplicate_warnings,
+        "integrations": {
+            "database": {"connected": db_connected, "error": db_error},
+            "slskd": {"connected": slskd_connected, "error": slskd_error},
+            "navidrome": {"connected": navidrome_connected, "error": navidrome_error}
+        },
+        "cache_metrics": cache_metrics
     }
 
     return render_template("dashboard.html", request, {
@@ -187,22 +231,20 @@ async def post_search_results(
     clean_track = track.strip().strip("'\"").strip() if track else ""
     clean_query = query.strip().strip("'\"").strip() if query else ""
 
-    search_query = clean_query
-    if not search_query:
-        parts = []
-        if clean_artist: parts.append(clean_artist)
-        if clean_track: parts.append(clean_track)
-        # Use a space " " instead of " - " to join parts. Space acts as an AND operator on Soulseek,
-        # yielding significantly more matches than literal hyphens!
-        search_query = " ".join(parts)
+    # Issue 5: Smarter search generation
+    search_query = ""
+    if clean_artist and clean_track:
+        queries = SearchRankingService.generate_queries(clean_artist, clean_track)
+        search_query = queries[0] if queries else f"{clean_artist} {clean_track}"
+    else:
+        search_query = clean_query or f"{clean_artist} {clean_track}".strip()
 
     if not search_query:
         return "<div class='p-6 text-center text-rose-400'>Please enter a search query.</div>"
 
-    # Final safety measure strip of the combined query
     search_query = search_query.strip().strip("'\"").strip()
 
-    logger.info(f"Executing slskd search with query: '{search_query}' (Original: artist={artist}, track={track}, query={query})")
+    logger.info(f"Executing slskd search with query: '{search_query}'")
 
     slskd_client = SlskdClient()
     try:
@@ -216,7 +258,6 @@ async def post_search_results(
         for _ in range(5):
             await asyncio.sleep(1.6)
             responses = await slskd_client.get_search_responses(search_id)
-            # If we already have a robust list of responses, we can break early
             if len(responses) >= 10:
                 break
 
@@ -232,13 +273,44 @@ async def post_search_results(
                 bitrate = f.get("bitRate", 0)
                 sample_rate = f.get("sampleRate", 0)
 
-                file_artist = artist or ""
-                file_track = track or os.path.splitext(os.path.basename(filename))[0]
+                # Issue 4: Metadata Enrichment Pipeline (parse filename to resolve Unknowns)
+                parsed = parse_filename(filename)
+
+                # Fallbacks
+                res_artist = parsed.get("artist") or clean_artist or f.get("artist") or "Unknown"
+                res_track = parsed.get("track") or clean_track or f.get("title") or os.path.splitext(os.path.basename(filename))[0]
+                res_album = parsed.get("album") or f.get("album") or ""
+                res_year = parsed.get("year") or None
+
+                # Soft MusicBrainz Lookup to enrich missing details (album/year) using Cache
+                if (not res_album or not res_year) and res_artist != "Unknown":
+                    # Check cache or local MB lookup
+                    try:
+                        mb_recs = await MusicBrainzService.search_recordings(res_artist, None, res_track, db)
+                        if mb_recs:
+                            first = mb_recs[0]
+                            if not res_album and first.get("album"):
+                                res_album = first["album"]
+                            if not res_year and first.get("year"):
+                                res_year = first["year"]
+                    except Exception as ex:
+                        logger.warning(f"Metadata enrichment soft MB lookup failed: {ex}")
+
+                # Cover Art front image URL fallback
+                cover_url = ""
+                # Try finding from cache
+                if res_artist != "Unknown":
+                    cache_key = f"mb:rec_search:{res_artist.lower().strip()}:none:{res_track.lower().strip()}"
+                    mb_cached = CacheService.get(db, cache_key, "track")
+                    if mb_cached and len(mb_cached) > 0:
+                        cover_url = mb_cached[0].get("cover_url", "")
 
                 results.append({
-                    "artist": file_artist or "Unknown",
-                    "track": file_track,
-                    "album": f.get("album", "") or "",
+                    "artist": res_artist,
+                    "track": res_track,
+                    "album": res_album,
+                    "year": res_year,
+                    "cover_url": cover_url,
                     "filename": filename,
                     "size": size,
                     "username": username,
@@ -247,6 +319,12 @@ async def post_search_results(
                     "sample_rate": sample_rate,
                     "queue_length": queue_length
                 })
+
+        # --- Issue 6: Quality Scoring & Issue 5: Ranking ---
+        for r in results:
+            tgt_art = clean_artist or r["artist"]
+            tgt_tr = clean_track or r["track"]
+            r["quality_score"] = SearchRankingService.score_result(r, tgt_art, tgt_tr)
 
         # --- Apply Filters ---
         filtered_results: List[Dict[str, Any]] = []
@@ -273,44 +351,19 @@ async def post_search_results(
                     pass
             filtered_results.append(r)
 
-        # --- Preferred Download Quality Ranking (Configurable) ---
-        # Quality list: FLAC, ALAC, WAV, AAC, MP3 320, MP3 V0, etc
-        ranking_list = [f.strip().lower() for f in settings.QUALITY_RANKING.split(",")]
+        # --- Sort Results by Priority ---
+        if sort_by == "quality":
+            filtered_results.sort(key=lambda x: x["quality_score"], reverse=True)
+        elif sort_by == "size_desc":
+            filtered_results.sort(key=lambda x: x["size"] or 0, reverse=True)
+        elif sort_by == "size_asc":
+            filtered_results.sort(key=lambda x: x["size"] or 0, reverse=False)
+        elif sort_by == "queue":
+            filtered_results.sort(key=lambda x: x["queue_length"], reverse=False)
+        else:
+            filtered_results.sort(key=lambda x: x["quality_score"], reverse=True)
 
-        def get_sort_key(item):
-            fmt = item["format"].lower()
-            bitrate = item["bitrate"] or 0
-
-            # Find weight from ranking
-            weight = -999
-            if fmt == "flac" and "flac" in ranking_list:
-                weight = 100 - ranking_list.index("flac")
-            elif fmt == "alac" and "alac" in ranking_list:
-                weight = 100 - ranking_list.index("alac")
-            elif fmt == "wav" and "wav" in ranking_list:
-                weight = 100 - ranking_list.index("wav")
-            elif fmt == "aac" and "aac" in ranking_list:
-                weight = 100 - ranking_list.index("aac")
-            elif fmt == "mp3" and bitrate >= 320 and "mp3_320" in ranking_list:
-                weight = 100 - ranking_list.index("mp3_320")
-            elif fmt == "mp3" and bitrate >= 220 and "mp3_v0" in ranking_list:
-                weight = 100 - ranking_list.index("mp3_v0")
-            elif fmt in ranking_list:
-                weight = 100 - ranking_list.index(fmt)
-
-            if sort_by == "quality":
-                return (weight, bitrate)
-            elif sort_by == "size_desc":
-                return (item["size"] or 0,)
-            elif sort_by == "size_asc":
-                return (-(item["size"] or 0),)
-            elif sort_by == "queue":
-                return (-item["queue_length"], weight)
-            return (weight, bitrate)
-
-        filtered_results.sort(key=get_sort_key, reverse=True if sort_by in ["quality", "size_desc"] else False)
-
-        # Duplicate detection warning with in-memory caching to prevent redundant Navidrome requests
+        # Duplicate detection warning
         dup_cache: Dict[tuple, Dict[str, Any]] = {}
         for r in filtered_results:
             cache_key = (r["artist"].lower().strip(), r["track"].lower().strip())
@@ -862,3 +915,73 @@ async def post_navidrome_rescan(user: User = Depends(get_current_user)):
         return HTMLResponse("<span class='text-xs text-emerald-400 font-semibold'><i class='fa-solid fa-circle-check mr-1'></i>Navidrome scan triggered!</span>")
     else:
         return HTMLResponse("<span class='text-xs text-rose-400 font-semibold'><i class='fa-solid fa-triangle-exclamation mr-1'></i>Scan trigger failed</span>")
+
+# --- Autocomplete Endpoints ---
+
+@router.get("/api/autocomplete/artist", response_class=HTMLResponse)
+async def api_autocomplete_artist(
+    request: Request,
+    q: Optional[str] = "",
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    if not q or len(q.strip()) < 2:
+        return ""
+    artists = await ArtistService.autocomplete(q, db)
+    if not artists:
+        return "<div class='p-3 text-sm text-slate-500 bg-slate-800 border border-slate-700 rounded-lg mt-1 absolute z-50 w-full'>No artists found.</div>"
+
+    html = '<ul class="absolute z-50 w-full bg-slate-800 border border-slate-700 rounded-lg shadow-xl mt-1 max-h-60 overflow-y-auto divide-y divide-slate-700">'
+    for a in artists:
+        mbid = a.get("id") or ""
+        name = a.get("name").replace("'", "\\'")
+        html += f"""
+        <li class="px-4 py-3 hover:bg-slate-700 cursor-pointer text-sm transition" onclick="selectArtist('{name}', '{mbid}')">
+            <div class="font-bold text-slate-200">{a.get('name')}</div>
+            <div class="text-xs text-slate-400">{a.get('type')} - {a.get('country') or 'Unknown'} ({a.get('disambiguation') or 'No info'})</div>
+        </li>
+        """
+    html += '</ul>'
+    return HTMLResponse(content=html)
+
+@router.get("/api/autocomplete/track", response_class=HTMLResponse)
+async def api_autocomplete_track(
+    request: Request,
+    artist_name: Optional[str] = "",
+    artist_mbid: Optional[str] = "",
+    q: Optional[str] = "",
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    if not artist_name:
+        return ""
+    tracks = await TrackService.autocomplete(artist_name, artist_mbid, q, db)
+    if not tracks:
+        return "<div class='p-3 text-sm text-slate-500 bg-slate-800 border border-slate-700 rounded-lg mt-1 absolute z-50 w-full'>No tracks found.</div>"
+
+    html = '<ul class="absolute z-50 w-full bg-slate-800 border border-slate-700 rounded-lg shadow-xl mt-1 max-h-60 overflow-y-auto divide-y divide-slate-700">'
+    for t in tracks:
+        title = t.get("title", "").replace("'", "\\'")
+        album = (t.get("album") or "").replace("'", "\\'")
+        cover_url = t.get("cover_url") or ""
+        year = t.get("year") or ""
+
+        if cover_url:
+            img_html = f'<img src="{cover_url}" class="w-8 h-8 rounded shrink-0 object-cover bg-slate-900" onerror="this.style.display=\'none\'" />'
+        else:
+            img_html = '<div class="w-8 h-8 rounded bg-slate-900 border border-slate-700 flex items-center justify-center shrink-0"><i class="fa-solid fa-music text-slate-500 text-xs"></i></div>'
+
+        year_str = f" ({year})" if year else ""
+        album_display = t.get('album') or 'Single'
+
+        html += f"""
+        <li class="px-4 py-3 hover:bg-slate-700 cursor-pointer text-sm transition flex items-center space-x-3" onclick="selectTrack('{title}', '{album}')">
+            {img_html}
+            <div class="min-w-0 flex-1">
+                <div class="font-bold text-slate-200 truncate">{t.get('title')}</div>
+                <div class="text-xs text-slate-400 truncate">{album_display}{year_str}</div>
+            </div>
+        </li>
+        """
+    html += '</ul>'
+    return HTMLResponse(content=html)

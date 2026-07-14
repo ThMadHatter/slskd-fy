@@ -75,6 +75,127 @@
     </div>
     {% endif %}
 
+    <!-- Integrations Status Section -->
+    <div class="bg-darkPanel border border-slate-700 rounded-xl p-6 shadow space-y-6">
+        <h3 class="text-lg font-bold flex items-center space-x-2">
+            <i class="fa-solid fa-circle-nodes text-emerald-400"></i>
+            <span>Integrations & System Health</span>
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Database Connection -->
+            <div class="p-4 rounded-xl bg-slate-800/50 border border-slate-700 space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="font-semibold text-sm">Database Connection</span>
+                    {% if stats.integrations.database.connected %}
+                    <span class="text-xs px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold flex items-center">
+                        <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full mr-1.5"></span>Connected
+                    </span>
+                    {% else %}
+                    <span class="text-xs px-2.5 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold flex items-center">
+                        <span class="w-1.5 h-1.5 bg-rose-400 rounded-full mr-1.5"></span>Disconnected
+                    </span>
+                    {% endif %}
+                </div>
+                {% if not stats.integrations.database.connected %}
+                <p class="text-xs text-rose-300/90 font-mono bg-rose-950/20 p-2 rounded max-h-24 overflow-y-auto">{{ stats.integrations.database.error }}</p>
+                {% else %}
+                <p class="text-xs text-slate-400">Operational: SQLite database schema upgraded and fully writable.</p>
+                {% endif %}
+            </div>
+
+            <!-- slskd Connection -->
+            <div class="p-4 rounded-xl bg-slate-800/50 border border-slate-700 space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="font-semibold text-sm">slskd REST API</span>
+                    {% if stats.integrations.slskd.connected %}
+                    <span class="text-xs px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold flex items-center">
+                        <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full mr-1.5"></span>Connected
+                    </span>
+                    {% else %}
+                    <span class="text-xs px-2.5 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold flex items-center">
+                        <span class="w-1.5 h-1.5 bg-rose-400 rounded-full mr-1.5"></span>Disconnected
+                    </span>
+                    {% endif %}
+                </div>
+                {% if not stats.integrations.slskd.connected %}
+                <div class="space-y-2">
+                    <p class="text-xs text-rose-300/90 font-mono bg-rose-950/20 p-2 rounded max-h-24 overflow-y-auto">{{ stats.integrations.slskd.error }}</p>
+                    <div class="text-[10px] text-slate-400 bg-slate-900 p-2 rounded space-y-1">
+                        <p class="font-bold text-slate-300">Troubleshooting:</p>
+                        <p>1. Check if slskd is running.</p>
+                        <p>2. Verify SLSKD_API_URL and SLSKD_API_KEY in your <code>.env</code>.</p>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-xs text-slate-400">Operational: Successfully authenticated and receiving queue state.</p>
+                {% endif %}
+            </div>
+
+            <!-- Navidrome Connection -->
+            <div class="p-4 rounded-xl bg-slate-800/50 border border-slate-700 space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="font-semibold text-sm">Navidrome Subsonic API</span>
+                    {% if stats.integrations.navidrome.connected %}
+                    <span class="text-xs px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold flex items-center">
+                        <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full mr-1.5"></span>Connected
+                    </span>
+                    {% else %}
+                    <span class="text-xs px-2.5 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold flex items-center">
+                        <span class="w-1.5 h-1.5 bg-rose-400 rounded-full mr-1.5"></span>Disconnected
+                    </span>
+                    {% endif %}
+                </div>
+                {% if not stats.integrations.navidrome.connected %}
+                <div class="space-y-2">
+                    <p class="text-xs text-rose-300/90 font-mono bg-rose-950/20 p-2 rounded max-h-24 overflow-y-auto">{{ stats.integrations.navidrome.error }}</p>
+                    <div class="text-[10px] text-slate-400 bg-slate-900 p-2 rounded space-y-1">
+                        <p class="font-bold text-slate-300">Troubleshooting:</p>
+                        <p>1. Confirm NAVIDROME_URL, USER, and PASSWORD are correct.</p>
+                        <p>2. Verify Navidrome supports Subsonic API.</p>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-xs text-slate-400">Operational: Subsonic API version 1.16.0 supported and scanning enabled.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Cache Metrics & Performance Row -->
+    <div class="bg-darkPanel border border-slate-700 rounded-xl p-6 shadow space-y-4">
+        <h3 class="text-lg font-bold flex items-center space-x-2">
+            <i class="fa-solid fa-bolt text-amber-400"></i>
+            <span>Local Cache Layer & Hit/Miss Metrics</span>
+        </h3>
+        <p class="text-sm text-slate-400">Real-time stats from SQLite caching for MusicBrainz lookups and autocomplete queries.</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+            <!-- Artist Cache Metrics -->
+            <div class="bg-slate-800/30 p-4 rounded-lg border border-slate-700 flex justify-between items-center">
+                <div>
+                    <h4 class="font-semibold text-sm">Artist Cache</h4>
+                    <p class="text-xs text-slate-400 mt-1">Hits: <strong class="text-slate-200">{{ stats.cache_metrics.artist.hits if stats.cache_metrics.artist else 0 }}</strong> | Misses: <strong class="text-slate-200">{{ stats.cache_metrics.artist.misses if stats.cache_metrics.artist else 0 }}</strong></p>
+                </div>
+                <i class="fa-solid fa-users text-2xl text-slate-600"></i>
+            </div>
+            <!-- Track Cache Metrics -->
+            <div class="bg-slate-800/30 p-4 rounded-lg border border-slate-700 flex justify-between items-center">
+                <div>
+                    <h4 class="font-semibold text-sm">Track Cache</h4>
+                    <p class="text-xs text-slate-400 mt-1">Hits: <strong class="text-slate-200">{{ stats.cache_metrics.track.hits if stats.cache_metrics.track else 0 }}</strong> | Misses: <strong class="text-slate-200">{{ stats.cache_metrics.track.misses if stats.cache_metrics.track else 0 }}</strong></p>
+                </div>
+                <i class="fa-solid fa-music text-2xl text-slate-600"></i>
+            </div>
+            <!-- General MusicBrainz Cache Metrics -->
+            <div class="bg-slate-800/30 p-4 rounded-lg border border-slate-700 flex justify-between items-center">
+                <div>
+                    <h4 class="font-semibold text-sm">MusicBrainz API Cache</h4>
+                    <p class="text-xs text-slate-400 mt-1">Hits: <strong class="text-slate-200">{{ stats.cache_metrics.musicbrainz.hits if stats.cache_metrics.musicbrainz else 0 }}</strong> | Misses: <strong class="text-slate-200">{{ stats.cache_metrics.musicbrainz.misses if stats.cache_metrics.musicbrainz else 0 }}</strong></p>
+                </div>
+                <i class="fa-solid fa-globe text-2xl text-slate-600"></i>
+            </div>
+        </div>
+    </div>
+
     <!-- Dashboard Main Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
 

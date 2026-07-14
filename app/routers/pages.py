@@ -182,18 +182,25 @@ async def post_search_results(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    search_query = query
+    # Defensively strip quotes from individual form input values first to prevent slskd literal quote matching issues
+    clean_artist = artist.strip().strip("'\"").strip() if artist else ""
+    clean_track = track.strip().strip("'\"").strip() if track else ""
+    clean_query = query.strip().strip("'\"").strip() if query else ""
+
+    search_query = clean_query
     if not search_query:
         parts = []
-        if artist: parts.append(artist)
-        if track: parts.append(track)
+        if clean_artist: parts.append(clean_artist)
+        if clean_track: parts.append(clean_track)
         search_query = " - ".join(parts)
 
     if not search_query:
         return "<div class='p-6 text-center text-rose-400'>Please enter a search query.</div>"
 
-    # Clean query from leading/trailing double or single quotes to prevent slskd literal quote matching issues
-    search_query = search_query.strip().strip("'\"")
+    # Final safety measure strip of the combined query
+    search_query = search_query.strip().strip("'\"").strip()
+
+    logger.info(f"Executing slskd search with query: '{search_query}' (Original: artist={artist}, track={track}, query={query})")
 
     slskd_client = SlskdClient()
     try:

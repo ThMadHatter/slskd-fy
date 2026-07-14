@@ -18,20 +18,27 @@ from app.auth import (
 from app.routers import pages
 from app.services.downloads_poller import start_background_poller
 
-# Configure Logging
-logger = logging.getLogger("track_portal")
-logger.setLevel(logging.INFO)
+import sys
 
-# Intercept and attach to Uvicorn's logging handlers so logs print inside container console
-uvicorn_error_logger = logging.getLogger("uvicorn.error")
-if uvicorn_error_logger.handlers:
-    logger.handlers = uvicorn_error_logger.handlers
-    logger.propagate = False
-else:
-    # Fallback to standard console stream handler
-    sh = logging.StreamHandler()
-    sh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
-    logger.addHandler(sh)
+logger = logging.getLogger("track_portal")
+
+def setup_app_logging():
+    """
+    Set up Track Portal logging. Executed inside lifespan startup
+    to ensure Uvicorn does not overwrite our handlers.
+    """
+    logger.setLevel(logging.INFO)
+    logger.handlers = []  # Clear to avoid duplicates
+
+    uvicorn_logger = logging.getLogger("uvicorn.error")
+    if uvicorn_logger.handlers:
+        for h in uvicorn_logger.handlers:
+            logger.addHandler(h)
+    else:
+        # Fallback console handler
+        sh = logging.StreamHandler(sys.stdout)
+        sh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+        logger.addHandler(sh)
     logger.propagate = False
 
 # Programmatically run Alembic migrations on startup
@@ -48,6 +55,7 @@ def run_migrations():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup actions
+    setup_app_logging()
     run_migrations()
 
     # Initialize Admin user if none exists

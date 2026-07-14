@@ -328,6 +328,7 @@ async def post_search_results(
                     <p class='font-semibold text-slate-200'>Troubleshooting & Guidance:</p>
                     <ul class='list-disc pl-4 space-y-1.5'>
                         <li>Verify that <strong>SLSKD_API_URL</strong> in your <code>.env</code> file is correct and accessible.</li>
+                        <li><strong>Docker Host & Localhost Notice:</strong> Since Track Portal is running inside a Docker container, using <code>localhost</code> or <code>127.0.0.1</code> will look inside the Track Portal container itself rather than your host. If slskd is running on your host machine or in a separate container, use <strong><code>http://host.docker.internal:5030/api/v0</code></strong>, your host's actual IP address (e.g., <code>http://172.17.0.1:5030/api/v0</code>), or the slskd container's service name (e.g., <code>http://slskd:5030/api/v0</code>).</li>
                         <li>If running in Docker Compose, ensure both Track Portal and slskd are on the <strong>same Docker network</strong>.</li>
                         <li>Check if the slskd container is currently running and healthy.</li>
                         <li>The raw error was: <code class='text-rose-300 bg-rose-950/40 px-1 py-0.5 rounded font-mono'>{error_msg}</code></li>

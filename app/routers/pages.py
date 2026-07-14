@@ -192,6 +192,9 @@ async def post_search_results(
     if not search_query:
         return "<div class='p-6 text-center text-rose-400'>Please enter a search query.</div>"
 
+    # Clean query from leading/trailing double or single quotes to prevent slskd literal quote matching issues
+    search_query = search_query.strip().strip("'\"")
+
     slskd_client = SlskdClient()
     try:
         search_obj = await slskd_client.search(search_query)

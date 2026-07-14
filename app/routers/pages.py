@@ -209,8 +209,14 @@ async def post_search_results(
         if not search_id:
             return "<div class='p-6 text-center text-rose-400'>Failed to start search in slskd.</div>"
 
-        await asyncio.sleep(4.0)
-        responses = await slskd_client.get_search_responses(search_id)
+        # Poll search responses iteratively for up to 8 seconds to allow decentralized Soulseek peers to respond
+        responses = []
+        for _ in range(5):
+            await asyncio.sleep(1.6)
+            responses = await slskd_client.get_search_responses(search_id)
+            # If we already have a robust list of responses, we can break early
+            if len(responses) >= 10:
+                break
 
         results: List[Dict[str, Any]] = []
         for resp in responses:

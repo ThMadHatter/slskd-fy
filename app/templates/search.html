@@ -13,6 +13,8 @@
 
             <!-- Hidden Fields for Canonical values -->
             <input type="hidden" id="artist_mbid" name="artist_mbid" value="">
+            <input type="hidden" id="canonical_artist" name="canonical_artist" value="">
+            <input type="hidden" id="canonical_track" name="canonical_track" value="">
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Artist Autocomplete -->
@@ -184,6 +186,7 @@
     // Callback when selecting artist from autocomplete list
     function selectArtist(name, mbid) {
         document.getElementById("artist").value = name;
+        document.getElementById("canonical_artist").value = name;
         document.getElementById("artist_mbid").value = mbid;
         document.getElementById("artist-suggestions").style.display = "none";
 
@@ -201,6 +204,7 @@
 
     function clearArtistSelection() {
         document.getElementById("artist").value = "";
+        document.getElementById("canonical_artist").value = "";
         document.getElementById("artist_mbid").value = "";
         document.getElementById("artist-selected-pill").classList.add("hidden");
 
@@ -214,6 +218,7 @@
     // Callback when selecting track from autocomplete list
     function selectTrack(title, album) {
         document.getElementById("track").value = title;
+        document.getElementById("canonical_track").value = title;
         document.getElementById("track-suggestions").style.display = "none";
 
         // Show pill
@@ -223,6 +228,7 @@
 
     function clearTrackSelection() {
         document.getElementById("track").value = "";
+        document.getElementById("canonical_track").value = "";
         document.getElementById("track-selected-pill").classList.add("hidden");
     }
 

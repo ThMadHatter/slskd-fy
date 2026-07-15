@@ -249,8 +249,10 @@ async def get_search(
 async def post_search_results(
     request: Request,
     artist: Optional[str] = Form(None),
+    canonical_artist: Optional[str] = Form(None),
     artist_mbid: Optional[str] = Form(None),
     track: Optional[str] = Form(None),
+    canonical_track: Optional[str] = Form(None),
     query: Optional[str] = Form(None),
     flac_only: Optional[str] = Form(None),
     lossless_only: Optional[str] = Form(None),
@@ -263,9 +265,13 @@ async def post_search_results(
 ):
     start_time = time.time()
 
+    # Issue 1: Selected autocomplete values must drive the search query. Use canonical prioritised.
+    chosen_artist = canonical_artist.strip() if canonical_artist and canonical_artist.strip() else (artist.strip() if artist else "")
+    chosen_track = canonical_track.strip() if canonical_track and canonical_track.strip() else (track.strip() if track else "")
+
     # Defensively strip quotes from individual form input values first to prevent slskd literal quote matching issues
-    clean_artist = artist.strip().strip("'\"").strip() if artist else ""
-    clean_track = track.strip().strip("'\"").strip() if track else ""
+    clean_artist = chosen_artist.strip().strip("'\"").strip()
+    clean_track = chosen_track.strip().strip("'\"").strip()
     clean_query = query.strip().strip("'\"").strip() if query else ""
 
     # Task 4 & 7: Optimized Search Strategy Generation using Canonical values
@@ -287,12 +293,15 @@ async def post_search_results(
     total_slskd = 0
     parsed_success = 0
     parser_failures = 0
+    rejected_results = 0
     results_after_filtering = 0
     results_after_ranking = 0
     mb_requests = 0
     cache_hits = 0
     cache_misses = 0
     mb_skipped = 0
+    enriched_results_count = 0
+    duplicate_checks_count = 0
 
     try:
         search_obj = await slskd_client.search(search_query)
@@ -319,6 +328,11 @@ async def post_search_results(
                 size = f.get("size", 0)
                 bitrate = f.get("bitRate", 0)
                 sample_rate = f.get("sampleRate", 0)
+
+                # Issue 7: Hard Rejection Stage BEFORE parsing/budget
+                if SearchRankingService.should_reject_result(filename, ext):
+                    rejected_results += 1
+                    continue
 
                 # Task 3: Preprocessing Soulseek Path -> Filename Parser
                 parsed = parse_filename(filename)
@@ -351,9 +365,9 @@ async def post_search_results(
                     "featured_artists": featured
                 })
 
-        total_slskd = len(raw_results)
+        total_slskd = len(raw_results) + rejected_results
 
-        # Apply Filters
+        # Apply User Filters (Format, Bitrate, Size)
         filtered_results = []
         for r in raw_results:
             fmt = r["format"]
@@ -380,28 +394,36 @@ async def post_search_results(
 
         results_after_filtering = len(filtered_results)
 
-        # Task 2: Strong Local Ranking Engine
+        # Issue 2: Strong Local Ranking & Score evaluation before enrichment
         rank_start = time.time()
+        scored_candidates = []
         for r in filtered_results:
             tgt_art = clean_artist or r["artist"]
             tgt_tr = clean_track or r["track"]
-            r["quality_score"] = SearchRankingService.score_result(r, tgt_art, tgt_tr)
+
+            # score_result returns a detailed dictionary with sub-scores & classification
+            diag = SearchRankingService.score_result(r, tgt_art, tgt_tr)
+            r["ranking_diagnostics"] = diag
+            r["quality_score"] = diag["final_score"]
+
+            # Filter low-confidence results (score < 40) BEFORE enrichment
+            if diag["final_score"] >= 40:
+                scored_candidates.append(r)
 
         # Sort locally first based on local rankings
-        filtered_results.sort(key=lambda x: x["quality_score"], reverse=True)
+        scored_candidates.sort(key=lambda x: x["quality_score"], reverse=True)
         rank_duration = time.time() - rank_start
         PerformanceTracker.ranking_durations.append(rank_duration)
 
-        # Keep top 20 candidates only (Task 1 & 2)
-        top_candidates = filtered_results[:20]
+        # Slicing: keep top candidates only (up to 20 top candidates)
+        top_candidates = scored_candidates[:20]
         results_after_ranking = len(top_candidates)
 
         # Task 1: MusicBrainz enrichment budget (Concurrently throttled, max 20, 3s timeout)
         mb_start = time.time()
-        enrich_tasks = []
 
         async def enrich_candidate(r):
-            nonlocal mb_requests, cache_hits, cache_misses, mb_skipped
+            nonlocal mb_requests, cache_hits, cache_misses, mb_skipped, enriched_results_count
             res_artist = r["artist"]
             res_track = r["track"]
 
@@ -416,12 +438,18 @@ async def post_search_results(
                 cache_hits += 1
                 if cached_data and len(cached_data) > 0:
                     first = cached_data[0]
+                    enriched = False
                     if not r["album"] and first.get("album"):
                         r["album"] = first["album"]
+                        enriched = True
                     if not r["year"] and first.get("year"):
                         r["year"] = first["year"]
+                        enriched = True
                     if first.get("cover_url"):
                         r["cover_url"] = first["cover_url"]
+                        enriched = True
+                    if enriched:
+                        enriched_results_count += 1
             else:
                 cache_misses += 1
                 if mb_requests < 20:
@@ -431,12 +459,18 @@ async def post_search_results(
                         mb_recs = await MusicBrainzService.search_recordings(res_artist, None, res_track, db)
                         if mb_recs:
                             first = mb_recs[0]
+                            enriched = False
                             if not r["album"] and first.get("album"):
                                 r["album"] = first["album"]
+                                enriched = True
                             if not r["year"] and first.get("year"):
                                 r["year"] = first["year"]
+                                enriched = True
                             if first.get("cover_url"):
                                 r["cover_url"] = first["cover_url"]
+                                enriched = True
+                            if enriched:
+                                enriched_results_count += 1
                     except Exception as ex:
                         logger.warning(f"Live MusicBrainz enrichment lookup failed: {ex}")
                 else:
@@ -449,12 +483,15 @@ async def post_search_results(
         PerformanceTracker.mb_enrichment_durations.append(mb_duration)
         PerformanceTracker.mb_requests_per_search.append(mb_requests)
 
-        # Final ranking and sorting based on any enriched properties
+        # Issue 2: Re-score and re-classify enriched candidates to factor in MB metadata!
         for r in top_candidates:
             tgt_art = clean_artist or r["artist"]
             tgt_tr = clean_track or r["track"]
-            r["quality_score"] = SearchRankingService.score_result(r, tgt_art, tgt_tr)
+            diag = SearchRankingService.score_result(r, tgt_art, tgt_tr)
+            r["ranking_diagnostics"] = diag
+            r["quality_score"] = diag["final_score"]
 
+        # Sort the final candidates list
         if sort_by == "quality":
             top_candidates.sort(key=lambda x: x["quality_score"], reverse=True)
         elif sort_by == "size_desc":
@@ -464,18 +501,19 @@ async def post_search_results(
         elif sort_by == "queue":
             top_candidates.sort(key=lambda x: x["queue_length"], reverse=False)
 
-        # Duplicate detection warning
+        # Issue 4: Duplicate detection runs on high confidence (score >= 80) only!
         dup_cache: Dict[tuple, Dict[str, Any]] = {}
         for r in top_candidates:
-            cache_key = (r["artist"].lower().strip(), r["track"].lower().strip())
-            if cache_key not in dup_cache:
-                dup_cache[cache_key] = await check_duplicate(db, r["artist"], r["track"])
+            r["duplicate_warning"] = None
+            if r["quality_score"] >= 80:
+                cache_key = (r["artist"].lower().strip(), r["track"].lower().strip())
+                if cache_key not in dup_cache:
+                    duplicate_checks_count += 1
+                    dup_cache[cache_key] = await check_duplicate(db, r["artist"], r["track"])
 
-            dup_info = dup_cache[cache_key]
-            if dup_info["is_duplicate"]:
-                r["duplicate_warning"] = dup_info["warning_message"]
-            else:
-                r["duplicate_warning"] = None
+                dup_info = dup_cache[cache_key]
+                if dup_info["is_duplicate"]:
+                    r["duplicate_warning"] = dup_info["warning_message"]
 
         search_duration = time.time() - start_time
         PerformanceTracker.search_durations.append(search_duration)
@@ -485,15 +523,15 @@ async def post_search_results(
         db.add(hist)
         db.commit()
 
-        # Task 5: Debug panel diagnostic payload
+        # Issue 8: Measure effectiveness metrics in diagnostics panel
         debug_info = {
             "query": search_query,
-            "total_slskd": total_slskd,
-            "parsed_success": parsed_success,
-            "parser_failures": parser_failures,
-            "filtered": results_after_filtering,
-            "ranked": results_after_ranking,
-            "mb_requests": mb_requests,
+            "total_results": total_slskd,
+            "parsed_results": parsed_success,
+            "rejected_results": rejected_results,
+            "enriched_results": enriched_results_count,
+            "duplicate_checks": duplicate_checks_count,
+            "musicbrainz_calls": mb_requests,
             "cache_hits": cache_hits,
             "cache_misses": cache_misses,
             "skipped": mb_skipped,

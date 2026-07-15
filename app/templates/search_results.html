@@ -16,40 +16,38 @@
                 <p class="text-sm font-semibold text-slate-100 truncate mt-0.5" title="{{ debug_info.query }}">{{ debug_info.query }}</p>
             </div>
             <div>
-                <p class="text-[10px] text-slate-500 font-bold uppercase">Total slskd Results</p>
-                <p class="text-sm font-semibold text-sky-400 mt-0.5">{{ debug_info.total_slskd }}</p>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">Total Raw Results</p>
+                <p class="text-sm font-semibold text-sky-400 mt-0.5">{{ debug_info.total_results }}</p>
             </div>
             <div>
-                <p class="text-[10px] text-slate-500 font-bold uppercase">Parsed / Failures</p>
-                <p class="text-sm font-semibold text-emerald-400 mt-0.5">
-                    {{ debug_info.parsed_success }} <span class="text-slate-500">/</span> <span class="text-rose-400">{{ debug_info.parser_failures }}</span>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">Parsed Results</p>
+                <p class="text-sm font-semibold text-emerald-400 mt-0.5">{{ debug_info.parsed_results }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">Hard Rejections</p>
+                <p class="text-sm font-semibold text-rose-400 mt-0.5">{{ debug_info.rejected_results }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">MB Calls / Enriched</p>
+                <p class="text-sm font-semibold text-purple-400 mt-0.5">
+                    {{ debug_info.musicbrainz_calls }} <span class="text-slate-500">/</span> <span class="text-emerald-400">{{ debug_info.enriched_results }}</span>
                 </p>
             </div>
             <div>
-                <p class="text-[10px] text-slate-500 font-bold uppercase">Search Duration</p>
-                <p class="text-sm font-semibold text-amber-400 mt-0.5">{{ debug_info.duration }}</p>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">Duplicate Checks</p>
+                <p class="text-sm font-semibold text-teal-400 mt-0.5">{{ debug_info.duplicate_checks }}</p>
             </div>
             <div>
-                <p class="text-[10px] text-slate-500 font-bold uppercase">After Filtering</p>
-                <p class="text-sm font-semibold text-slate-100 mt-0.5">{{ debug_info.filtered }}</p>
-            </div>
-            <div>
-                <p class="text-[10px] text-slate-500 font-bold uppercase">Enrichment Candidates</p>
-                <p class="text-sm font-semibold text-purple-400 mt-0.5">{{ debug_info.ranked }}</p>
-            </div>
-            <div>
-                <p class="text-[10px] text-slate-500 font-bold uppercase">Live MB Requests</p>
-                <p class="text-sm font-semibold text-rose-400 mt-0.5">{{ debug_info.mb_requests }} <span class="text-[10px] text-slate-500">/ 20</span></p>
-            </div>
-            <div>
-                <p class="text-[10px] text-slate-500 font-bold uppercase">MB Cache Hit/Miss/Skip</p>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">MB Cache Hits/Misses</p>
                 <p class="text-sm font-semibold text-slate-100 mt-0.5">
                     <span class="text-emerald-400" title="Cache Hits">{{ debug_info.cache_hits }}</span>
                     <span class="text-slate-500">/</span>
                     <span class="text-rose-400" title="Cache Misses">{{ debug_info.cache_misses }}</span>
-                    <span class="text-slate-500">/</span>
-                    <span class="text-amber-500" title="Skipped Enrichment">{{ debug_info.skipped }}</span>
                 </p>
+            </div>
+            <div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">Duration</p>
+                <p class="text-sm font-semibold text-amber-400 mt-0.5">{{ debug_info.duration }}</p>
             </div>
         </div>
     </details>
@@ -113,13 +111,48 @@
                         {% endif %}
                     </td>
 
-                    <td class="px-6 py-4 font-semibold text-slate-100">{{ r.artist }}</td>
+                    <td class="px-6 py-4 font-semibold text-slate-100">
+                        <div class="flex flex-col space-y-1">
+                            <span>{{ r.artist }}</span>
+                            <!-- Result Classification Badge -->
+                            {% if r.ranking_diagnostics %}
+                                {% if r.ranking_diagnostics.classification == 'PRIMARY_ARTIST_MATCH' %}
+                                    <span class="inline-flex items-center w-fit px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">PRIMARY ARTIST</span>
+                                {% elif r.ranking_diagnostics.classification == 'FEATURED_ARTIST_MATCH' %}
+                                    <span class="inline-flex items-center w-fit px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">FEATURED ARTIST</span>
+                                {% elif r.ranking_diagnostics.classification == 'PARTIAL_MATCH' %}
+                                    <span class="inline-flex items-center w-fit px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">PARTIAL MATCH</span>
+                                {% else %}
+                                    <span class="inline-flex items-center w-fit px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-700/50 text-slate-400 border border-slate-600/30">UNKNOWN</span>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </td>
                     <td class="px-6 py-4 text-slate-200">
-                        <div class="flex flex-col">
-                            <span class="font-medium">{{ r.track }}</span>
+                        <div class="flex flex-col space-y-1">
+                            <span class="font-medium text-slate-100">{{ r.track }}</span>
+
+                            <!-- Ranking Diagnostics Panel -->
+                            {% if r.ranking_diagnostics %}
+                            <div class="text-[10px] text-slate-400 font-mono bg-slate-900/60 border border-slate-800/80 rounded px-1.5 py-1 w-fit mt-1 space-x-1 flex items-center">
+                                <span class="text-slate-500 font-bold uppercase mr-1 text-[9px]">Scores:</span>
+                                <span class="text-slate-300">Art: <strong class="text-emerald-400">{{ r.ranking_diagnostics.artist_score }}</strong></span>
+                                <span class="text-slate-600">|</span>
+                                <span class="text-slate-300">Trk: <strong class="text-sky-400">{{ r.ranking_diagnostics.track_score }}</strong></span>
+                                <span class="text-slate-600">|</span>
+                                <span class="text-slate-300">Alb: <strong class="text-indigo-400">{{ r.ranking_diagnostics.album_score }}</strong></span>
+                                <span class="text-slate-600">|</span>
+                                <span class="text-slate-300">Qly: <strong class="text-teal-400">{{ r.ranking_diagnostics.quality_score }}</strong></span>
+                                <span class="text-slate-600">|</span>
+                                <span class="text-slate-300">MB: <strong class="text-fuchsia-400">{{ r.ranking_diagnostics.musicbrainz_score }}</strong></span>
+                                <span class="text-slate-600">|</span>
+                                <span class="text-emerald-400 font-bold font-sans">Final: {{ r.ranking_diagnostics.final_score }}</span>
+                            </div>
+                            {% endif %}
+
                             {% if r.duplicate_warning %}
                             <span class="text-xs text-amber-400 mt-1 flex items-center space-x-1 font-semibold">
-                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <i class="fa-solid fa-triangle-exclamation animate-pulse"></i>
                                 <span>{{ r.duplicate_warning }}</span>
                             </span>
                             {% endif %}

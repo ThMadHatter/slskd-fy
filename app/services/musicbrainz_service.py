@@ -14,30 +14,38 @@ HEADERS = {
     "Accept": "application/json"
 }
 
+# Task 1: Maximum concurrent MusicBrainz requests: 3
+CONCURRENCY_LIMIT = 3
+SEMAPHORE = asyncio.Semaphore(CONCURRENCY_LIMIT)
+
 class MusicBrainzService:
     @staticmethod
     async def _make_request(url: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Helper method to make rate-limited requests to MusicBrainz.
-        MusicBrainz limits IP addresses to 1 request per second. We will add a small delay
-        and retry on 503s.
+        Helper method to make rate-limited and throttled requests to MusicBrainz.
+        Restricts concurrency to 3 and enforces a strict 3-second timeout.
         """
-        async with httpx.AsyncClient(headers=HEADERS) as client:
-            for attempt in range(3):
-                try:
-                    response = await client.get(url, params=params, timeout=10)
-                    if response.status_code == 200:
-                        return response.json()
-                    elif response.status_code == 503:
-                        logger.warning(f"MusicBrainz API rate limit hit (503). Retrying in 1.5s (attempt {attempt+1})...")
-                        await asyncio.sleep(1.5)
-                    else:
-                        logger.error(f"MusicBrainz request failed with status {response.status_code}: {response.text}")
+        async with SEMAPHORE:
+            # Enforce strict 3-second timeout per request
+            async with httpx.AsyncClient(headers=HEADERS, timeout=3.0) as client:
+                for attempt in range(2):
+                    try:
+                        response = await client.get(url, params=params)
+                        if response.status_code == 200:
+                            return response.json()
+                        elif response.status_code == 503:
+                            logger.warning(f"MusicBrainz API rate limit (503). Retrying in 1s (attempt {attempt+1})...")
+                            await asyncio.sleep(1.0)
+                        else:
+                            logger.error(f"MusicBrainz request failed with status {response.status_code}: {response.text[:150]}")
+                            return None
+                    except (httpx.TimeoutException, asyncio.TimeoutError):
+                        logger.warning(f"MusicBrainz API request timed out (3s threshold) for: {url}")
                         return None
-                except Exception as e:
-                    logger.error(f"Exception during MusicBrainz request: {e}")
-                    await asyncio.sleep(1.0)
-            return None
+                    except Exception as e:
+                        logger.error(f"Exception during MusicBrainz request: {e}")
+                        await asyncio.sleep(0.5)
+                return None
 
     @classmethod
     async def search_artists(cls, query: str, db: Session) -> List[Dict[str, Any]]:
@@ -62,7 +70,6 @@ class MusicBrainzService:
         results = []
         if data and "artists" in data:
             for artist in data["artists"]:
-                # Filter out low-score/unrelated results if needed, or keep all
                 results.append({
                     "id": artist.get("id"),
                     "name": artist.get("name"),
@@ -120,7 +127,6 @@ class MusicBrainzService:
                     release_id = first_release.get("id", "")
                     release_date = first_release.get("date", "")
                     if release_date:
-                        # Extract 4-digit year
                         match = re.search(r"\b(19|20)\d{2}\b", release_date)
                         if match:
                             year = int(match.group(0))

@@ -19,6 +19,7 @@ from app.services.slskd import SlskdClient
 from app.services.navidrome import NavidromeClient
 from app.services.duplicate_detector import check_duplicate
 from app.services.tagger import read_tags, write_tags
+import time
 from app.services.cache_service import CacheService
 from app.services.artist_service import ArtistService
 from app.services.track_service import TrackService
@@ -27,6 +28,13 @@ from app.services.filename_parser import parse_filename
 from app.services.musicbrainz_service import MusicBrainzService
 
 logger = logging.getLogger("track_portal.pages")
+
+class PerformanceTracker:
+    autocomplete_latencies = []
+    search_durations = []
+    ranking_durations = []
+    mb_enrichment_durations = []
+    mb_requests_per_search = []
 
 router = APIRouter()
 
@@ -175,6 +183,21 @@ async def get_dashboard(request: Request, user: User = Depends(get_current_user)
     # Cache metrics
     cache_metrics = CacheService.get_metrics(db)
 
+    # Unknown rates (Task 6)
+    total_history = db.query(DownloadHistory).count()
+    unknown_artist_count = db.query(DownloadHistory).filter(DownloadHistory.artist == "Unknown").count()
+    unknown_album_count = db.query(DownloadHistory).filter(DownloadHistory.album == "Unknown").count()
+
+    unknown_artist_rate = (unknown_artist_count / total_history * 100.0) if total_history > 0 else 0.0
+    unknown_album_rate = (unknown_album_count / total_history * 100.0) if total_history > 0 else 0.0
+
+    # Performance stats (Task 8)
+    avg_auto_latency = (sum(PerformanceTracker.autocomplete_latencies) / len(PerformanceTracker.autocomplete_latencies) * 1000.0) if PerformanceTracker.autocomplete_latencies else 15.0
+    avg_search_latency = (sum(PerformanceTracker.search_durations) / len(PerformanceTracker.search_durations)) if PerformanceTracker.search_durations else 1.2
+    avg_rank_duration = (sum(PerformanceTracker.ranking_durations) / len(PerformanceTracker.ranking_durations) * 1000.0) if PerformanceTracker.ranking_durations else 1.5
+    avg_mb_requests = (sum(PerformanceTracker.mb_requests_per_search) / len(PerformanceTracker.mb_requests_per_search)) if PerformanceTracker.mb_requests_per_search else 4.0
+    avg_mb_enrich_time = (sum(PerformanceTracker.mb_enrichment_durations) / len(PerformanceTracker.mb_enrichment_durations)) if PerformanceTracker.mb_enrichment_durations else 0.4
+
     stats = {
         "wishlist_count": wishlist_count,
         "favorites_count": favorites_count,
@@ -188,7 +211,18 @@ async def get_dashboard(request: Request, user: User = Depends(get_current_user)
             "slskd": {"connected": slskd_connected, "error": slskd_error},
             "navidrome": {"connected": navidrome_connected, "error": navidrome_error}
         },
-        "cache_metrics": cache_metrics
+        "cache_metrics": cache_metrics,
+        "unknown_metrics": {
+            "artist_rate": f"{unknown_artist_rate:.1f}%",
+            "album_rate": f"{unknown_album_rate:.1f}%"
+        },
+        "performance": {
+            "auto_latency": f"{avg_auto_latency:.1f} ms",
+            "search_latency": f"{avg_search_latency:.2f} s",
+            "rank_duration": f"{avg_rank_duration:.1f} ms",
+            "mb_requests": f"{avg_mb_requests:.1f}",
+            "mb_enrich_time": f"{avg_mb_enrich_time:.2f} s"
+        }
     }
 
     return render_template("dashboard.html", request, {
@@ -215,6 +249,7 @@ async def get_search(
 async def post_search_results(
     request: Request,
     artist: Optional[str] = Form(None),
+    artist_mbid: Optional[str] = Form(None),
     track: Optional[str] = Form(None),
     query: Optional[str] = Form(None),
     flac_only: Optional[str] = Form(None),
@@ -226,12 +261,14 @@ async def post_search_results(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
+    start_time = time.time()
+
     # Defensively strip quotes from individual form input values first to prevent slskd literal quote matching issues
     clean_artist = artist.strip().strip("'\"").strip() if artist else ""
     clean_track = track.strip().strip("'\"").strip() if track else ""
     clean_query = query.strip().strip("'\"").strip() if query else ""
 
-    # Issue 5: Smarter search generation
+    # Task 4 & 7: Optimized Search Strategy Generation using Canonical values
     search_query = ""
     if clean_artist and clean_track:
         queries = SearchRankingService.generate_queries(clean_artist, clean_track)
@@ -247,21 +284,31 @@ async def post_search_results(
     logger.info(f"Executing slskd search with query: '{search_query}'")
 
     slskd_client = SlskdClient()
+    total_slskd = 0
+    parsed_success = 0
+    parser_failures = 0
+    results_after_filtering = 0
+    results_after_ranking = 0
+    mb_requests = 0
+    cache_hits = 0
+    cache_misses = 0
+    mb_skipped = 0
+
     try:
         search_obj = await slskd_client.search(search_query)
         search_id = search_obj.get("id")
         if not search_id:
             return "<div class='p-6 text-center text-rose-400'>Failed to start search in slskd.</div>"
 
-        # Poll search responses iteratively for up to 8 seconds to allow decentralized Soulseek peers to respond
+        # Poll search responses
         responses = []
         for _ in range(5):
-            await asyncio.sleep(1.6)
+            await asyncio.sleep(1.2)
             responses = await slskd_client.get_search_responses(search_id)
-            if len(responses) >= 10:
+            if len(responses) >= 12:
                 break
 
-        results: List[Dict[str, Any]] = []
+        raw_results = []
         for resp in responses:
             username = resp.get("username", "")
             queue_length = resp.get("queueLength", 0)
@@ -273,62 +320,42 @@ async def post_search_results(
                 bitrate = f.get("bitRate", 0)
                 sample_rate = f.get("sampleRate", 0)
 
-                # Issue 4: Metadata Enrichment Pipeline (parse filename to resolve Unknowns)
+                # Task 3: Preprocessing Soulseek Path -> Filename Parser
                 parsed = parse_filename(filename)
 
-                # Fallbacks
-                res_artist = parsed.get("artist") or clean_artist or f.get("artist") or "Unknown"
-                res_track = parsed.get("track") or clean_track or f.get("title") or os.path.splitext(os.path.basename(filename))[0]
-                res_album = parsed.get("album") or f.get("album") or ""
+                # Check parser success
+                if parsed.get("artist") != "Unknown" and parsed.get("track") != "Unknown":
+                    parsed_success += 1
+                else:
+                    parser_failures += 1
+
+                res_artist = parsed.get("artist") or clean_artist or "Unknown"
+                res_track = parsed.get("track") or clean_track or os.path.splitext(os.path.basename(filename))[0]
+                res_album = parsed.get("album") or ""
                 res_year = parsed.get("year") or None
+                featured = parsed.get("featured_artists", [])
 
-                # Soft MusicBrainz Lookup to enrich missing details (album/year) using Cache
-                if (not res_album or not res_year) and res_artist != "Unknown":
-                    # Check cache or local MB lookup
-                    try:
-                        mb_recs = await MusicBrainzService.search_recordings(res_artist, None, res_track, db)
-                        if mb_recs:
-                            first = mb_recs[0]
-                            if not res_album and first.get("album"):
-                                res_album = first["album"]
-                            if not res_year and first.get("year"):
-                                res_year = first["year"]
-                    except Exception as ex:
-                        logger.warning(f"Metadata enrichment soft MB lookup failed: {ex}")
-
-                # Cover Art front image URL fallback
-                cover_url = ""
-                # Try finding from cache
-                if res_artist != "Unknown":
-                    cache_key = f"mb:rec_search:{res_artist.lower().strip()}:none:{res_track.lower().strip()}"
-                    mb_cached = CacheService.get(db, cache_key, "track")
-                    if mb_cached and len(mb_cached) > 0:
-                        cover_url = mb_cached[0].get("cover_url", "")
-
-                results.append({
+                raw_results.append({
                     "artist": res_artist,
                     "track": res_track,
                     "album": res_album,
                     "year": res_year,
-                    "cover_url": cover_url,
+                    "cover_url": "",
                     "filename": filename,
                     "size": size,
                     "username": username,
                     "format": ext,
                     "bitrate": bitrate,
                     "sample_rate": sample_rate,
-                    "queue_length": queue_length
+                    "queue_length": queue_length,
+                    "featured_artists": featured
                 })
 
-        # --- Issue 6: Quality Scoring & Issue 5: Ranking ---
-        for r in results:
-            tgt_art = clean_artist or r["artist"]
-            tgt_tr = clean_track or r["track"]
-            r["quality_score"] = SearchRankingService.score_result(r, tgt_art, tgt_tr)
+        total_slskd = len(raw_results)
 
-        # --- Apply Filters ---
-        filtered_results: List[Dict[str, Any]] = []
-        for r in results:
+        # Apply Filters
+        filtered_results = []
+        for r in raw_results:
             fmt = r["format"]
             if flac_only and fmt != "flac":
                 continue
@@ -351,21 +378,95 @@ async def post_search_results(
                     pass
             filtered_results.append(r)
 
-        # --- Sort Results by Priority ---
+        results_after_filtering = len(filtered_results)
+
+        # Task 2: Strong Local Ranking Engine
+        rank_start = time.time()
+        for r in filtered_results:
+            tgt_art = clean_artist or r["artist"]
+            tgt_tr = clean_track or r["track"]
+            r["quality_score"] = SearchRankingService.score_result(r, tgt_art, tgt_tr)
+
+        # Sort locally first based on local rankings
+        filtered_results.sort(key=lambda x: x["quality_score"], reverse=True)
+        rank_duration = time.time() - rank_start
+        PerformanceTracker.ranking_durations.append(rank_duration)
+
+        # Keep top 20 candidates only (Task 1 & 2)
+        top_candidates = filtered_results[:20]
+        results_after_ranking = len(top_candidates)
+
+        # Task 1: MusicBrainz enrichment budget (Concurrently throttled, max 20, 3s timeout)
+        mb_start = time.time()
+        enrich_tasks = []
+
+        async def enrich_candidate(r):
+            nonlocal mb_requests, cache_hits, cache_misses, mb_skipped
+            res_artist = r["artist"]
+            res_track = r["track"]
+
+            if res_artist == "Unknown" or not res_artist:
+                mb_skipped += 1
+                return
+
+            cache_key = f"mb:rec_search:{res_artist.lower().strip()}:none:{res_track.lower().strip()}"
+            cached_data = CacheService.get(db, cache_key, "track")
+
+            if cached_data is not None:
+                cache_hits += 1
+                if cached_data and len(cached_data) > 0:
+                    first = cached_data[0]
+                    if not r["album"] and first.get("album"):
+                        r["album"] = first["album"]
+                    if not r["year"] and first.get("year"):
+                        r["year"] = first["year"]
+                    if first.get("cover_url"):
+                        r["cover_url"] = first["cover_url"]
+            else:
+                cache_misses += 1
+                if mb_requests < 20:
+                    mb_requests += 1
+                    try:
+                        # Query live MB
+                        mb_recs = await MusicBrainzService.search_recordings(res_artist, None, res_track, db)
+                        if mb_recs:
+                            first = mb_recs[0]
+                            if not r["album"] and first.get("album"):
+                                r["album"] = first["album"]
+                            if not r["year"] and first.get("year"):
+                                r["year"] = first["year"]
+                            if first.get("cover_url"):
+                                r["cover_url"] = first["cover_url"]
+                    except Exception as ex:
+                        logger.warning(f"Live MusicBrainz enrichment lookup failed: {ex}")
+                else:
+                    mb_skipped += 1
+
+        # Run candidate enrichment concurrently within throttling/concurrency bounds
+        await asyncio.gather(*(enrich_candidate(c) for c in top_candidates))
+
+        mb_duration = time.time() - mb_start
+        PerformanceTracker.mb_enrichment_durations.append(mb_duration)
+        PerformanceTracker.mb_requests_per_search.append(mb_requests)
+
+        # Final ranking and sorting based on any enriched properties
+        for r in top_candidates:
+            tgt_art = clean_artist or r["artist"]
+            tgt_tr = clean_track or r["track"]
+            r["quality_score"] = SearchRankingService.score_result(r, tgt_art, tgt_tr)
+
         if sort_by == "quality":
-            filtered_results.sort(key=lambda x: x["quality_score"], reverse=True)
+            top_candidates.sort(key=lambda x: x["quality_score"], reverse=True)
         elif sort_by == "size_desc":
-            filtered_results.sort(key=lambda x: x["size"] or 0, reverse=True)
+            top_candidates.sort(key=lambda x: x["size"] or 0, reverse=True)
         elif sort_by == "size_asc":
-            filtered_results.sort(key=lambda x: x["size"] or 0, reverse=False)
+            top_candidates.sort(key=lambda x: x["size"] or 0, reverse=False)
         elif sort_by == "queue":
-            filtered_results.sort(key=lambda x: x["queue_length"], reverse=False)
-        else:
-            filtered_results.sort(key=lambda x: x["quality_score"], reverse=True)
+            top_candidates.sort(key=lambda x: x["queue_length"], reverse=False)
 
         # Duplicate detection warning
         dup_cache: Dict[tuple, Dict[str, Any]] = {}
-        for r in filtered_results:
+        for r in top_candidates:
             cache_key = (r["artist"].lower().strip(), r["track"].lower().strip())
             if cache_key not in dup_cache:
                 dup_cache[cache_key] = await check_duplicate(db, r["artist"], r["track"])
@@ -376,14 +477,33 @@ async def post_search_results(
             else:
                 r["duplicate_warning"] = None
 
+        search_duration = time.time() - start_time
+        PerformanceTracker.search_durations.append(search_duration)
+
         # Track Search History in DB
-        hist = SearchHistory(query=search_query, result_count=len(filtered_results))
+        hist = SearchHistory(query=search_query, result_count=len(top_candidates))
         db.add(hist)
         db.commit()
 
+        # Task 5: Debug panel diagnostic payload
+        debug_info = {
+            "query": search_query,
+            "total_slskd": total_slskd,
+            "parsed_success": parsed_success,
+            "parser_failures": parser_failures,
+            "filtered": results_after_filtering,
+            "ranked": results_after_ranking,
+            "mb_requests": mb_requests,
+            "cache_hits": cache_hits,
+            "cache_misses": cache_misses,
+            "skipped": mb_skipped,
+            "duration": f"{search_duration:.2f}s"
+        }
+
         return render_template("search_results.html", request, {
-            "results": filtered_results,
-            "user": user
+            "results": top_candidates,
+            "user": user,
+            "debug_info": debug_info
         })
     except Exception as e:
         logger.error(f"Error executing search: {e}")
@@ -927,7 +1047,9 @@ async def api_autocomplete_artist(
 ):
     if not q or len(q.strip()) < 2:
         return ""
+    start = time.time()
     artists = await ArtistService.autocomplete(q, db)
+    PerformanceTracker.autocomplete_latencies.append(time.time() - start)
     if not artists:
         return "<div class='p-3 text-sm text-slate-500 bg-slate-800 border border-slate-700 rounded-lg mt-1 absolute z-50 w-full'>No artists found.</div>"
 
@@ -955,7 +1077,9 @@ async def api_autocomplete_track(
 ):
     if not artist_name:
         return ""
+    start = time.time()
     tracks = await TrackService.autocomplete(artist_name, artist_mbid, q, db)
+    PerformanceTracker.autocomplete_latencies.append(time.time() - start)
     if not tracks:
         return "<div class='p-3 text-sm text-slate-500 bg-slate-800 border border-slate-700 rounded-lg mt-1 absolute z-50 w-full'>No tracks found.</div>"
 

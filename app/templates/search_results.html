@@ -1,6 +1,64 @@
+<!-- Task 5: Developer Diagnostics & Search Debug Panel -->
+{% if debug_info %}
+<div class="px-6 py-4 bg-slate-800/80 border-b border-slate-700/80">
+    <details class="group">
+        <summary class="flex justify-between items-center cursor-pointer select-none text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition">
+            <span class="flex items-center space-x-2">
+                <i class="fa-solid fa-bug text-amber-500 animate-pulse"></i>
+                <span>Search Diagnostics & Ranking Debug Panel (Task 5)</span>
+            </span>
+            <span class="text-[10px] text-slate-500 group-open:hidden">Click to Expand Diagnostics</span>
+            <i class="fa-solid fa-chevron-down group-open:rotate-180 transition-transform text-slate-500"></i>
+        </summary>
+        <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs pt-3 border-t border-slate-700/60 font-mono text-slate-300">
+            <div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">Search Query</p>
+                <p class="text-sm font-semibold text-slate-100 truncate mt-0.5" title="{{ debug_info.query }}">{{ debug_info.query }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">Total slskd Results</p>
+                <p class="text-sm font-semibold text-sky-400 mt-0.5">{{ debug_info.total_slskd }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">Parsed / Failures</p>
+                <p class="text-sm font-semibold text-emerald-400 mt-0.5">
+                    {{ debug_info.parsed_success }} <span class="text-slate-500">/</span> <span class="text-rose-400">{{ debug_info.parser_failures }}</span>
+                </p>
+            </div>
+            <div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">Search Duration</p>
+                <p class="text-sm font-semibold text-amber-400 mt-0.5">{{ debug_info.duration }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">After Filtering</p>
+                <p class="text-sm font-semibold text-slate-100 mt-0.5">{{ debug_info.filtered }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">Enrichment Candidates</p>
+                <p class="text-sm font-semibold text-purple-400 mt-0.5">{{ debug_info.ranked }}</p>
+            </div>
+            <div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">Live MB Requests</p>
+                <p class="text-sm font-semibold text-rose-400 mt-0.5">{{ debug_info.mb_requests }} <span class="text-[10px] text-slate-500">/ 20</span></p>
+            </div>
+            <div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase">MB Cache Hit/Miss/Skip</p>
+                <p class="text-sm font-semibold text-slate-100 mt-0.5">
+                    <span class="text-emerald-400" title="Cache Hits">{{ debug_info.cache_hits }}</span>
+                    <span class="text-slate-500">/</span>
+                    <span class="text-rose-400" title="Cache Misses">{{ debug_info.cache_misses }}</span>
+                    <span class="text-slate-500">/</span>
+                    <span class="text-amber-500" title="Skipped Enrichment">{{ debug_info.skipped }}</span>
+                </p>
+            </div>
+        </div>
+    </details>
+</div>
+{% endif %}
+
 <!-- Result Header -->
 <div class="px-6 py-4 bg-slate-800/40 border-b border-slate-700 flex items-center justify-between">
-    <h3 class="font-bold text-slate-200">Enriched Search Results (Found {{ results|length }} items)</h3>
+    <h3 class="font-bold text-slate-200">Enriched Search Results (Top {{ results|length }} Candidates Shown)</h3>
     <span class="text-xs text-slate-400">Sorted automatically by Quality Score</span>
 </div>
 

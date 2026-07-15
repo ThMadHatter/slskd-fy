@@ -48,3 +48,25 @@ def test_parse_scene_release_no_year():
     assert res["artist"] == "Kendrick Lamar"
     assert res["track"] == "Not Like Us"
     assert res["format"] == "mp3"
+
+def test_parse_raw_soulseek_path_structured():
+    # Test path: @@jqxww\share\Electronic\Flying Lotus\You are dead!\05 - Never Catch Me feat Kendrick Lamar
+    res = parse_filename(r"@@jqxww\share\Electronic\Flying Lotus\You are dead!\05 - Never Catch Me feat Kendrick Lamar.flac")
+    assert res["artist"] == "Flying Lotus"
+    assert res["album"] == "You are dead!"
+    assert res["track"] == "Never Catch Me"
+    assert "Kendrick Lamar" in res["featured_artists"]
+    assert res["format"] == "flac"
+
+def test_parse_acapella_and_remixes():
+    res = parse_filename("Daft Punk - One More Time (Acapella Vocal Mix).mp3")
+    assert res["artist"] == "Daft Punk"
+    assert "One More Time" in res["track"]
+    assert res["is_acapella"] is True
+    assert res["is_remix"] is True
+
+def test_parse_featured_artists():
+    res = parse_filename("Humble (feat. Rihanna and SZA).flac")
+    assert res["track"] == "Humble"
+    assert "Rihanna" in res["featured_artists"]
+    assert "SZA" in res["featured_artists"]

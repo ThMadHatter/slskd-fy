@@ -161,6 +161,60 @@
         </div>
     </div>
 
+    <!-- Unknown Reduction & Metadata Quality Metrics (Task 6) -->
+    <div class="bg-darkPanel border border-slate-700 rounded-xl p-6 shadow space-y-4">
+        <h3 class="text-lg font-bold flex items-center space-x-2">
+            <i class="fa-solid fa-wand-magic-sparkles text-sky-400"></i>
+            <span>Metadata Quality & Unknown Reduction (Task 6)</span>
+        </h3>
+        <p class="text-sm text-slate-400">Proactively resolving incomplete file structures to maintain clean, fully cataloged library metadata tags.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+            <div class="bg-slate-800/30 p-4 rounded-lg border border-slate-700 flex justify-between items-center">
+                <div>
+                    <h4 class="font-semibold text-sm">Unknown Artist Rate</h4>
+                    <p class="text-2xl font-bold text-emerald-400 mt-1">{{ stats.unknown_metrics.artist_rate }}</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Target: < 2% (Staged via intelligent folders & MB matches)</p>
+                </div>
+                <i class="fa-solid fa-circle-question text-3xl text-slate-600"></i>
+            </div>
+            <div class="bg-slate-800/30 p-4 rounded-lg border border-slate-700 flex justify-between items-center">
+                <div>
+                    <h4 class="font-semibold text-sm">Unknown Album Rate</h4>
+                    <p class="text-2xl font-bold text-emerald-400 mt-1">{{ stats.unknown_metrics.album_rate }}</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Target: < 5% (Inferred dynamically from directory layout)</p>
+                </div>
+                <i class="fa-solid fa-folder-minus text-3xl text-slate-600"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Performance Center & Latencies (Task 8) -->
+    <div class="bg-darkPanel border border-slate-700 rounded-xl p-6 shadow space-y-4">
+        <h3 class="text-lg font-bold flex items-center space-x-2">
+            <i class="fa-solid fa-gauge-high text-amber-400"></i>
+            <span>Performance Diagnostics Center (Task 8)</span>
+        </h3>
+        <p class="text-sm text-slate-400">Dynamic latencies and hit ratios tracked live from search workflows and autocomplete execution.</p>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 pt-2">
+            <div class="bg-slate-800/40 p-4 rounded-lg border border-slate-700/80">
+                <p class="text-xs text-slate-400">Autocomplete Latency</p>
+                <p class="text-xl font-bold text-slate-100 mt-1">{{ stats.performance.auto_latency }}</p>
+            </div>
+            <div class="bg-slate-800/40 p-4 rounded-lg border border-slate-700/80">
+                <p class="text-xs text-slate-400">Search Exec Duration</p>
+                <p class="text-xl font-bold text-slate-100 mt-1">{{ stats.performance.search_latency }}</p>
+            </div>
+            <div class="bg-slate-800/40 p-4 rounded-lg border border-slate-700/80">
+                <p class="text-xs text-slate-400">Avg Ranking Duration</p>
+                <p class="text-xl font-bold text-slate-100 mt-1">{{ stats.performance.rank_duration }}</p>
+            </div>
+            <div class="bg-slate-800/40 p-4 rounded-lg border border-slate-700/80">
+                <p class="text-xs text-slate-400">MB Enrichment Time</p>
+                <p class="text-xl font-bold text-slate-100 mt-1">{{ stats.performance.mb_enrich_time }}</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Cache Metrics & Performance Row -->
     <div class="bg-darkPanel border border-slate-700 rounded-xl p-6 shadow space-y-4">
         <h3 class="text-lg font-bold flex items-center space-x-2">

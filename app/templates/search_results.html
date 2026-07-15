@@ -103,7 +103,14 @@
                     <!-- Cover Art Thumbnail -->
                     <td class="px-6 py-4">
                         {% if r.cover_url %}
-                        <img src="{{ r.cover_url }}" class="w-10 h-10 rounded object-cover bg-slate-900 border border-slate-700/50 shadow" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=100&q=80';">
+                        <div class="relative w-10 h-10">
+                            <!-- Image with onerror to hide itself and show the local fallback -->
+                            <img src="{{ r.cover_url }}" class="absolute inset-0 w-10 h-10 rounded object-cover bg-slate-900 border border-slate-700/50 shadow z-10" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');">
+                            <!-- Local Fallback placeholder (shown if image fails to load) -->
+                            <div class="hidden absolute inset-0 w-10 h-10 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500 shadow">
+                                <i class="fa-solid fa-compact-disc text-lg animate-spin-slow text-slate-600"></i>
+                            </div>
+                        </div>
                         {% else %}
                         <div class="w-10 h-10 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-600 shadow">
                             <i class="fa-solid fa-compact-disc text-lg animate-spin-slow"></i>

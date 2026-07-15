@@ -74,3 +74,29 @@ async def test_api_autocomplete_track_endpoint(client):
         assert response.status_code == 200
         assert "Not Like Us" in response.text
         assert "Single" in response.text
+
+@pytest.mark.asyncio
+async def test_api_autocomplete_artist_endpoint_fallback(client):
+    with patch("app.services.artist_service.ArtistService.autocomplete", new_callable=AsyncMock) as mock_auto:
+        mock_auto.return_value = [
+            {"id": "mbid-1", "name": "Kendrick Lamar", "type": "Person", "country": "US", "disambiguation": "Rapper"}
+        ]
+
+        # Test using standard htmx-supplied "artist" parameter instead of "q"
+        response = client.get("/api/autocomplete/artist?artist=kendri")
+        assert response.status_code == 200
+        assert "Kendrick Lamar" in response.text
+        assert "Rapper" in response.text
+
+@pytest.mark.asyncio
+async def test_api_autocomplete_track_endpoint_fallback(client):
+    with patch("app.services.track_service.TrackService.autocomplete", new_callable=AsyncMock) as mock_auto:
+        mock_auto.return_value = [
+            {"id": "rec-1", "title": "Not Like Us", "album": "Single", "year": 2024, "cover_url": "http://img"}
+        ]
+
+        # Test using standard htmx-supplied "artist" and "track" parameters
+        response = client.get("/api/autocomplete/track?artist=Kendrick+Lamar&track=not+like")
+        assert response.status_code == 200
+        assert "Not Like Us" in response.text
+        assert "Single" in response.text

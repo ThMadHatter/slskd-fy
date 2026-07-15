@@ -1080,13 +1080,15 @@ async def post_navidrome_rescan(user: User = Depends(get_current_user)):
 async def api_autocomplete_artist(
     request: Request,
     q: Optional[str] = "",
+    artist: Optional[str] = "",
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    if not q or len(q.strip()) < 2:
+    query = q or artist
+    if not query or len(query.strip()) < 2:
         return ""
     start = time.time()
-    artists = await ArtistService.autocomplete(q, db)
+    artists = await ArtistService.autocomplete(query, db)
     PerformanceTracker.autocomplete_latencies.append(time.time() - start)
     if not artists:
         return "<div class='p-3 text-sm text-slate-500 bg-slate-800 border border-slate-700 rounded-lg mt-1 absolute z-50 w-full'>No artists found.</div>"
@@ -1108,15 +1110,19 @@ async def api_autocomplete_artist(
 async def api_autocomplete_track(
     request: Request,
     artist_name: Optional[str] = "",
+    artist: Optional[str] = "",
     artist_mbid: Optional[str] = "",
     q: Optional[str] = "",
+    track: Optional[str] = "",
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-    if not artist_name:
+    actual_artist = artist_name or artist
+    actual_query = q or track
+    if not actual_artist:
         return ""
     start = time.time()
-    tracks = await TrackService.autocomplete(artist_name, artist_mbid, q, db)
+    tracks = await TrackService.autocomplete(actual_artist, artist_mbid, actual_query, db)
     PerformanceTracker.autocomplete_latencies.append(time.time() - start)
     if not tracks:
         return "<div class='p-3 text-sm text-slate-500 bg-slate-800 border border-slate-700 rounded-lg mt-1 absolute z-50 w-full'>No tracks found.</div>"

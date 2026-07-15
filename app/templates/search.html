@@ -30,6 +30,7 @@
                                    placeholder="Type artist name (e.g. Kendrick)..."
                                    onfocus="document.getElementById('artist-suggestions').style.display='block'"
                                    oninput="document.getElementById('artist-suggestions').style.display='block'"
+                                   onclick="document.getElementById('artist-suggestions').style.display='block'"
                                    value="{{ artist or '' }}">
                             <div id="artist-suggestions" class="absolute w-full mt-1 z-50"></div>
                         </div>
@@ -60,6 +61,7 @@
                                    placeholder="Select artist first..."
                                    onfocus="document.getElementById('track-suggestions').style.display='block'"
                                    oninput="document.getElementById('track-suggestions').style.display='block'"
+                                   onclick="document.getElementById('track-suggestions').style.display='block'"
                                    value="{{ track or '' }}" disabled>
                             <div id="track-suggestions" class="absolute w-full mt-1 z-50"></div>
                         </div>
@@ -177,16 +179,19 @@
 <script>
     // Hide dropdowns when clicking outside
     document.addEventListener("click", function(e) {
-        if (!document.getElementById("artist").contains(e.target) && !document.getElementById("artist-suggestions").contains(e.target)) {
+        if (!document.getElementById("artist").contains(e.target)) {
             document.getElementById("artist-suggestions").style.display = "none";
         }
-        if (!document.getElementById("track").contains(e.target) && !document.getElementById("track-suggestions").contains(e.target)) {
+        if (!document.getElementById("track").contains(e.target)) {
             document.getElementById("track-suggestions").style.display = "none";
         }
     });
 
     // Callback when selecting artist from autocomplete list
-    function selectArtist(name, mbid) {
+    function selectArtist(name, mbid, event) {
+        if (event) {
+            event.stopPropagation();
+        }
         document.getElementById("artist").value = name;
         document.getElementById("canonical_artist").value = name;
         document.getElementById("artist_mbid").value = mbid;
@@ -218,7 +223,10 @@
     }
 
     // Callback when selecting track from autocomplete list
-    function selectTrack(title, album) {
+    function selectTrack(title, album, event) {
+        if (event) {
+            event.stopPropagation();
+        }
         document.getElementById("track").value = title;
         document.getElementById("canonical_track").value = title;
         document.getElementById("track-suggestions").style.display = "none";

@@ -22,13 +22,16 @@ class TrackService:
         2. Local library (Navidrome)
         3. Local cache/database
         """
+        logger.info(f"TrackService.autocomplete initiated: artist='{artist_name}' (mbid={artist_mbid or 'none'}), query='{query}'")
         if not artist_name:
+            logger.info("TrackService.autocomplete: Missing artist_name, returning empty.")
             return []
 
         clean_query = query.strip() if query else ""
 
         # 1. Try MusicBrainz recordings
         try:
+            logger.debug(f"TrackService.autocomplete: Attempting MusicBrainz recordings lookup for artist='{artist_name}', query='{clean_query}'")
             mb_results = await MusicBrainzService.search_recordings(
                 artist_name=artist_name,
                 artist_mbid=artist_mbid,
@@ -36,30 +39,27 @@ class TrackService:
                 db=db
             )
             if mb_results:
-                logger.info(f"Track autocomplete: found {len(mb_results)} from MusicBrainz")
+                logger.info(f"TrackService.autocomplete MATCH [MusicBrainz] found {len(mb_results)} recordings for artist='{artist_name}', query='{clean_query}'")
                 return mb_results
+            else:
+                logger.debug(f"TrackService.autocomplete: No recordings found from MusicBrainz for artist='{artist_name}', query='{clean_query}'")
         except Exception as e:
             logger.error(f"Error in MusicBrainz track search: {e}")
 
         # 2. Try Local Library (Navidrome)
         try:
+            logger.debug(f"TrackService.autocomplete: Attempting Navidrome library lookup for artist='{artist_name}', query='{clean_query}'")
             navidrome = NavidromeClient()
-            # If Navidrome client has a search or we can query it, let's search via Subsonic API
-            # Let's inspect navidrome.py to see how we can search or query.
-            # In navidrome.py: search_track(artist, title) returns bool.
-            # Let's write a dedicated search method or check if we can query songs directly.
-            # We can expand NavidromeClient or just query. Let's make sure if we need to search,
-            # we can look for matching songs.
             if hasattr(navidrome, "search_songs_by_artist"):
                 nav_results = await navidrome.search_songs_by_artist(artist_name, clean_query)
                 if nav_results:
-                    logger.info(f"Track autocomplete: found {len(nav_results)} from Navidrome")
+                    logger.info(f"TrackService.autocomplete MATCH [Navidrome] found {len(nav_results)} songs for artist='{artist_name}', query='{clean_query}'")
                     return nav_results
         except Exception as e:
             logger.error(f"Error in Navidrome track autocomplete search: {e}")
 
         # 3. Try Local cache/database fallback
-        logger.info("Track autocomplete: falling back to local database/cache")
+        logger.info(f"TrackService.autocomplete [Fallback] Querying local DB/cache for artist='{artist_name}', query='{clean_query}'")
         local_results = []
         seen_titles = set()
 
@@ -69,6 +69,7 @@ class TrackService:
                 CacheEntry.entity_type == "track",
                 CacheEntry.key.contains(artist_name.lower())
             ).all()
+            logger.debug(f"TrackService.autocomplete: Found {len(cached_entries)} cache entries matching artist key contain '{artist_name.lower()}'")
             import json
             for entry in cached_entries:
                 try:
@@ -85,8 +86,8 @@ class TrackService:
                                 "year": t.get("year"),
                                 "cover_url": t.get("cover_url", "")
                             })
-                except Exception:
-                    pass
+                except Exception as ex:
+                    logger.warning(f"Failed to parse cached track JSON for key {entry.key}: {ex}")
         except Exception as e:
             logger.error(f"Error reading track cache database: {e}")
 
@@ -96,6 +97,7 @@ class TrackService:
                 DownloadHistory.artist.like(f"%{artist_name}%"),
                 DownloadHistory.track.like(f"%{clean_query}%") if clean_query else True
             ).all()
+            logger.debug(f"TrackService.autocomplete: Found {len(history_matches)} download history track matches for artist='{artist_name}', query='{clean_query}'")
             for record in history_matches:
                 title = record.track
                 if title and title.lower() not in seen_titles:
@@ -111,4 +113,5 @@ class TrackService:
         except Exception as e:
             logger.error(f"Error querying download history for tracks: {e}")
 
+        logger.info(f"TrackService.autocomplete COMPLETED: artist='{artist_name}', query='{clean_query}', returned count={len(local_results[:15])} (source=Local Cache/DB Fallback)")
         return local_results[:15]

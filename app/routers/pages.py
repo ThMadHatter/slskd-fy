@@ -419,65 +419,39 @@ async def post_search_results(
         top_candidates = scored_candidates[:20]
         results_after_ranking = len(top_candidates)
 
-        # Task 1: MusicBrainz enrichment budget (Concurrently throttled, max 20, 3s timeout)
+        # Task 1: MusicBrainz enrichment cache resolution.
+        # Cache hits are resolved instantly. Cache misses are marked for progressive lazy-loading!
         mb_start = time.time()
-
-        async def enrich_candidate(r):
-            nonlocal mb_requests, cache_hits, cache_misses, mb_skipped, enriched_results_count
+        for r in top_candidates:
             res_artist = r["artist"]
             res_track = r["track"]
+            r["needs_enrichment"] = False
 
-            if res_artist == "Unknown" or not res_artist:
-                mb_skipped += 1
-                return
+            if res_artist != "Unknown" and res_artist:
+                cache_key = f"mb:rec_search:{res_artist.lower().strip()}:none:{res_track.lower().strip()}"
+                cached_data = CacheService.get(db, cache_key, "track")
 
-            cache_key = f"mb:rec_search:{res_artist.lower().strip()}:none:{res_track.lower().strip()}"
-            cached_data = CacheService.get(db, cache_key, "track")
-
-            if cached_data is not None:
-                cache_hits += 1
-                if cached_data and len(cached_data) > 0:
-                    first = cached_data[0]
-                    enriched = False
-                    if not r["album"] and first.get("album"):
-                        r["album"] = first["album"]
-                        enriched = True
-                    if not r["year"] and first.get("year"):
-                        r["year"] = first["year"]
-                        enriched = True
-                    if first.get("cover_url"):
-                        r["cover_url"] = first["cover_url"]
-                        enriched = True
-                    if enriched:
-                        enriched_results_count += 1
-            else:
-                cache_misses += 1
-                if mb_requests < 20:
-                    mb_requests += 1
-                    try:
-                        # Query live MB
-                        mb_recs = await MusicBrainzService.search_recordings(res_artist, None, res_track, db)
-                        if mb_recs:
-                            first = mb_recs[0]
-                            enriched = False
-                            if not r["album"] and first.get("album"):
-                                r["album"] = first["album"]
-                                enriched = True
-                            if not r["year"] and first.get("year"):
-                                r["year"] = first["year"]
-                                enriched = True
-                            if first.get("cover_url"):
-                                r["cover_url"] = first["cover_url"]
-                                enriched = True
-                            if enriched:
-                                enriched_results_count += 1
-                    except Exception as ex:
-                        logger.warning(f"Live MusicBrainz enrichment lookup failed: {ex}")
+                if cached_data is not None:
+                    cache_hits += 1
+                    if cached_data and len(cached_data) > 0:
+                        first = cached_data[0]
+                        enriched = False
+                        if not r["album"] and first.get("album"):
+                            r["album"] = first["album"]
+                            enriched = True
+                        if not r["year"] and first.get("year"):
+                            r["year"] = first["year"]
+                            enriched = True
+                        if first.get("cover_url"):
+                            r["cover_url"] = first["cover_url"]
+                            enriched = True
+                        if enriched:
+                            enriched_results_count += 1
                 else:
-                    mb_skipped += 1
-
-        # Run candidate enrichment concurrently within throttling/concurrency bounds
-        await asyncio.gather(*(enrich_candidate(c) for c in top_candidates))
+                    cache_misses += 1
+                    r["needs_enrichment"] = True
+            else:
+                mb_skipped += 1
 
         mb_duration = time.time() - mb_start
         PerformanceTracker.mb_enrichment_durations.append(mb_duration)
@@ -485,11 +459,12 @@ async def post_search_results(
 
         # Issue 2: Re-score and re-classify enriched candidates to factor in MB metadata!
         for r in top_candidates:
-            tgt_art = clean_artist or r["artist"]
-            tgt_tr = clean_track or r["track"]
-            diag = SearchRankingService.score_result(r, tgt_art, tgt_tr)
-            r["ranking_diagnostics"] = diag
-            r["quality_score"] = diag["final_score"]
+            if not r["needs_enrichment"]:
+                tgt_art = clean_artist or r["artist"]
+                tgt_tr = clean_track or r["track"]
+                diag = SearchRankingService.score_result(r, tgt_art, tgt_tr)
+                r["ranking_diagnostics"] = diag
+                r["quality_score"] = diag["final_score"]
 
         # Sort the final candidates list
         if sort_by == "quality":
@@ -1085,11 +1060,15 @@ async def api_autocomplete_artist(
     user: User = Depends(get_current_user)
 ):
     query = q or artist
+    logger.info(f"API: GET /api/autocomplete/artist - parameters: q='{q}', artist='{artist}' -> resolved query='{query}'")
     if not query or len(query.strip()) < 2:
+        logger.info(f"API: GET /api/autocomplete/artist - query '{query}' ignored (length < 2)")
         return ""
     start = time.time()
     artists = await ArtistService.autocomplete(query, db)
-    PerformanceTracker.autocomplete_latencies.append(time.time() - start)
+    latency = time.time() - start
+    PerformanceTracker.autocomplete_latencies.append(latency)
+    logger.info(f"API: GET /api/autocomplete/artist - query='{query}' completed in {latency:.4f}s, found {len(artists)} matches.")
     if not artists:
         return "<div class='p-3 text-sm text-slate-500 bg-slate-800 border border-slate-700 rounded-lg mt-1 absolute z-50 w-full'>No artists found.</div>"
 
@@ -1098,13 +1077,111 @@ async def api_autocomplete_artist(
         mbid = a.get("id") or ""
         name = a.get("name").replace("'", "\\'")
         html += f"""
-        <li class="px-4 py-3 hover:bg-slate-700 cursor-pointer text-sm transition" onclick="selectArtist('{name}', '{mbid}')">
+        <li class="px-4 py-3 hover:bg-slate-700 cursor-pointer text-sm transition" onclick="selectArtist('{name}', '{mbid}', event)">
             <div class="font-bold text-slate-200">{a.get('name')}</div>
             <div class="text-xs text-slate-400">{a.get('type')} - {a.get('country') or 'Unknown'} ({a.get('disambiguation') or 'No info'})</div>
         </li>
         """
     html += '</ul>'
     return HTMLResponse(content=html)
+
+
+@router.get("/search/enrich-row", response_class=HTMLResponse)
+async def get_enrich_row(
+    request: Request,
+    artist: str,
+    track: str,
+    album: str,
+    year: Optional[str] = "",
+    filename: str = "",
+    size: int = 0,
+    username: str = "",
+    format: str = "",
+    bitrate: int = 0,
+    sample_rate: int = 0,
+    queue_length: int = 0,
+    index: int = 0,
+    canonical_artist: Optional[str] = "",
+    canonical_track: Optional[str] = "",
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    logger.info(f"API: GET /search/enrich-row - artist='{artist}', track='{track}', filename='{filename}'")
+
+    # Safely parse year
+    parsed_year = None
+    if year and year.strip() and year.strip().isdigit():
+        parsed_year = int(year.strip())
+
+    r = {
+        "artist": artist,
+        "track": track,
+        "album": album,
+        "year": parsed_year,
+        "cover_url": "",
+        "filename": filename,
+        "size": size,
+        "username": username,
+        "format": format,
+        "bitrate": bitrate,
+        "sample_rate": sample_rate,
+        "queue_length": queue_length,
+        "needs_enrichment": False
+    }
+
+    # Perform live or cached MusicBrainz lookup
+    res_artist = r["artist"]
+    res_track = r["track"]
+
+    if res_artist != "Unknown" and res_artist:
+        cache_key = f"mb:rec_search:{res_artist.lower().strip()}:none:{res_track.lower().strip()}"
+        cached_data = CacheService.get(db, cache_key, "track")
+
+        if cached_data is not None:
+            if cached_data and len(cached_data) > 0:
+                first = cached_data[0]
+                if not r["album"] and first.get("album"):
+                    r["album"] = first["album"]
+                if not r["year"] and first.get("year"):
+                    r["year"] = first["year"]
+                if first.get("cover_url"):
+                    r["cover_url"] = first["cover_url"]
+        else:
+            try:
+                # Query live MB
+                mb_recs = await MusicBrainzService.search_recordings(res_artist, None, res_track, db)
+                if mb_recs:
+                    first = mb_recs[0]
+                    if not r["album"] and first.get("album"):
+                        r["album"] = first["album"]
+                    if not r["year"] and first.get("year"):
+                        r["year"] = first["year"]
+                    if first.get("cover_url"):
+                        r["cover_url"] = first["cover_url"]
+            except Exception as ex:
+                logger.warning(f"Background live MusicBrainz enrichment lookup failed for {res_artist} - {res_track}: {ex}")
+
+    # Score result with enriched metadata
+    tgt_art = canonical_artist or r["artist"]
+    tgt_tr = canonical_track or r["track"]
+    diag = SearchRankingService.score_result(r, tgt_art, tgt_tr)
+    r["ranking_diagnostics"] = diag
+    r["quality_score"] = diag["final_score"]
+
+    # Check duplicate (only if score >= 80)
+    r["duplicate_warning"] = None
+    if r["quality_score"] >= 80:
+        dup_info = await check_duplicate(db, r["artist"], r["track"])
+        if dup_info["is_duplicate"]:
+            r["duplicate_warning"] = dup_info["warning_message"]
+
+    return render_template("search_row_partial.html", request, {
+        "r": r,
+        "index": index,
+        "user": user,
+        "canonical_artist": canonical_artist,
+        "canonical_track": canonical_track
+    })
 
 @router.get("/api/autocomplete/track", response_class=HTMLResponse)
 async def api_autocomplete_track(
@@ -1119,11 +1196,15 @@ async def api_autocomplete_track(
 ):
     actual_artist = artist_name or artist
     actual_query = q or track
+    logger.info(f"API: GET /api/autocomplete/track - parameters: artist_name='{artist_name}', artist='{artist}', artist_mbid='{artist_mbid}', q='{q}', track='{track}' -> resolved artist='{actual_artist}', query='{actual_query}'")
     if not actual_artist:
+        logger.info("API: GET /api/autocomplete/track - missing artist name, returning empty.")
         return ""
     start = time.time()
     tracks = await TrackService.autocomplete(actual_artist, artist_mbid, actual_query, db)
-    PerformanceTracker.autocomplete_latencies.append(time.time() - start)
+    latency = time.time() - start
+    PerformanceTracker.autocomplete_latencies.append(latency)
+    logger.info(f"API: GET /api/autocomplete/track - artist='{actual_artist}', query='{actual_query}' completed in {latency:.4f}s, found {len(tracks)} matches.")
     if not tracks:
         return "<div class='p-3 text-sm text-slate-500 bg-slate-800 border border-slate-700 rounded-lg mt-1 absolute z-50 w-full'>No tracks found.</div>"
 
@@ -1143,7 +1224,7 @@ async def api_autocomplete_track(
         album_display = t.get('album') or 'Single'
 
         html += f"""
-        <li class="px-4 py-3 hover:bg-slate-700 cursor-pointer text-sm transition flex items-center space-x-3" onclick="selectTrack('{title}', '{album}')">
+        <li class="px-4 py-3 hover:bg-slate-700 cursor-pointer text-sm transition flex items-center space-x-3" onclick="selectTrack('{title}', '{album}', event)">
             {img_html}
             <div class="min-w-0 flex-1">
                 <div class="font-bold text-slate-200 truncate">{t.get('title')}</div>

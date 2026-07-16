@@ -94,7 +94,7 @@
                     <i class="fa-solid fa-chevron-down group-open:rotate-180 transition-transform"></i>
                 </summary>
 
-                <div class="p-6 border-t border-slate-700 grid grid-cols-1 md:grid-cols-4 gap-6 text-sm">
+                <div class="p-6 border-t border-slate-700 grid grid-cols-1 md:grid-cols-5 gap-6 text-sm">
                     <!-- Format Filtering -->
                     <div class="space-y-2">
                         <label class="block text-xs font-bold text-slate-400 uppercase tracking-wide">Format</label>
@@ -146,6 +146,16 @@
                             <option value="size_desc">File Size (Descending)</option>
                             <option value="size_asc">File Size (Ascending)</option>
                             <option value="queue">Shortest Queue Length</option>
+                        </select>
+                    </div>
+
+                    <!-- Search Query Mode (Task 3) -->
+                    <div>
+                        <label for="search_mode" class="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Search Mode</label>
+                        <select id="search_mode" name="search_mode" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 filter-pref">
+                            <option value="A">Mode A (Standard)</option>
+                            <option value="B">Mode B (Quotes)</option>
+                            <option value="C">Mode C (Prefixes)</option>
                         </select>
                     </div>
                 </div>
@@ -243,7 +253,7 @@
     }
 
     // --- Filter Persistence Layer ---
-    const filterKeys = ["flac_only", "lossless_only", "mp3_only", "min_bitrate", "max_size", "sort_by"];
+    const filterKeys = ["flac_only", "lossless_only", "mp3_only", "min_bitrate", "max_size", "sort_by", "search_mode"];
 
     function savePreferences() {
         const prefs = {};
@@ -253,6 +263,7 @@
         prefs.min_bitrate = document.getElementById("min_bitrate").value;
         prefs.max_size = document.getElementById("max_size").value;
         prefs.sort_by = document.getElementById("sort_by").value;
+        prefs.search_mode = document.getElementById("search_mode").value;
 
         localStorage.setItem("track_portal_search_filters", JSON.stringify(prefs));
     }
@@ -268,6 +279,7 @@
                 document.getElementById("min_bitrate").value = prefs.min_bitrate || "";
                 document.getElementById("max_size").value = prefs.max_size || "";
                 document.getElementById("sort_by").value = prefs.sort_by || "quality";
+                document.getElementById("search_mode").value = prefs.search_mode || "A";
             } catch (e) {
                 console.error("Failed to load search filter preferences:", e);
             }

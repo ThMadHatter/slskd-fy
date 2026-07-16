@@ -29,8 +29,57 @@ class ArtistService:
             logger.debug(f"ArtistService.autocomplete: Attempting MusicBrainz lookup for '{clean_query}'")
             mb_results = await MusicBrainzService.search_artists(clean_query, db)
             if mb_results:
-                logger.info(f"ArtistService.autocomplete MATCH [MusicBrainz] found {len(mb_results)} artists for query='{clean_query}'")
-                return mb_results
+                scored_results = []
+                discarded_results = []
+                threshold = 40  # Keep contains-match or better (at least 40 points)
+
+                for artist in mb_results:
+                    name = artist.get("name", "")
+                    name_lower = name.lower().strip()
+                    q_lower = clean_query.lower().strip()
+
+                    # Calculate Autocomplete Scoring & Ranking (Task 4)
+                    score = 0
+                    if name_lower == q_lower:
+                        score = 100
+                        reason = "Exact Match"
+                    elif name_lower.startswith(q_lower):
+                        score = 80
+                        reason = "Starts With Match"
+                    elif any(word.startswith(q_lower) for word in name_lower.split()):
+                        score = 60
+                        reason = "Word Prefix Match"
+                    elif q_lower in name_lower:
+                        score = 40
+                        reason = "Contains Match"
+                    else:
+                        score = 10
+                        reason = "Weak or Unrelated Match"
+
+                    artist["score"] = score
+                    artist["match_type"] = reason
+
+                    if score >= threshold:
+                        scored_results.append(artist)
+                    else:
+                        discarded_results.append((artist, f"Score {score} is below threshold {threshold} ({reason})"))
+
+                # Sort by score descending to rank best prefix matches first
+                scored_results.sort(key=lambda x: x["score"], reverse=True)
+
+                # Task 4: Detailed debug logs showing returned, discarded, and discard reason
+                logger.info(f"--- Autocomplete Artist Ranking Report for Query '{clean_query}' ---")
+                logger.info(f"Returned Artists (Total {len(scored_results)}):")
+                for artist in scored_results:
+                    logger.info(f"  - '{artist['name']}' (ID: {artist['id']}) [Score: {artist['score']}, Match: {artist['match_type']}]")
+
+                logger.info(f"Discarded Artists (Total {len(discarded_results)}):")
+                for artist, reason in discarded_results:
+                    logger.info(f"  - '{artist['name']}' (ID: {artist['id']}) [Reason: {reason}]")
+                logger.info("----------------------------------------------------------------")
+
+                if scored_results:
+                    return scored_results
             else:
                 logger.debug(f"ArtistService.autocomplete: No results found from MusicBrainz for '{clean_query}'")
         except Exception as e:

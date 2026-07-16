@@ -50,18 +50,23 @@ class MusicBrainzService:
     @classmethod
     async def search_artists(cls, query: str, db: Session) -> List[Dict[str, Any]]:
         """
-        Searches MusicBrainz for artists. Result is cached.
+        Searches MusicBrainz for artists with prefix-wildcard support for autocomplete. Result is cached.
         """
-        cache_key = f"mb:artist_search:{query.lower().strip()}"
+        clean_q = query.strip()
+        cache_key = f"mb:artist_search:{clean_q.lower()}"
         cached = CacheService.get(db, cache_key, "artist")
         if cached is not None:
-            logger.info(f"MusicBrainz artist search cache hit for '{query}'")
+            logger.info(f"MusicBrainz artist search cache hit for '{clean_q}'")
             return cached
 
-        logger.info(f"MusicBrainz artist search cache miss for '{query}'. Querying MusicBrainz...")
+        logger.info(f"MusicBrainz artist search cache miss for '{clean_q}'. Querying MusicBrainz with prefix wildcard...")
         url = "https://musicbrainz.org/ws/2/artist/"
+
+        # Format search query using Lucene prefix wildcard (Task 4)
+        # This converts a prefix like 'kend' into 'artist:(kend*)', enabling prefix-matching.
+        lucene_query = f"artist:({clean_q}*)"
         params = {
-            "query": f"artist:{query}",
+            "query": lucene_query,
             "fmt": "json",
             "limit": 10
         }

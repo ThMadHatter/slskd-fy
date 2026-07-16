@@ -47,30 +47,50 @@ class SearchRankingService:
         return False
 
     @staticmethod
-    def generate_queries(artist: str, track: str, album: Optional[str] = None) -> List[str]:
+    def generate_queries(artist: str, track: str, album: Optional[str] = None, mode: str = "A") -> List[str]:
         """
-        Generates optimized slskd search queries using canonical artist information.
-        (Task 4: Search generation must use canonical artist information)
+        Generates optimized slskd search queries using canonical artist information and specific query mode (A, B, or C).
         """
         clean_artist = artist.strip().strip("'\"").strip()
         clean_track = track.strip().strip("'\"").strip()
-        clean_album = album.strip().strip("'\"").strip() if album else ""
 
-        # Task 4 & 7: Generating optimized query strings
-        # Use canonical artist name in double quotes for exact match on Soulseek
+        # Task 1: Debug Query Builder logging
+        logger.info(f"Query Builder: Input Selected Artist='{artist}', Track='{track}'")
+
         queries = []
-        if clean_artist and clean_track:
-            queries.append(f'"{clean_artist}" {clean_track}')
-            queries.append(f"{clean_artist} {clean_track}")
-        elif clean_artist:
-            queries.append(f'"{clean_artist}"')
-            queries.append(clean_artist)
-        elif clean_track:
-            queries.append(clean_track)
+        mode = (mode or "A").upper().strip()
+
+        if mode == "B":
+            # Mode B: "Kendrick Lamar" "Not Like Us"
+            if clean_artist and clean_track:
+                queries.append(f'"{clean_artist}" "{clean_track}"')
+            elif clean_artist:
+                queries.append(f'"{clean_artist}"')
+            elif clean_track:
+                queries.append(f'"{clean_track}"')
+        elif mode == "C":
+            # Mode C: artist:Kendrick Lamar track:Not Like Us
+            if clean_artist and clean_track:
+                queries.append(f'artist:{clean_artist} track:{clean_track}')
+            elif clean_artist:
+                queries.append(f'artist:{clean_artist}')
+            elif clean_track:
+                queries.append(f'track:{clean_track}')
+        else:
+            # Mode A (Default): Kendrick Lamar Not Like Us
+            if clean_artist and clean_track:
+                queries.append(f'{clean_artist} {clean_track}')
+                queries.append(f'"{clean_artist}" {clean_track}')
+            elif clean_artist:
+                queries.append(clean_artist)
+            elif clean_track:
+                queries.append(clean_track)
 
         # Unique values preserving order
         seen = set()
-        return [q for q in queries if not (q in seen or seen.add(q))]
+        res = [q for q in queries if not (q in seen or seen.add(q))]
+        logger.info(f"Query Builder: Generated Queries for Mode {mode}: {res}")
+        return res
 
     @staticmethod
     def score_result(

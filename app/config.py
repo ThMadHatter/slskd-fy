@@ -38,4 +38,8 @@ class Settings(BaseSettings):
     # Let's specify it as a comma-separated list of formats
     QUALITY_RANKING: str = "flac,alac,wav,aac,mp3_320,mp3_v0"
 
+    # Search strategy configuration
+    # Can be STRICT, BALANCED, or AGGRESSIVE
+    SEARCH_STRATEGY: str = "BALANCED"
+
 settings = Settings()

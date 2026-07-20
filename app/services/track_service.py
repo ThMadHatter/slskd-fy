@@ -27,7 +27,11 @@ class TrackService:
             logger.info("TrackService.autocomplete: Missing artist_name, returning empty.")
             return []
 
-        clean_query = query.strip() if query else ""
+        if not query or len(query.strip()) < 2:
+            logger.info("TrackService.autocomplete query too short (length < 2), returning empty.")
+            return []
+
+        clean_query = query.strip()
 
         # 1. Try MusicBrainz recordings
         try:

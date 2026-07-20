@@ -38,6 +38,7 @@ class SlskdClient:
             "searchTimeout": timeout_ms,
             "filterResponses": True
         }
+        print(f"[AUDIT] PAYLOAD - payload={payload}", flush=True)
 
         # FIX 3: Secure your API key in logs so it isn't printed in plain text
         safe_api_key = f"{self.api_key[:4]}...{self.api_key[-4:]}" if self.api_key else "None"
@@ -80,6 +81,12 @@ class SlskdClient:
                 response = await client.get(url, timeout=30)
                 response.raise_for_status()
                 data = response.json()
+
+                # Calculate response files count
+                total_files_count = 0
+                for resp in data:
+                    total_files_count += len(resp.get("files", []))
+                print(f"[AUDIT] SLSKD RESPONSE COUNT - search_id={search_id!r}, peer_responses={len(data)}, total_files={total_files_count}", flush=True)
 
                 # FIX 4: Removed `Raw: {data}` print.
                 # Soulseek search results can easily be 5MB+ of text which will crash your log viewer!

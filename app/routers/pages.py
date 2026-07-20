@@ -273,6 +273,7 @@ async def post_search_results(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
+    print(f"[AUDIT] INPUT - artist={artist!r}, canonical_artist={canonical_artist!r}, track={track!r}, canonical_track={canonical_track!r}, query={query!r}", flush=True)
     start_time = time.time()
 
     # Issue 1: Selected autocomplete values must drive the search query. Use canonical prioritised.
@@ -1095,6 +1096,7 @@ async def api_autocomplete_artist(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
+    print(f"[AUDIT] INPUT - q={q!r}, artist={artist!r}", flush=True)
     query = q or artist
     logger.info(f"API: GET /api/autocomplete/artist - parameters: q='{q}', artist='{artist}' -> resolved query='{query}'")
     if not query or len(query.strip()) < 2:

@@ -184,6 +184,8 @@ async def poll_downloads():
         await asyncio.sleep(10)
 
 def start_background_poller():
+    logger.info("Startup step 4a: Getting event loop...")
     loop = asyncio.get_event_loop()
+    logger.info("Startup step 4b: Creating task for poll_downloads...")
     loop.create_task(poll_downloads())
-    logger.info("Background download poller started successfully.")
+    logger.info("Startup step 4c: Background download poller started successfully.")

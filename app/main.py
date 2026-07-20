@@ -55,17 +55,25 @@ def run_migrations():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup actions
+    logger.info("Startup step 1: Setting up application logging...")
     setup_app_logging()
-    run_migrations()
+    logger.info("Startup step 1 complete")
 
-    # Initialize Admin user if none exists
+    logger.info("Startup step 2: Running database migrations...")
+    run_migrations()
+    logger.info("Startup step 2 complete")
+
+    logger.info("Startup step 3: Initializing admin user if none exists...")
     db = SessionLocal()
     init_admin_user(db)
     db.close()
+    logger.info("Startup step 3 complete")
 
-    # Start the background downloads poller
+    logger.info("Startup step 4: Starting background downloads poller...")
     start_background_poller()
+    logger.info("Startup step 4 complete")
 
+    logger.info("Startup step 5: Lifespan startup fully complete!")
     yield
     # Shutdown actions
     logger.info("Shutting down Track Portal...")

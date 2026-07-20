@@ -89,6 +89,7 @@ class SearchRankingService:
         # Unique values preserving order
         seen = set()
         res = [q for q in queries if not (q in seen or seen.add(q))]
+        print(f"[AUDIT] GENERATED QUERY - mode={mode}, queries={res}", flush=True)
         logger.info(f"Query Builder: Generated Queries for Mode {mode}: {res}")
         return res
 

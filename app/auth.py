@@ -81,8 +81,10 @@ def init_admin_user(db: Session):
     Checks if there are any users in the DB. If not, creates an initial admin user
     using ADMIN_USERNAME and ADMIN_PASSWORD env variables.
     """
+    logger.info("Startup step 3a: Querying User count in database...")
     try:
         user_count = db.query(User).count()
+        logger.info(f"Startup step 3b: User count is {user_count}")
         if user_count == 0:
             username = settings.ADMIN_USERNAME or "admin"
             password = settings.ADMIN_PASSWORD

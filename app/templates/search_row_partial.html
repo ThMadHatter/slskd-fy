@@ -1,0 +1,157 @@
+<tr class="hover:bg-slate-800/40 transition animate-fade-in" id="row-{{ index }}">
+    {% if r.needs_enrichment %}
+    <!-- This row is in progressive loading state. It will lazy-load its enriched data via HTMX. -->
+    <td colspan="12" class="px-6 py-6 text-center text-slate-400 bg-slate-900/10"
+        hx-get="/search/enrich-row?artist={{ r.artist|urlencode }}&track={{ r.track|urlencode }}&album={{ r.album|urlencode }}&year={{ r.year or '' }}&filename={{ r.filename|urlencode }}&size={{ r.size }}&username={{ r.username|urlencode }}&format={{ r.format|urlencode }}&bitrate={{ r.bitrate }}&sample_rate={{ r.sample_rate }}&queue_length={{ r.queue_length }}&index={{ index }}&canonical_artist={{ canonical_artist|default('')|urlencode }}&canonical_track={{ canonical_track|default('')|urlencode }}"
+        hx-trigger="load delay:{{ index * 150 }}ms"
+        hx-swap="outerHTML">
+        <div class="flex items-center justify-center space-x-3 py-1">
+            <i class="fa-solid fa-compact-disc animate-spin text-emerald-500 text-base"></i>
+            <span class="text-sm font-semibold tracking-wide text-slate-300">
+                Evaluating & enriching metadata for: <strong class="text-slate-100 font-mono text-xs">{{ r.filename }}</strong> ...
+            </span>
+        </div>
+    </td>
+    {% else %}
+    <!-- Score Badge -->
+    <td class="px-6 py-4 text-center font-bold">
+        {% if r.quality_score >= 90 %}
+        <span class="px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="High Quality match">
+            {{ r.quality_score }}/100
+        </span>
+        {% elif r.quality_score >= 75 %}
+        <span class="px-2.5 py-1 rounded-full text-xs font-extrabold bg-sky-500/10 text-sky-400 border border-sky-500/20 shadow-sm" title="Good Quality match">
+            {{ r.quality_score }}/100
+        </span>
+        {% else %}
+        <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-700/60 text-slate-300 border border-slate-700 shadow-sm" title="Standard match">
+            {{ r.quality_score }}/100
+        </span>
+        {% endif %}
+    </td>
+
+    <!-- Cover Art Thumbnail -->
+    <td class="px-6 py-4">
+        {% if r.cover_url %}
+        <div class="relative w-10 h-10">
+            <!-- Image with onerror to hide itself and show the local fallback -->
+            <img src="{{ r.cover_url }}" class="absolute inset-0 w-10 h-10 rounded object-cover bg-slate-900 border border-slate-700/50 shadow z-10" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');">
+            <!-- Local Fallback placeholder (shown if image fails to load) -->
+            <div class="hidden absolute inset-0 w-10 h-10 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500 shadow">
+                <i class="fa-solid fa-compact-disc text-lg animate-spin-slow text-slate-600"></i>
+            </div>
+        </div>
+        {% else %}
+        <div class="w-10 h-10 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-600 shadow">
+            <i class="fa-solid fa-compact-disc text-lg animate-spin-slow"></i>
+        </div>
+        {% endif %}
+    </td>
+
+    <td class="px-6 py-4 font-semibold text-slate-100">
+        <div class="flex flex-col space-y-1">
+            <span>{{ r.artist }}</span>
+            <!-- Result Classification Badge -->
+            {% if r.ranking_diagnostics %}
+                {% if r.ranking_diagnostics.classification == 'PRIMARY_ARTIST_MATCH' %}
+                    <span class="inline-flex items-center w-fit px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">PRIMARY ARTIST</span>
+                {% elif r.ranking_diagnostics.classification == 'FEATURED_ARTIST_MATCH' %}
+                    <span class="inline-flex items-center w-fit px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">FEATURED ARTIST</span>
+                {% elif r.ranking_diagnostics.classification == 'PARTIAL_MATCH' %}
+                    <span class="inline-flex items-center w-fit px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">PARTIAL MATCH</span>
+                {% else %}
+                    <span class="inline-flex items-center w-fit px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-700/50 text-slate-400 border border-slate-600/30">UNKNOWN</span>
+                {% endif %}
+            {% endif %}
+        </div>
+    </td>
+    <td class="px-6 py-4 text-slate-200">
+        <div class="flex flex-col space-y-1">
+            <span class="font-medium text-slate-100">{{ r.track }}</span>
+
+            <!-- Ranking Diagnostics Panel -->
+            {% if r.ranking_diagnostics %}
+            <div class="text-[10px] text-slate-400 font-mono bg-slate-900/60 border border-slate-800/80 rounded px-1.5 py-1 w-fit mt-1 space-x-1 flex items-center">
+                <span class="text-slate-500 font-bold uppercase mr-1 text-[9px]">Scores:</span>
+                <span class="text-slate-300">Art: <strong class="text-emerald-400">{{ r.ranking_diagnostics.artist_score }}</strong></span>
+                <span class="text-slate-600">|</span>
+                <span class="text-slate-300">Trk: <strong class="text-sky-400">{{ r.ranking_diagnostics.track_score }}</strong></span>
+                <span class="text-slate-600">|</span>
+                <span class="text-slate-300">Alb: <strong class="text-indigo-400">{{ r.ranking_diagnostics.album_score }}</strong></span>
+                <span class="text-slate-600">|</span>
+                <span class="text-slate-300">Qly: <strong class="text-teal-400">{{ r.ranking_diagnostics.quality_score }}</strong></span>
+                <span class="text-slate-600">|</span>
+                <span class="text-slate-300">MB: <strong class="text-fuchsia-400">{{ r.ranking_diagnostics.musicbrainz_score }}</strong></span>
+                <span class="text-slate-600">|</span>
+                <span class="text-emerald-400 font-bold font-sans">Final: {{ r.ranking_diagnostics.final_score }}</span>
+            </div>
+            {% endif %}
+
+            {% if r.duplicate_warning %}
+            <span class="text-xs text-amber-400 mt-1 flex items-center space-x-1 font-semibold">
+                <i class="fa-solid fa-triangle-exclamation animate-pulse"></i>
+                <span>{{ r.duplicate_warning }}</span>
+            </span>
+            {% endif %}
+        </div>
+    </td>
+    <td class="px-6 py-4 text-slate-400">
+        <div class="flex flex-col">
+            <span class="truncate max-w-[150px] font-medium">{{ r.album or "Single" }}</span>
+            {% if r.year %}
+            <span class="text-xs text-slate-500 font-mono mt-0.5">{{ r.year }}</span>
+            {% endif %}
+        </div>
+    </td>
+    <td class="px-6 py-4 text-slate-400 font-mono text-xs">{{ r.username }}</td>
+    <td class="px-6 py-4 text-center">
+        {% if r.format == 'flac' %}
+        <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">FLAC</span>
+        {% elif r.format in ['wav', 'alac', 'ape', 'aiff'] %}
+        <span class="px-2 py-0.5 rounded text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 uppercase">{{ r.format }}</span>
+        {% else %}
+        <span class="px-2 py-0.5 rounded text-xs font-bold bg-slate-700 text-slate-300 uppercase">{{ r.format }}</span>
+        {% endif %}
+    </td>
+    <td class="px-6 py-4 text-right font-mono text-xs">{{ r.bitrate or "-" }} kbps</td>
+    <td class="px-6 py-4 text-right font-mono text-xs">
+        {% if r.sample_rate %}
+            {{ (r.sample_rate / 1000)|round(1) }} kHz
+        {% else %}
+            -
+        {% endif %}
+    </td>
+    <td class="px-6 py-4 text-right font-mono text-xs">
+        {% if r.size %}
+            {{ (r.size / (1024 * 1024))|round(1) }} MB
+        {% else %}
+            -
+        {% endif %}
+    </td>
+    <td class="px-6 py-4 text-center font-mono text-xs">
+        {% if r.queue_length == 0 %}
+        <span class="text-emerald-400 font-semibold">Free</span>
+        {% else %}
+        <span class="text-amber-400 font-semibold">{{ r.queue_length }}</span>
+        {% endif %}
+    </td>
+    <td class="px-6 py-4 text-center">
+        <form hx-post="/downloads/create" hx-swap="outerHTML">
+            <input type="hidden" name="artist" value="{{ r.artist }}">
+            <input type="hidden" name="track" value="{{ r.track }}">
+            <input type="hidden" name="album" value="{{ r.album or '' }}">
+            <input type="hidden" name="filename" value="{{ r.filename }}">
+            <input type="hidden" name="size" value="{{ r.size }}">
+            <input type="hidden" name="username" value="{{ r.username }}">
+            <input type="hidden" name="format" value="{{ r.format }}">
+            <input type="hidden" name="bitrate" value="{{ r.bitrate or 0 }}">
+            <input type="hidden" name="sample_rate" value="{{ r.sample_rate or 0 }}">
+
+            <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-2 rounded text-xs transition shadow flex items-center space-x-1 mx-auto">
+                <i class="fa-solid fa-cloud-arrow-down"></i>
+                <span>Download</span>
+            </button>
+        </form>
+    </td>
+    {% endif %}
+</tr>

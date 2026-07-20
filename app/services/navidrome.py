@@ -53,6 +53,46 @@ class NavidromeClient:
                 "f": "json"
             }
 
+    async def ping_check(self) -> Dict[str, Any]:
+        """
+        Pings the Navidrome Subsonic endpoint to check connectivity and status.
+        Useful for diagnostics/health checks.
+        """
+        url = f"{self.base_url}/rest/ping.view"
+        params = self._get_auth_params()
+
+        logger.info(f"Pinging Navidrome Subsonic API at: {url}")
+        async with httpx.AsyncClient() as client:
+            try:
+                # Use a smaller timeout for healthchecks to prevent blocking
+                response = await client.get(url, params=params, timeout=5)
+                if response.status_code == 200:
+                    try:
+                        data = response.json()
+                        subsonic_response = data.get("subsonic-response", {})
+                        if subsonic_response.get("status") == "ok":
+                            return {"connected": True, "version": subsonic_response.get("version"), "message": "OK"}
+                        else:
+                            err = subsonic_response.get("error", {})
+                            msg = f"Subsonic Error {err.get('code')}: {err.get('message')}"
+                            logger.error(f"Navidrome ping returned error status: {msg}")
+                            return {"connected": False, "message": msg}
+                    except Exception as e:
+                        logger.error(f"Navidrome ping response is not valid JSON: {response.text[:200]}")
+                        return {"connected": False, "message": f"Invalid JSON response: {e}"}
+                else:
+                    logger.error(f"Navidrome ping returned HTTP {response.status_code}")
+                    return {"connected": False, "message": f"HTTP status {response.status_code}"}
+            except httpx.ConnectError as e:
+                logger.error(f"Navidrome connection failed: connection refused or unresolvable host: {e}")
+                return {"connected": False, "message": f"Connection refused/failed: {e}"}
+            except httpx.TimeoutException as e:
+                logger.error(f"Navidrome connection timeout: {e}")
+                return {"connected": False, "message": f"Connection timed out: {e}"}
+            except Exception as e:
+                logger.error(f"Exception during Navidrome ping check: {e}")
+                return {"connected": False, "message": str(e)}
+
     async def start_scan(self) -> bool:
         """
         Triggers a library rescan in Navidrome using startScan.view Subsonic API.
@@ -124,6 +164,45 @@ class NavidromeClient:
                     logger.error(f"Subsonic search failed with HTTP status: {response.status_code}")
                     return False
             except Exception as e:
-                # Log a simple warning to avoid spamming the logs when Navidrome is unreachable or unconfigured
                 logger.warning(f"Navidrome track search is currently unavailable: {e}")
                 return False
+
+    async def search_songs_by_artist(self, artist_name: str, query: str) -> List[Dict[str, Any]]:
+        """
+        Searches Navidrome for songs by artist and queries. Returns list of recordings/tracks.
+        """
+        url = f"{self.base_url}/rest/search3.view"
+        # Search for artist name combined with query
+        full_query = f"{artist_name} {query}" if query else artist_name
+        params = self._get_auth_params()
+        params["query"] = full_query
+
+        logger.info(f"Querying Navidrome songs for autocomplete: '{full_query}'")
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(url, params=params, timeout=10)
+                results = []
+                if response.status_code == 200:
+                    data = response.json()
+                    subsonic_response = data.get("subsonic-response", {})
+                    if subsonic_response.get("status") == "ok":
+                        search_result = subsonic_response.get("searchResult3", {})
+                        song_list = search_result.get("song", [])
+
+                        normalized_artist = artist_name.lower().strip()
+                        for song in song_list:
+                            song_artist = song.get("artist", "").lower().strip()
+                            # Ensure the song artist is a close match to the selected artist
+                            if normalized_artist in song_artist or song_artist in normalized_artist:
+                                results.append({
+                                    "id": song.get("id"),
+                                    "title": song.get("title"),
+                                    "artist": song.get("artist"),
+                                    "album": song.get("album", ""),
+                                    "year": song.get("year"),
+                                    "cover_url": f"{self.base_url}/rest/getCoverArt.view?id={song.get('coverArt')}&u={self.username}&t={params.get('t')}&s={params.get('s')}&v=1.16.0&c=trackportal" if song.get("coverArt") else ""
+                                })
+                return results
+            except Exception as e:
+                logger.error(f"Exception during Navidrome songs autocomplete search: {e}")
+                return []

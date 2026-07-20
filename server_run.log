@@ -1,0 +1,5 @@
+INFO:     Started server process [797672]
+INFO:     Waiting for application startup.
+2026-07-16 07:38:44,452 [INFO] track_portal: Running database migrations via Alembic...
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.

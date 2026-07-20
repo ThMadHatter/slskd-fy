@@ -1,64 +1,114 @@
 {% extends "base.html" %}
 
 {% block title %}Search - Track Portal{% endblock %}
-{% block header_title %}Search{% endblock %}
-{% block header_subtitle %}Find individual tracks using slskd API{% endblock %}
+{% block header_title %}Music Search & Discovery{% endblock %}
+{% block header_subtitle %}Spotify-like structured artist and track discovery workflow{% endblock %}
 
 {% block content %}
 <div class="space-y-8">
 
     <!-- Search Form Panel -->
     <div class="bg-darkPanel border border-slate-700 rounded-xl p-6 shadow">
-        <form hx-post="/search/results" hx-target="#results-container" hx-indicator="#search-indicator" class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Artist -->
-                <div>
-                    <label for="artist" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Artist</label>
-                    <input type="text" id="artist" name="artist"
-                           class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                           placeholder="e.g. Daft Punk">
+        <form hx-post="/search/results" hx-target="#results-container" hx-indicator="#search-indicator" class="space-y-6" id="search-form">
+
+            <!-- Hidden Fields for Canonical values -->
+            <input type="hidden" id="artist_mbid" name="artist_mbid" value="">
+            <input type="hidden" id="canonical_artist" name="canonical_artist" value="">
+            <input type="hidden" id="canonical_track" name="canonical_track" value="">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Artist Autocomplete -->
+                <div class="relative">
+                    <label for="artist" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Artist Name</label>
+                    <div class="flex items-center space-x-2">
+                        <div class="relative flex-1">
+                            <input type="text" id="artist" name="artist" autocomplete="off"
+                                   hx-get="/api/autocomplete/artist"
+                                   hx-trigger="keyup changed delay:300ms"
+                                   hx-target="#artist-suggestions"
+                                   class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                                   placeholder="Type artist name (e.g. Kendrick)..."
+                                   onfocus="document.getElementById('artist-suggestions').style.display='block'"
+                                   oninput="document.getElementById('artist-suggestions').style.display='block'"
+                                   onclick="document.getElementById('artist-suggestions').style.display='block'"
+                                   value="{{ artist or '' }}">
+                            <div id="artist-suggestions" class="absolute w-full mt-1 z-50"></div>
+                        </div>
+                        <button type="button" onclick="clearArtistSelection()" class="px-3 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 transition" title="Clear artist selection">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <div id="artist-selected-pill" class="mt-2 hidden">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold">
+                            <i class="fa-solid fa-circle-check mr-1"></i>
+                            <span id="artist-pill-name"></span>
+                            <span class="ml-1 text-[10px] text-slate-500" id="artist-pill-mbid"></span>
+                        </span>
+                    </div>
                 </div>
-                <!-- Track Title -->
-                <div>
+
+                <!-- Track Autocomplete -->
+                <div class="relative">
                     <label for="track" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Song Title</label>
-                    <input type="text" id="track" name="track"
-                           class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                           placeholder="e.g. One More Time">
-                </div>
-                <!-- Generic Query -->
-                <div>
-                    <label for="query" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Generic Query (Alternative)</label>
-                    <input type="text" id="query" name="query"
-                           class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                           placeholder="e.g. Daft Punk - One More Time">
+                    <div class="flex items-center space-x-2">
+                        <div class="relative flex-1">
+                            <input type="text" id="track" name="track" autocomplete="off"
+                                   hx-get="/api/autocomplete/track"
+                                   hx-trigger="keyup changed delay:300ms"
+                                   hx-target="#track-suggestions"
+                                   hx-include="#artist, #artist_mbid"
+                                   class="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                   placeholder="Select artist first..."
+                                   onfocus="document.getElementById('track-suggestions').style.display='block'"
+                                   oninput="document.getElementById('track-suggestions').style.display='block'"
+                                   onclick="document.getElementById('track-suggestions').style.display='block'"
+                                   value="{{ track or '' }}" disabled>
+                            <div id="track-suggestions" class="absolute w-full mt-1 z-50"></div>
+                        </div>
+                        <button type="button" onclick="clearTrackSelection()" class="px-3 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-slate-400 hover:text-slate-200 transition" title="Clear track selection">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <div id="track-selected-pill" class="mt-2 hidden">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 text-xs font-semibold">
+                            <i class="fa-solid fa-music mr-1"></i>
+                            <span id="track-pill-name"></span>
+                        </span>
+                    </div>
                 </div>
             </div>
 
+            <!-- Generic fallback query -->
+            <div class="bg-slate-800/20 p-4 rounded-lg border border-slate-700/60 text-xs text-slate-400 space-y-2">
+                <span class="font-semibold text-slate-300">Arbitrary Search (Optional Fallback):</span>
+                <input type="text" id="query" name="query" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-slate-300 placeholder-slate-600 focus:outline-none focus:border-emerald-600" placeholder="Type general text query to bypass autocomplete flow (e.g. Daft Punk One More Time)">
+            </div>
+
             <!-- Filters Accordion -->
-            <details class="group bg-slate-800/40 border border-slate-700/80 rounded-lg overflow-hidden">
+            <details class="group bg-slate-800/40 border border-slate-700/80 rounded-lg overflow-hidden" id="filters-details">
                 <summary class="flex justify-between items-center px-4 py-3 cursor-pointer select-none hover:bg-slate-700/30 transition text-sm font-semibold text-slate-300">
                     <span class="flex items-center space-x-2">
-                        <i class="fa-solid fa-sliders"></i>
-                        <span>Advanced Filters & Options</span>
+                        <i class="fa-solid fa-sliders text-emerald-400"></i>
+                        <span>Advanced Filters & Preferences (Saved Automatically)</span>
                     </span>
                     <i class="fa-solid fa-chevron-down group-open:rotate-180 transition-transform"></i>
                 </summary>
 
-                <div class="p-6 border-t border-slate-700 grid grid-cols-1 md:grid-cols-4 gap-6 text-sm">
+                <div class="p-6 border-t border-slate-700 grid grid-cols-1 md:grid-cols-5 gap-6 text-sm">
                     <!-- Format Filtering -->
                     <div class="space-y-2">
                         <label class="block text-xs font-bold text-slate-400 uppercase tracking-wide">Format</label>
                         <div class="space-y-1.5 mt-2">
                             <label class="flex items-center space-x-2.5">
-                                <input type="checkbox" name="flac_only" value="true" class="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-emerald-500 h-4 w-4">
+                                <input type="checkbox" id="filter_flac_only" name="flac_only" value="true" class="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-emerald-500 h-4 w-4 filter-pref">
                                 <span>FLAC only</span>
                             </label>
                             <label class="flex items-center space-x-2.5">
-                                <input type="checkbox" name="lossless_only" value="true" class="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-emerald-500 h-4 w-4">
-                                <span>Lossless only (FLAC/WAV/ALAC)</span>
+                                <input type="checkbox" id="filter_lossless_only" name="lossless_only" value="true" class="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-emerald-500 h-4 w-4 filter-pref">
+                                <span>Lossless only</span>
                             </label>
                             <label class="flex items-center space-x-2.5">
-                                <input type="checkbox" name="mp3_only" value="true" class="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-emerald-500 h-4 w-4">
+                                <input type="checkbox" id="filter_mp3_only" name="mp3_only" value="true" class="rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-emerald-500 h-4 w-4 filter-pref">
                                 <span>MP3 only</span>
                             </label>
                         </div>
@@ -67,7 +117,7 @@
                     <!-- Min Bitrate -->
                     <div>
                         <label for="min_bitrate" class="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Minimum Bitrate</label>
-                        <select id="min_bitrate" name="min_bitrate" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
+                        <select id="min_bitrate" name="min_bitrate" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 filter-pref">
                             <option value="">Any</option>
                             <option value="128">128 kbps</option>
                             <option value="192">192 kbps</option>
@@ -79,7 +129,7 @@
                     <!-- Max Size -->
                     <div>
                         <label for="max_size" class="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Maximum File Size</label>
-                        <select id="max_size" name="max_size" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
+                        <select id="max_size" name="max_size" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 filter-pref">
                             <option value="">Any</option>
                             <option value="15">15 MB</option>
                             <option value="30">30 MB</option>
@@ -91,11 +141,21 @@
                     <!-- Sort preference -->
                     <div>
                         <label for="sort_by" class="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Primary Sorting</label>
-                        <select id="sort_by" name="sort_by" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-100">
-                            <option value="quality">Quality (FLAC first, high bitrate)</option>
+                        <select id="sort_by" name="sort_by" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 filter-pref">
+                            <option value="quality">Quality Score (High first)</option>
                             <option value="size_desc">File Size (Descending)</option>
                             <option value="size_asc">File Size (Ascending)</option>
                             <option value="queue">Shortest Queue Length</option>
+                        </select>
+                    </div>
+
+                    <!-- Search Query Mode (Task 3) -->
+                    <div>
+                        <label for="search_mode" class="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Search Mode</label>
+                        <select id="search_mode" name="search_mode" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-100 filter-pref">
+                            <option value="A">Mode A (Standard)</option>
+                            <option value="B">Mode B (Quotes)</option>
+                            <option value="C">Mode C (Prefixes)</option>
                         </select>
                     </div>
                 </div>
@@ -105,11 +165,11 @@
             <div class="flex items-center space-x-4">
                 <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold px-6 py-3 rounded-lg shadow-lg hover:shadow-emerald-500/10 flex items-center space-x-2 transition">
                     <i class="fa-solid fa-magnifying-glass"></i>
-                    <span>Execute Search</span>
+                    <span>Execute Structured Search</span>
                 </button>
                 <div id="search-indicator" class="htmx-indicator flex items-center space-x-2 text-slate-400 text-sm">
                     <i class="fa-solid fa-circle-notch animate-spin text-emerald-400"></i>
-                    <span>Searching slskd API...</span>
+                    <span>Searching slskd REST network & ranking results...</span>
                 </div>
             </div>
         </form>
@@ -119,9 +179,119 @@
     <div id="results-container" class="bg-darkPanel border border-slate-700 rounded-xl shadow overflow-hidden">
         <div class="text-center py-16 text-slate-500">
             <i class="fa-solid fa-search text-4xl mb-3 block"></i>
-            <span class="text-sm">Search results will be displayed here. Fill in the fields and run search.</span>
+            <span class="text-sm">Search results will be displayed here. Search for an artist and track to begin.</span>
         </div>
     </div>
 
 </div>
+
+<!-- Auto-suggestion and Preference Javascript Client-Side Logic -->
+<script>
+    // Hide dropdowns when clicking outside
+    document.addEventListener("click", function(e) {
+        if (!document.getElementById("artist").contains(e.target)) {
+            document.getElementById("artist-suggestions").style.display = "none";
+        }
+        if (!document.getElementById("track").contains(e.target)) {
+            document.getElementById("track-suggestions").style.display = "none";
+        }
+    });
+
+    // Callback when selecting artist from autocomplete list
+    function selectArtist(name, mbid, event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        document.getElementById("artist").value = name;
+        document.getElementById("canonical_artist").value = name;
+        document.getElementById("artist_mbid").value = mbid;
+        document.getElementById("artist-suggestions").style.display = "none";
+
+        // Show pill
+        document.getElementById("artist-pill-name").innerText = name;
+        document.getElementById("artist-pill-mbid").innerText = mbid ? "MBID: " + mbid : "";
+        document.getElementById("artist-selected-pill").classList.remove("hidden");
+
+        // Enable Track Auto-suggestion field
+        const trackInput = document.getElementById("track");
+        trackInput.disabled = false;
+        trackInput.placeholder = "Type song title...";
+        trackInput.focus();
+    }
+
+    function clearArtistSelection() {
+        document.getElementById("artist").value = "";
+        document.getElementById("canonical_artist").value = "";
+        document.getElementById("artist_mbid").value = "";
+        document.getElementById("artist-selected-pill").classList.add("hidden");
+
+        const trackInput = document.getElementById("track");
+        trackInput.value = "";
+        trackInput.disabled = true;
+        trackInput.placeholder = "Select artist first...";
+        clearTrackSelection();
+    }
+
+    // Callback when selecting track from autocomplete list
+    function selectTrack(title, album, event) {
+        if (event) {
+            event.stopPropagation();
+        }
+        document.getElementById("track").value = title;
+        document.getElementById("canonical_track").value = title;
+        document.getElementById("track-suggestions").style.display = "none";
+
+        // Show pill
+        document.getElementById("track-pill-name").innerText = title;
+        document.getElementById("track-selected-pill").classList.remove("hidden");
+    }
+
+    function clearTrackSelection() {
+        document.getElementById("track").value = "";
+        document.getElementById("canonical_track").value = "";
+        document.getElementById("track-selected-pill").classList.add("hidden");
+    }
+
+    // --- Filter Persistence Layer ---
+    const filterKeys = ["flac_only", "lossless_only", "mp3_only", "min_bitrate", "max_size", "sort_by", "search_mode"];
+
+    function savePreferences() {
+        const prefs = {};
+        prefs.flac_only = document.getElementById("filter_flac_only").checked;
+        prefs.lossless_only = document.getElementById("filter_lossless_only").checked;
+        prefs.mp3_only = document.getElementById("filter_mp3_only").checked;
+        prefs.min_bitrate = document.getElementById("min_bitrate").value;
+        prefs.max_size = document.getElementById("max_size").value;
+        prefs.sort_by = document.getElementById("sort_by").value;
+        prefs.search_mode = document.getElementById("search_mode").value;
+
+        localStorage.setItem("track_portal_search_filters", JSON.stringify(prefs));
+    }
+
+    function loadPreferences() {
+        const saved = localStorage.getItem("track_portal_search_filters");
+        if (saved) {
+            try {
+                const prefs = JSON.parse(saved);
+                document.getElementById("filter_flac_only").checked = !!prefs.flac_only;
+                document.getElementById("filter_lossless_only").checked = !!prefs.lossless_only;
+                document.getElementById("filter_mp3_only").checked = !!prefs.mp3_only;
+                document.getElementById("min_bitrate").value = prefs.min_bitrate || "";
+                document.getElementById("max_size").value = prefs.max_size || "";
+                document.getElementById("sort_by").value = prefs.sort_by || "quality";
+                document.getElementById("search_mode").value = prefs.search_mode || "A";
+            } catch (e) {
+                console.error("Failed to load search filter preferences:", e);
+            }
+        }
+    }
+
+    // Hook listeners
+    document.querySelectorAll(".filter-pref").forEach(el => {
+        el.addEventListener("change", savePreferences);
+    });
+
+    // Run on load
+    window.addEventListener("DOMContentLoaded", loadPreferences);
+</script>
 {% endblock %}

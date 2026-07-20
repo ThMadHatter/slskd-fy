@@ -24,12 +24,13 @@ def override_get_db():
     finally:
         db.close()
 
-app.dependency_overrides[get_db] = override_get_db
-
 @pytest.fixture(autouse=True)
 def setup_db(tmp_path):
     # Reset login rate limiter
     LOGIN_ATTEMPTS.clear()
+
+    # Enforce isolated dependency overrides for this test module
+    app.dependency_overrides[get_db] = override_get_db
 
     # Setup temporary Singles and Library directories for tests
     singles_dir = tmp_path / "singles"
@@ -71,6 +72,8 @@ def setup_db(tmp_path):
     db.commit()
     db.close()
     yield
+    # Clear overrides on teardown to avoid global leakage
+    app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)
 
 def get_auth_client():

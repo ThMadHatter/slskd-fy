@@ -258,3 +258,62 @@ def test_dependencies_di_container():
     executor_inst = get_search_executor()
     assert isinstance(executor_inst, FallbackSearchExecutor)
     assert executor_inst.search_provider is provider_inst or isinstance(executor_inst.search_provider, SearchRankingService)
+
+
+# ----------------- Additional Tests for Double Quote Sanitization and 5-Second Fallback -----------------
+
+def test_quote_sanitization():
+    # Ensure double quotes are stripped from search inputs
+    queries = SearchRankingService().generate_queries("Kendrick \"Lamar\"", "Not \"Like\" Us")
+    assert '"Kendrick Lamar" "Not Like Us"' in SearchRankingService().generate_queries(
+        SearchQuery(artist="Kendrick \"Lamar\"", track="Not \"Like\" Us", mode="B")
+    )
+    for q in queries:
+        assert '\"Lamar\"' not in q
+        assert '\"Like\"' not in q
+
+
+@pytest.mark.asyncio
+async def test_fallback_executor_polls_5_seconds_and_transitions():
+    from unittest.mock import patch, AsyncMock
+    # If Mode B has 0 results, we poll for 5 seconds (5 calls to sleep, 5 calls to get_search_responses)
+    mode_responses = {
+        "B": [], # 0 files
+        "A": [{
+            "username": f"peerA_{i}",
+            "files": [{
+                "filename": "Artist - Track.mp3",
+                "size": 8000000,
+                "bitRate": 320,
+                "sampleRate": 44100
+            }]
+        } for i in range(8)]
+    }
+
+    slskd = FallbackMockSlskdClient(mode_responses)
+    original_get_responses = slskd.get_search_responses
+    call_count = 0
+    async def spy_get_responses(search_id: str):
+        nonlocal call_count
+        if "B" in search_id:
+            call_count += 1
+        return await original_get_responses(search_id)
+
+    slskd.get_search_responses = spy_get_responses
+
+    provider = SearchRankingService()
+    executor = FallbackSearchExecutor(slskd_client=slskd, search_provider=provider)
+
+    query = SearchQuery(artist="Artist", track="Track")
+
+    with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        results = await executor.execute_search(query)
+
+        # Mode B should have failed after 5 poll iterations
+        assert call_count == 5
+        # And should have called asyncio.sleep exactly 6 times (5 for B, plus 1 for A)
+        assert mock_sleep.call_count == 6
+
+        # Fallback should have transitioned and found A
+        assert len(results) == 8
+        assert results[0].username == "peerA_0"

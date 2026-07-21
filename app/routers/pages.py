@@ -327,9 +327,9 @@ async def post_search_results(
     chosen_artist = canonical_artist.strip() if canonical_artist and canonical_artist.strip() else (artist.strip() if artist else "")
     chosen_track = canonical_track.strip() if canonical_track and canonical_track.strip() else (track.strip() if track else "")
 
-    clean_artist = chosen_artist.strip().strip("'\"").strip()
-    clean_track = chosen_track.strip().strip("'\"").strip()
-    clean_query = query.strip().strip("'\"").strip() if query else ""
+    clean_artist = chosen_artist.replace('"', '').strip() if chosen_artist else ""
+    clean_track = chosen_track.replace('"', '').strip() if chosen_track else ""
+    clean_query = query.replace('"', '').strip() if query else ""
 
     # Step 2: Build target search query matching contracts [CDA-002]
     search_query = ""

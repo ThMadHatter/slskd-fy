@@ -73,8 +73,8 @@ class SearchRankingService(SearchProviderContract):
             if not mode and kwargs.get("search_mode"):
                 mode = kwargs.get("search_mode")
 
-        clean_artist = artist.strip().strip("'\"").strip()
-        clean_track = track.strip().strip("'\"").strip()
+        clean_artist = artist.replace('"', '').strip() if artist else ""
+        clean_track = track.replace('"', '').strip() if track else ""
 
         # Task 1: Debug Query Builder logging
         logger.info(f"Query Builder: Input Selected Artist='{artist}', Track='{track}'")

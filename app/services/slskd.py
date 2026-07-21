@@ -36,7 +36,7 @@ class SlskdClient:
         payload = {
             "searchText": query,
             "searchTimeout": timeout_ms,
-            "filterResponses": True
+            "filterResponses": False
         }
         print(f"[AUDIT] PAYLOAD - payload={payload}", flush=True)
 

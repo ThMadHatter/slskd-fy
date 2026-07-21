@@ -83,45 +83,50 @@ class FallbackSearchExecutor(SearchExecutorContract):
         if not search_id:
             return []
 
-        # Poll responses briefly (up to 3 seconds for fast interactive execution)
+        # Poll responses for up to 5 seconds
         responses = []
-        for _ in range(3):
+        candidates: List[SlskdResult] = []
+        for _ in range(5):
             await asyncio.sleep(1.0)
             responses = await self.slskd_client.get_search_responses(search_id)
-            if len(responses) >= 8:
+
+            # Continuously compile and validate candidates
+            candidates = []
+            for resp in responses:
+                username = resp.get("username", "")
+                queue_length = resp.get("queueLength", 0) or resp.get("queue_length", 0) or 0
+                files = resp.get("files", [])
+
+                for f in files:
+                    filename = f.get("filename", "")
+                    ext = os.path.splitext(filename)[1].lstrip(".").lower()
+                    size = f.get("size", 0)
+                    bitrate = f.get("bitRate", 0) or f.get("bitrate", 0) or 0
+                    sample_rate = f.get("sampleRate", 0) or f.get("sample_rate", 0) or 0
+
+                    # Reject obviously malformed/junk files
+                    if SearchRankingService.should_reject_result(filename, ext):
+                        continue
+
+                    try:
+                        # Parse and validate via SlskdResult Pydantic schema [CDA-002]
+                        result_model = SlskdResult(
+                            filename=filename,
+                            size=size,
+                            username=username,
+                            format=ext,
+                            bitrate=bitrate,
+                            sample_rate=sample_rate,
+                            queue_length=queue_length
+                        )
+                        candidates.append(result_model)
+                    except ValidationError as ve:
+                        logger.warning(f"FallbackSearchExecutor: File failed Pydantic validation: {ve}")
+                        continue
+
+            # If we have valid candidates and at least 8 peer responses, we can break early to keep interactive speed.
+            # But if we have 0 files/candidates, we MUST poll for the full 5 seconds before giving up/triggering fallback.
+            if len(candidates) > 0 and len(responses) >= 8:
                 break
-
-        candidates: List[SlskdResult] = []
-        for resp in responses:
-            username = resp.get("username", "")
-            queue_length = resp.get("queueLength", 0) or resp.get("queue_length", 0) or 0
-            files = resp.get("files", [])
-
-            for f in files:
-                filename = f.get("filename", "")
-                ext = os.path.splitext(filename)[1].lstrip(".").lower()
-                size = f.get("size", 0)
-                bitrate = f.get("bitRate", 0) or f.get("bitrate", 0) or 0
-                sample_rate = f.get("sampleRate", 0) or f.get("sample_rate", 0) or 0
-
-                # Reject obviously malformed/junk files
-                if SearchRankingService.should_reject_result(filename, ext):
-                    continue
-
-                try:
-                    # Parse and validate via SlskdResult Pydantic schema [CDA-002]
-                    result_model = SlskdResult(
-                        filename=filename,
-                        size=size,
-                        username=username,
-                        format=ext,
-                        bitrate=bitrate,
-                        sample_rate=sample_rate,
-                        queue_length=queue_length
-                    )
-                    candidates.append(result_model)
-                except ValidationError as ve:
-                    logger.warning(f"FallbackSearchExecutor: File failed Pydantic validation: {ve}")
-                    continue
 
         return candidates

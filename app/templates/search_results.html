@@ -54,6 +54,96 @@
 </div>
 {% endif %}
 
+<!-- [UX-003] Smart Auto-Selection Banner (Frictionless UX) -->
+{% if best_candidate %}
+<div class="p-6 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-slate-900 border-b border-slate-700/80 flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div class="space-y-1.5 min-w-0 flex-1">
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 tracking-wider shadow">
+            <i class="fa-solid fa-wand-magic-sparkles mr-1 animate-pulse"></i>
+            <span>Smart Auto-Selected Best Choice</span>
+        </span>
+        <h4 class="text-lg font-bold text-slate-100 truncate">
+            {{ best_candidate.artist }} - {{ best_candidate.track }}
+        </h4>
+        <p class="text-xs text-slate-400 flex items-center space-x-3">
+            <span>Alb: <strong class="text-slate-300 font-medium">{{ best_candidate.album or "Single" }}</strong></span>
+            <span class="text-slate-600">•</span>
+            <span>Format: <strong class="text-emerald-400 uppercase font-bold">{{ best_candidate.format }}</strong></span>
+            <span class="text-slate-600">•</span>
+            <span>Bitrate: <strong class="text-slate-300">{{ best_candidate.bitrate or "-" }} kbps</strong></span>
+            <span class="text-slate-600">•</span>
+            <span>Queue: <strong class="text-slate-300">{% if best_candidate.queue_length == 0 %}Free{% else %}{{ best_candidate.queue_length }} queued{% endif %}</strong></span>
+        </p>
+    </div>
+    <div class="flex items-center shrink-0">
+        <form hx-post="/downloads/create" hx-swap="outerHTML">
+            <input type="hidden" name="artist" value="{{ best_candidate.artist }}">
+            <input type="hidden" name="track" value="{{ best_candidate.track }}">
+            <input type="hidden" name="album" value="{{ best_candidate.album or '' }}">
+            <input type="hidden" name="filename" value="{{ best_candidate.filename }}">
+            <input type="hidden" name="size" value="{{ best_candidate.size }}">
+            <input type="hidden" name="username" value="{{ best_candidate.username }}">
+            <input type="hidden" name="format" value="{{ best_candidate.format }}">
+            <input type="hidden" name="bitrate" value="{{ best_candidate.bitrate or 0 }}">
+            <input type="hidden" name="sample_rate" value="{{ best_candidate.sample_rate or 0 }}">
+
+            <button type="submit" class="w-full md:w-auto bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold px-6 py-3.5 rounded-lg transition duration-200 shadow-md flex items-center justify-center space-x-2 text-sm tracking-wide">
+                <i class="fa-solid fa-bolt text-amber-300"></i>
+                <span>One-Click Best Download</span>
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- [UX-004] Grouped Directory / Album Releases -->
+{% if album_folders %}
+<div class="px-6 py-4 bg-slate-800/40 border-b border-slate-700 space-y-3">
+    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1.5">
+        <i class="fa-solid fa-folder-open text-indigo-400"></i>
+        <span>Grouped Album Directories Found</span>
+    </h4>
+    <div class="grid grid-cols-1 gap-3">
+        {% for folder in album_folders %}
+        <div class="p-4 bg-slate-900 border border-slate-700/80 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="min-w-0 flex-1 space-y-1">
+                <p class="text-xs text-indigo-400 font-mono font-semibold truncate" title="{{ folder.path }}">Folder: {{ folder.path }}</p>
+                <div class="flex items-center space-x-4 text-xs text-slate-400 font-medium">
+                    <span>Peer: <strong class="text-slate-300 font-mono">{{ folder.username }}</strong></span>
+                    <span>Format: <strong class="text-indigo-400 uppercase font-bold">{{ folder.format }}</strong></span>
+                    <span>Tracks: <strong class="text-slate-300">{{ folder.tracks_count }} items</strong></span>
+                    <span>Total Size: <strong class="text-slate-300">{{ (folder.total_size / (1024*1024))|round(1) }} MB</strong></span>
+                </div>
+            </div>
+            <div class="shrink-0 flex items-center">
+                {% set tracks_json = [] %}
+                {% for t in folder.tracks %}
+                    {% set _ = tracks_json.append({
+                        "filename": t.filename,
+                        "size": t.size,
+                        "artist": t.artist,
+                        "track": t.track,
+                        "album": t.album,
+                        "format": t.format,
+                        "bitrate": t.bitrate
+                    }) %}
+                {% endfor %}
+                <form hx-post="/downloads/create-folder" hx-swap="outerHTML">
+                    <input type="hidden" name="username" value="{{ folder.username }}">
+                    <input type="hidden" name="folder_path" value="{{ folder.path }}">
+                    <input type="hidden" name="files_json" value="{{ tracks_json|tojson }}">
+                    <button type="submit" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-4 py-2.5 rounded-lg text-xs transition shadow flex items-center justify-center space-x-1.5">
+                        <i class="fa-solid fa-download"></i>
+                        <span>Download Full Album Directory</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Result Header -->
 <div class="px-6 py-4 bg-slate-800/40 border-b border-slate-700 flex items-center justify-between">
     <h3 class="font-bold text-slate-200">Enriched Search Results (Top {{ results|length }} Candidates Shown)</h3>

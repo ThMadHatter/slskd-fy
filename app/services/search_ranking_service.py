@@ -1,8 +1,10 @@
 import os
 import logging
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from app.services.filename_parser import parse_filename
+from app.contracts.schemas import SearchQuery, SlskdResult
+from app.contracts.services import SearchProviderContract
 
 logger = logging.getLogger("track_portal.search_ranking")
 
@@ -18,7 +20,12 @@ JUNK_FILENAME_PATTERNS = [
     r"\b(password\s*protected|keygen|crack|unzip\s*me|read\s*me|readme|nfo\s*file|torrent)\b"
 ]
 
-class SearchRankingService:
+class SearchRankingService(SearchProviderContract):
+    """
+    [CDA-001] Refactored SearchRankingService implementing SearchProviderContract.
+    Strictly handles typed data boundaries [CDA-002] while maintaining full backward-compatibility.
+    """
+
     @staticmethod
     def should_reject_result(filename: str, ext: str) -> bool:
         """
@@ -37,7 +44,6 @@ class SearchRankingService:
                 return True
 
         # 3. Obviously malformed / blob names
-        # Very short filenames without real characters or mostly random hashes, or simple text file/images
         basename = os.path.splitext(os.path.basename(filename))[0]
         if len(basename) < 3:
             return True
@@ -46,11 +52,27 @@ class SearchRankingService:
 
         return False
 
-    @staticmethod
-    def generate_queries(artist: str, track: str, album: Optional[str] = None, mode: str = "A") -> List[str]:
+    @classmethod
+    def generate_queries(cls, query: Union[SearchQuery, str], *args, **kwargs) -> List[str]:
         """
-        Generates optimized slskd search queries using canonical artist information and specific query mode (A, B, or C).
+        [QG-002] Generates optimized slskd search queries using canonical artist information.
+        Accepts either SearchQuery model or raw strings for backward compatibility.
         """
+        if isinstance(query, SearchQuery):
+            artist = query.artist
+            track = query.track
+            album = query.album
+            mode = query.mode
+        else:
+            # Backward compatible path
+            artist = query
+            track = args[0] if len(args) > 0 else kwargs.get("track", "")
+            album = args[1] if len(args) > 1 else kwargs.get("album", None)
+            mode = args[2] if len(args) > 2 else kwargs.get("mode", "A")
+            # If search_mode is passed in page routing (pages.py Form value is 'search_mode')
+            if not mode and kwargs.get("search_mode"):
+                mode = kwargs.get("search_mode")
+
         clean_artist = artist.strip().strip("'\"").strip()
         clean_track = track.strip().strip("'\"").strip()
 
@@ -93,24 +115,55 @@ class SearchRankingService:
         logger.info(f"Query Builder: Generated Queries for Mode {mode}: {res}")
         return res
 
-    @staticmethod
+    @classmethod
     def score_result(
-        item: Dict[str, Any],
-        target_artist: str,
-        target_track: str,
-        target_album: Optional[str] = None
+        cls,
+        result: Union[SlskdResult, Dict[str, Any]],
+        query: Optional[Union[SearchQuery, str]] = None,
+        *args,
+        **kwargs
     ) -> Dict[str, Any]:
         """
-        Scores a single slskd search result from 0 to 100 based on Task 2 & Task 4 requirements.
-        Returns a dictionary containing sub-scores and classification (PRIMARY_ARTIST_MATCH, etc.).
+        [UX-003] Scores a single slskd search result from 0 to 100.
+        Accepts Pydantic models or raw parameters for backward compatibility.
         """
-        filename = item.get("filename", "")
-        parsed = parse_filename(filename)
+        if isinstance(result, SlskdResult):
+            res_filename = result.filename
+            res_format = result.format
+            res_size = result.size
+            res_bitrate = result.bitrate
+            res_queue_length = result.queue_length
+        else:
+            # Backward compatible path
+            res_filename = result.get("filename", "")
+            res_format = result.get("format", "")
+            res_size = result.get("size", 0)
+            res_bitrate = result.get("bitrate", 0) or 0
+            res_queue_length = result.get("queue_length", 0) or 0
+
+        if isinstance(query, SearchQuery):
+            target_artist = query.artist
+            target_track = query.track
+            target_album = query.album or ""
+        elif query is not None:
+            # Backward compatible path
+            target_artist = query
+            target_track = args[0] if len(args) > 0 else kwargs.get("target_track", "")
+            target_album = args[1] if len(args) > 1 else kwargs.get("target_album", "")
+            target_album = target_album or ""
+        else:
+            # All keyword parameters path
+            target_artist = kwargs.get("target_artist", "")
+            target_track = kwargs.get("target_track", "")
+            target_album = kwargs.get("target_album", "")
+            target_album = target_album or ""
+
+        parsed = parse_filename(res_filename)
 
         # Retrieve parsed/slskd values
-        parsed_artist = (parsed.get("artist") or item.get("artist") or "Unknown").lower().strip()
-        parsed_track = (parsed.get("track") or item.get("track") or "Unknown").lower().strip()
-        parsed_album = (parsed.get("album") or item.get("album") or "").lower().strip()
+        parsed_artist = (parsed.get("artist") or (None if isinstance(result, SlskdResult) else result.get("artist")) or "Unknown").lower().strip()
+        parsed_track = (parsed.get("track") or (None if isinstance(result, SlskdResult) else result.get("track")) or "Unknown").lower().strip()
+        parsed_album = (parsed.get("album") or (None if isinstance(result, SlskdResult) else result.get("album")) or "").lower().strip()
         featured_artists = [a.lower().strip() for a in parsed.get("featured_artists", [])]
 
         tgt_artist = target_artist.lower().strip()
@@ -147,8 +200,8 @@ class SearchRankingService:
 
         # --- Quality / Codec Scoring (Task 2) ---
         quality_score = 0
-        fmt = item.get("format", "").lower()
-        bitrate = item.get("bitrate", 0) or 0
+        fmt = res_format.lower()
+        bitrate = res_bitrate or 0
 
         if fmt == "flac":
             quality_score = 20
@@ -171,7 +224,7 @@ class SearchRankingService:
 
         # Small extra credit for file size to prioritize real downloads (max 5 pts)
         size_score = 0
-        size_bytes = item.get("size", 0) or 0
+        size_bytes = res_size or 0
         if size_bytes > 10 * 1024 * 1024:  # > 10MB
             size_score = 5
         elif size_bytes > 1024 * 1024:     # > 1MB
@@ -180,8 +233,10 @@ class SearchRankingService:
         # MusicBrainz enrichment score (Issue 6)
         musicbrainz_score = 0
         # If there is enriched data (e.g. non-empty cover art, or matched year/album via MB)
-        if item.get("cover_url") or item.get("mbid") or (item.get("album") and not parsed.get("album")):
-            musicbrainz_score = 10
+        # For Pydantic model result, we can check custom attributes in backward compatible or extra properties if present.
+        if not isinstance(result, SlskdResult):
+            if result.get("cover_url") or result.get("mbid") or (result.get("album") and not parsed.get("album")):
+                musicbrainz_score = 10
 
         total_score = artist_score + track_score + quality_score + album_score + size_score + musicbrainz_score
         final_score = min(max(total_score, 0), 100)

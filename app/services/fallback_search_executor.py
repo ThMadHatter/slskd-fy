@@ -2,6 +2,7 @@ import os
 import asyncio
 import logging
 from typing import List, Dict, Any, Optional
+from pydantic import ValidationError
 from app.contracts.schemas import SearchQuery, SlskdResult
 from app.contracts.services import (
     SearchExecutorContract, SlskdClientContract, SearchProviderContract, CacheProviderContract

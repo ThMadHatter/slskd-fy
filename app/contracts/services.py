@@ -68,6 +68,18 @@ class SlskdClientContract(Protocol):
         """
         ...
 
+    async def get_downloads(self, include_removed: bool = False) -> List[Dict[str, Any]]:
+        """
+        Retrieves current transfer queues and active downloads from slskd.
+        """
+        ...
+
+    async def cancel_download(self, username: str, id_: str) -> bool:
+        """
+        Cancels an active download queue on the slskd backend.
+        """
+        ...
+
 
 class TelemetryContract(Protocol):
     """

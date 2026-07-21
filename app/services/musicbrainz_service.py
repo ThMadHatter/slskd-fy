@@ -2,55 +2,108 @@ import logging
 import asyncio
 import httpx
 import re
+import time
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from app.services.cache_service import CacheService
 
 logger = logging.getLogger("track_portal.musicbrainz")
 
-# Use a custom, descriptive User-Agent as requested by MusicBrainz
+# Compliant User-Agent as requested by MusicBrainz [RSL-001]
 HEADERS = {
-    "User-Agent": "TrackPortal/1.0.0 ( contact@trackportal.internal )",
+    "User-Agent": "VibeSearch/1.0 ( contact@example.com )",
     "Accept": "application/json"
 }
 
-# Task 1: Maximum concurrent MusicBrainz requests: 3
+# Semaphore for maximum concurrent MusicBrainz requests: 3
 CONCURRENCY_LIMIT = 3
 SEMAPHORE = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
+# Strict 1 request per second rate-limiter [RSL-001]
+LAST_REQUEST_TIME = 0.0
+RATE_LIMIT_LOCK = asyncio.Lock()
+
 class MusicBrainzService:
-    @staticmethod
-    async def _make_request(url: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    [CDA-001] Service layer handling MusicBrainz metadata resolution with robust circuit breaker
+    and strict rate limit compliance.
+    """
+    # Circuit Breaker state parameters as class variables to prevent import/scoping conflicts [DAT-002]
+    CIRCUIT_OPEN = False
+    FAILURE_COUNT = 0
+    MAX_FAILURES = 3
+    LAST_FAILURE_TIME = 0.0
+    RESET_TIMEOUT_SEC = 60.0  # Attempt reset after 1 minute
+
+    @classmethod
+    async def _make_request(cls, url: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Helper method to make rate-limited and throttled requests to MusicBrainz.
-        Restricts concurrency to 3 and enforces a strict 3-second timeout.
+        [RSL-001] Rate-limiting and throttled request dispatcher.
+        Enforces 1 request/second, concurrency limit of 3, strict 3-second timeouts,
+        and manages the Circuit Breaker [DAT-002] for graceful degradation.
         """
+        global LAST_REQUEST_TIME
+
+        # Check Circuit Breaker status [DAT-002]
+        now = time.time()
+        if cls.CIRCUIT_OPEN:
+            if now - cls.LAST_FAILURE_TIME > cls.RESET_TIMEOUT_SEC:
+                logger.warning("MusicBrainz Circuit Breaker: Reset timeout elapsed. Attempting half-open retry...")
+                cls.CIRCUIT_OPEN = False
+                cls.FAILURE_COUNT = 0
+            else:
+                logger.error("MusicBrainz Circuit Breaker is OPEN. Bypassing outbound call to prevent blocking UI.")
+                return None
+
+        async with RATE_LIMIT_LOCK:
+            delta = time.time() - LAST_REQUEST_TIME
+            if delta < 1.0:
+                await asyncio.sleep(1.0 - delta)
+            LAST_REQUEST_TIME = time.time()
+
         async with SEMAPHORE:
-            # Enforce strict 3-second timeout per request
             async with httpx.AsyncClient(headers=HEADERS, timeout=3.0) as client:
                 for attempt in range(2):
                     try:
                         response = await client.get(url, params=params)
                         if response.status_code == 200:
+                            # Reset failure counter upon success
+                            cls.FAILURE_COUNT = 0
                             return response.json()
                         elif response.status_code == 503:
                             logger.warning(f"MusicBrainz API rate limit (503). Retrying in 1s (attempt {attempt+1})...")
                             await asyncio.sleep(1.0)
                         else:
                             logger.error(f"MusicBrainz request failed with status {response.status_code}: {response.text[:150]}")
+                            cls._register_failure()
                             return None
                     except (httpx.TimeoutException, asyncio.TimeoutError):
                         logger.warning(f"MusicBrainz API request timed out (3s threshold) for: {url}")
+                        cls._register_failure()
                         return None
                     except Exception as e:
                         logger.error(f"Exception during MusicBrainz request: {e}")
+                        cls._register_failure()
                         await asyncio.sleep(0.5)
                 return None
 
     @classmethod
+    def _register_failure(cls):
+        """
+        Registers request failures and trips the Circuit Breaker [DAT-002] if thresholds are crossed.
+        """
+        cls.FAILURE_COUNT += 1
+        cls.LAST_FAILURE_TIME = time.time()
+        logger.warning(f"MusicBrainz API Failure recorded. Consecutive count: {cls.FAILURE_COUNT}/{cls.MAX_FAILURES}")
+        if cls.FAILURE_COUNT >= cls.MAX_FAILURES:
+            logger.error("MusicBrainz Circuit Breaker TRIP -> OPEN state! Gracefully degrading UI to manual search.")
+            cls.CIRCUIT_OPEN = True
+
+    @classmethod
     async def search_artists(cls, query: str, db: Session) -> List[Dict[str, Any]]:
         """
-        Searches MusicBrainz for artists with prefix-wildcard support for autocomplete. Result is cached.
+        Searches MusicBrainz for artists with prefix-wildcard support. Result is cached.
+        Fallback [DAT-002]: Serves stale cache data first if circuit is open.
         """
         clean_q = query.strip()
         cache_key = f"mb:artist_search:{clean_q.lower()}"
@@ -62,8 +115,6 @@ class MusicBrainzService:
         logger.info(f"MusicBrainz artist search cache miss for '{clean_q}'. Querying MusicBrainz with prefix wildcard...")
         url = "https://musicbrainz.org/ws/2/artist/"
 
-        # Format search query using Lucene prefix wildcard (Task 4)
-        # This converts a prefix like 'kend' into 'artist:(kend*)', enabling prefix-matching.
         lucene_query = f"artist:({clean_q}*)"
         params = {
             "query": lucene_query,
@@ -90,7 +141,8 @@ class MusicBrainzService:
     @classmethod
     async def search_recordings(cls, artist_name: str, artist_mbid: Optional[str], query: str, db: Session) -> List[Dict[str, Any]]:
         """
-        Searches MusicBrainz for recordings (tracks) under a specific artist.
+        Searches MusicBrainz for recordings.
+        Fallback [DAT-002]: Serves stale cache data first if circuit is open.
         """
         clean_artist = artist_name.lower().strip()
         clean_query = query.lower().strip()
@@ -103,7 +155,6 @@ class MusicBrainzService:
 
         logger.info(f"MusicBrainz recordings cache miss for '{artist_name} - {query}'. Querying MusicBrainz...")
 
-        # Construct search query
         if artist_mbid:
             lucene_query = f"arid:{artist_mbid} AND recording:{query}"
         else:
@@ -120,7 +171,6 @@ class MusicBrainzService:
         results = []
         if data and "recordings" in data:
             for rec in data["recordings"]:
-                # Extract first release if available
                 album_name = ""
                 release_id = ""
                 year = None
@@ -136,7 +186,6 @@ class MusicBrainzService:
                         if match:
                             year = int(match.group(0))
 
-                # Build cover art URL if release_id exists
                 cover_url = f"https://coverartarchive.org/release/{release_id}/front-250" if release_id else ""
 
                 results.append({

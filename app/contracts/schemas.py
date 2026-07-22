@@ -33,6 +33,14 @@ class SlskdResult(BaseModel):
     sample_rate: Optional[int] = Field(0, ge=0, description="Audio sample rate in Hz")
     queue_length: int = Field(0, ge=0, description="Number of transfers in the peer's queue")
 
+    # Optional enriched fields for SPA search engine results
+    score: Optional[int] = Field(0, description="Confidence score")
+    parsed_artist: Optional[str] = Field(None)
+    parsed_track: Optional[str] = Field(None)
+    parsed_album: Optional[str] = Field(None)
+    parsed_year: Optional[int] = Field(None)
+    beets_confidence: Optional[bool] = Field(False)
+
     @field_validator("format")
     @classmethod
     def validate_format(cls, v: str) -> str:

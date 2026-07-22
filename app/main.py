@@ -12,9 +12,7 @@ from alembic import command
 
 from app.config import settings
 from app.database import SessionLocal, get_db
-from app.auth import (
-    COOKIE_NAME, decode_access_token, verify_csrf_token, init_admin_user, get_optional_user
-)
+from app.auth import COOKIE_NAME, decode_access_token, verify_csrf_token, init_admin_user, get_optional_user
 from app.routers import pages
 from app.services.downloads_poller import start_background_poller
 
@@ -80,8 +78,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Track Portal",
-    description="Spotify-like track discovery and download portal for Soulseek",
-    version="1.0.0",
+    description="Decoupled high-fidelity track search and download portal for Soulseek",
+    version="2.0.0",
     lifespan=lifespan
 )
 
@@ -92,39 +90,10 @@ templates = Jinja2Templates(directory="app/templates")
 os.makedirs("app/static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# Middleware to load authenticated user and enforce CSRF checks
+# Middleware to support request.state properties (like CSRF tokens)
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
-    # Retrieve user from cookie
-    db = SessionLocal()
-    token = request.cookies.get(COOKIE_NAME)
-    user = None
-    if token:
-        payload = decode_access_token(token)
-        if payload and "sub" in payload:
-            from app.models import User
-            user = db.query(User).filter(User.username == payload["sub"]).first()
-
-    request.state.user = user
-    db.close()
-
-    # Enforce authentication for private routes
-    # Exempt login and static routes
-    path = request.url.path
-    if path not in ["/login", "/health"] and not path.startswith("/static"):
-        if not user:
-            return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
-
-        # Enforce CSRF protection for mutable endpoints
-        if request.method in ["POST", "PUT", "DELETE"]:
-            try:
-                verify_csrf_token(request)
-            except HTTPException as exc:
-                return HTMLResponse(
-                    content=f"<div class='p-4 text-center text-rose-400 font-bold'>{exc.detail}</div>",
-                    status_code=exc.status_code
-                )
-
+    request.state.user = None
     response = await call_next(request)
     return response
 

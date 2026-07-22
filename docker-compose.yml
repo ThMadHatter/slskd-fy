@@ -21,6 +21,9 @@ services:
       # SQLite Database location inside config folder
       - DATABASE_URL=$DATABASE_URL
 
+      # Beets service URL
+      - BEETS_API_URL=http://beets:8337
+
       # Administration security & auth
       - SECRET_KEY=$SECRET_KEY
       - ADMIN_USERNAME=$ADMIN_USERNAME
@@ -49,3 +52,18 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  beets:
+    image: linuxserver/beets:latest
+    container_name: beets
+    restart: unless-stopped
+    ports:
+      - "8337:8337"
+    environment:
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - /mnt/music/Config/beets:/config
+      - /mnt/music/Music:/music
+      - /mnt/music/Downloads/slskd:/downloads
+    command: beet web

@@ -4,12 +4,15 @@ import logging
 import time
 from typing import List, Dict, Any, Optional
 from pydantic import ValidationError
+
 from app.config import settings
 from app.contracts.schemas import SearchQuery, SlskdResult
 from app.contracts.services import (
     SearchExecutorContract, SlskdClientContract, SearchProviderContract, CacheProviderContract
 )
 from app.services.search_ranking_service import SearchRankingService
+from app.services.filename_parser import parse_filename
+from app.services.beets_service import BeetsServiceClient
 
 logger = logging.getLogger("track_portal.fallback_search_executor")
 
@@ -32,147 +35,63 @@ class FallbackSearchExecutor(SearchExecutorContract):
         self.slskd_client = slskd_client
         self.search_provider = search_provider
         self.cache_provider = cache_provider
+        self.beets_client = BeetsServiceClient()
 
-    def generate_progressive_queries(self, artist: str, track: str, strategy: str) -> List[str]:
+    def generate_progressive_queries(self, artist: str, track: str, strategy: str = "BALANCED") -> List[str]:
         """
-        Generates progressive, broad, and forgiving queries based on SEARCH_STRATEGY settings.
+        Generates progressive, broad, and forgiving queries based on artist and track.
         """
-        queries = []
-        clean_artist = artist.replace('"', '').strip() if artist else ""
-        clean_track = track.replace('"', '').strip() if track else ""
-
-        strategy = strategy.upper().strip()
-
-        # Step 1: Artist + Track combinations
-        if clean_artist and clean_track:
-            queries.append(f"{clean_artist} {clean_track}")
-            queries.append(f'"{clean_artist}" {clean_track}')
-            queries.append(f'"{clean_artist}" "{clean_track}"')
-        elif clean_track:
-            queries.append(clean_track)
-        elif clean_artist:
-            queries.append(clean_artist)
-
-        # If STRICT mode, stop here
-        if strategy == "STRICT":
-            seen = set()
-            return [q for q in queries if q and not (q in seen or seen.add(q))]
-
-        # Step 2: Track only (if both were present)
-        if clean_artist and clean_track:
-            queries.append(clean_track)
-
-        # Step 3: Artist only (if both were present)
-        if clean_artist and clean_track:
-            queries.append(clean_artist)
-            # Add first word of artist
-            artist_words = clean_artist.split()
-            if len(artist_words) > 1:
-                queries.append(artist_words[0])
-
-        # If BALANCED mode, stop here
-        if strategy != "AGGRESSIVE":
-            seen = set()
-            return [q for q in queries if q and not (q in seen or seen.add(q))]
-
-        # Step 4: AGGRESSIVE partial track words
-        if clean_track:
-            track_words = clean_track.split()
-            if len(track_words) >= 2:
-                queries.append(" ".join(track_words[:2]))
-            if len(track_words) >= 1:
-                queries.append(track_words[0])
-
-        seen = set()
-        return [q for q in queries if q and not (q in seen or seen.add(q))]
+        return SearchRankingService.generate_queries_progressive(artist, track)
 
     async def execute_search(self, query: SearchQuery) -> List[SlskdResult]:
         """
-        [QG-002] Fallback Search Loop: STRICT -> BALANCED -> AGGRESSIVE.
-        Funnels execution progressively until candidates are retrieved or search exhaustion.
+        Progressively triggers, polls, merges, enriches with beets, and ranks candidates.
         """
-        from app.routers.pages import SearchDebugTracker
+        artist = query.artist.strip()
+        track = query.track.strip()
 
-        strategy = os.getenv("SEARCH_STRATEGY") or settings.SEARCH_STRATEGY or "BALANCED"
-        logger.info(f"FallbackSearchExecutor: Starting progressive search loop with strategy {strategy} for {query.artist} - {query.track}")
+        # Log exact required log keyword: SEARCH_START
+        logger.info(f"SEARCH_START - Artist: '{artist}', Track: '{track}'")
 
-        # Generate progressive queries list
-        query_strings = self.generate_progressive_queries(query.artist, query.track, strategy)
+        # 1. Generate progressive query permutations
+        query_strings = self.generate_progressive_queries(artist, track)
 
-        all_results: List[SlskdResult] = []
-        seen_files = set()
+        # Log exact required log keyword: GENERATED QUERIES
+        logger.info(f"GENERATED QUERIES: {query_strings}")
 
-        # Clear/Reset telemetry
-        SearchDebugTracker.last_queries_telemetry = []
-
-        for target_q in query_strings:
-            logger.info(f"FallbackSearchExecutor: Polling slskd with query '{target_q}' in Strategy {strategy}")
-            start_time = time.time()
-
+        # 2. Execute searches progressively/concurrently to gather raw results
+        async def run_and_poll_query(q_str: str) -> List[Dict[str, Any]]:
+            # Log exact required log keyword: QUERY_EXECUTED
+            logger.info(f"QUERY_EXECUTED - Executing query: '{q_str}'")
             try:
-                candidates, responses = await self._poll_slskd_search(target_q)
-                duration = time.time() - start_time
+                search_obj = await self.slskd_client.search(q_str)
+                search_id = search_obj.get("id")
+                if not search_id:
+                    return []
 
-                # Log query telemetry to console/file
-                logger.info(
-                    f"\n[TELEMETRY] SEARCH_QUERY:\n"
-                    f"\"{target_q}\"\n"
-                    f"Results: (Peer responses): {len(responses)}, Files: {len(candidates)}, Duration: {duration:.2f}s\n"
-                )
-
-                # Store telemetry in SearchDebugTracker
-                SearchDebugTracker.last_queries_telemetry.append({
-                    "query": target_q,
-                    "peer_responses": len(responses),
-                    "files": len(candidates),
-                    "duration": duration
-                })
-
-                # Deduplicate and merge candidates
-                for cand in candidates:
-                    key = (cand.username, cand.filename)
-                    if key not in seen_files:
-                        seen_files.add(key)
-                        all_results.append(cand)
-
-                # Stop only when a meaningful result set is obtained (e.g. >= 15 unique files)
-                if len(all_results) >= 15:
-                    logger.info(f"FallbackSearchExecutor: Meaningful result count threshold met ({len(all_results)} >= 15). Breaking loop.")
-                    break
-                else:
-                    logger.info(f"FallbackSearchExecutor: Query yielded {len(candidates)} candidates. Combined total is {len(all_results)}. Proceeding with next fallback query if available.")
-
+                # Poll responses for 5 seconds
+                responses = []
+                for _ in range(5):
+                    await asyncio.sleep(1.0)
+                    responses = await self.slskd_client.get_search_responses(search_id)
+                    if len(responses) >= 8:
+                        break
+                return responses
             except Exception as e:
-                logger.error(f"FallbackSearchExecutor: Query execution failed for '{target_q}': {e}")
-                # Graceful degradation [RSL-003]: continue to next fallback mode
-                continue
+                logger.error(f"Error executing query '{q_str}': {e}")
+                return []
 
-        return all_results
+        # Run queries concurrently for maximum efficiency and speed
+        tasks = [run_and_poll_query(q) for q in query_strings]
+        results_lists = await asyncio.gather(*tasks)
 
-    async def _poll_slskd_search(self, query_string: str) -> tuple[List[SlskdResult], List[Dict[str, Any]]]:
-        """
-        Helper method to coordinate active polling with slskd backend.
-        Parses results into strongly-typed Pydantic SlskdResult schemas [CDA-002].
-        """
-        search_obj = await self.slskd_client.search(query_string)
-        search_id = search_obj.get("id")
-        if not search_id:
-            return [], []
-
-        # Poll responses for up to 5 seconds
-        responses = []
-        candidates: List[SlskdResult] = []
-        for _ in range(5):
-            await asyncio.sleep(1.0)
-            responses = await self.slskd_client.get_search_responses(search_id)
-
-            # Continuously compile and validate candidates
-            candidates = []
+        raw_candidates = []
+        for q_str, responses in zip(query_strings, results_lists):
+            count = 0
             for resp in responses:
                 username = resp.get("username", "")
                 queue_length = resp.get("queueLength", 0) or resp.get("queue_length", 0) or 0
                 files = resp.get("files", [])
-
                 for f in files:
                     filename = f.get("filename", "")
                     ext = os.path.splitext(filename)[1].lstrip(".").lower()
@@ -184,25 +103,100 @@ class FallbackSearchExecutor(SearchExecutorContract):
                     if SearchRankingService.should_reject_result(filename, ext):
                         continue
 
-                    try:
-                        # Parse and validate via SlskdResult Pydantic schema [CDA-002]
-                        result_model = SlskdResult(
-                            filename=filename,
-                            size=size,
-                            username=username,
-                            format=ext,
-                            bitrate=bitrate,
-                            sample_rate=sample_rate,
-                            queue_length=queue_length
-                        )
-                        candidates.append(result_model)
-                    except ValidationError as ve:
-                        logger.warning(f"FallbackSearchExecutor: File failed Pydantic validation: {ve}")
-                        continue
+                    raw_candidates.append({
+                        "filename": filename,
+                        "size": size,
+                        "username": username,
+                        "format": ext,
+                        "bitrate": bitrate,
+                        "sample_rate": sample_rate,
+                        "queue_length": queue_length
+                    })
+                    count += 1
 
-            # If we have valid candidates and at least 8 peer responses, we can break early to keep interactive speed.
-            # But if we have 0 files/candidates, we MUST poll for the full 5 seconds before giving up/triggering fallback.
-            if len(candidates) > 0 and len(responses) >= 8:
-                break
+            # Log exact required log keyword: QUERY_RESULT_COUNT
+            logger.info(f"QUERY_RESULT_COUNT - Query: '{q_str}', Count: {count}")
 
-        return candidates, responses
+        # 3. Deduplicate by username and filename
+        # Log exact required log keyword: DEDUPLICATION
+        logger.info("DEDUPLICATION - Starting merge and deduplication of results")
+        seen_files = set()
+        unique_candidates = []
+        for cand in raw_candidates:
+            key = (cand["username"], cand["filename"])
+            if key not in seen_files:
+                seen_files.add(key)
+                unique_candidates.append(cand)
+        logger.info(f"DEDUPLICATION - Completed. Unique count: {len(unique_candidates)}")
+
+        # Parse filenames for all candidates
+        for cand in unique_candidates:
+            parsed = parse_filename(cand["filename"])
+            cand["parsed_artist"] = parsed.get("artist") or artist or "Unknown"
+            cand["parsed_track"] = parsed.get("track") or track or "Unknown"
+            cand["parsed_album"] = parsed.get("album") or ""
+            cand["parsed_year"] = parsed.get("year") or None
+
+        # 4. Beets Enrichment on top candidates
+        # Sort initially by raw match heuristics to get the top results (e.g. up to 20 candidates)
+        for cand in unique_candidates:
+            temp_score = 0
+            if cand["parsed_artist"].lower() == artist.lower():
+                temp_score += 40
+            if cand["parsed_track"].lower() == track.lower():
+                temp_score += 30
+            cand["temp_score"] = temp_score
+
+        unique_candidates.sort(key=lambda x: x["temp_score"], reverse=True)
+        top_candidates = unique_candidates[:20]
+
+        # Log exact required log keyword: BEETS ENRICHMENT
+        logger.info("BEETS ENRICHMENT - Querying beets service API for top results")
+        for cand in top_candidates:
+            beets_matches = await self.beets_client.search_items(f'artist:"{cand["parsed_artist"]}" title:"{cand["parsed_track"]}"')
+            cand["beets_confidence"] = False
+            if beets_matches:
+                # We have a high confidence match! Enrich metadata
+                best_match = beets_matches[0]
+                cand["parsed_artist"] = best_match.get("artist") or cand["parsed_artist"]
+                cand["parsed_track"] = best_match.get("title") or cand["parsed_track"]
+                cand["parsed_album"] = best_match.get("album") or cand["parsed_album"]
+                cand["parsed_year"] = best_match.get("year") or cand["parsed_year"]
+                cand["beets_confidence"] = True
+
+                # Log exact required log keyword: ENRICHMENT_APPLIED
+                logger.info(f"ENRICHMENT_APPLIED - Filename: '{cand['filename']}', Beets Artist: '{best_match.get('artist')}', Beets Track: '{best_match.get('title')}'")
+
+        # 5. Final Ranking and Scoring
+        # Log exact required log keyword: RANKING DECISIONS
+        logger.info("RANKING DECISIONS - Computing final scores and sorting candidates")
+        final_results: List[SlskdResult] = []
+        for cand in unique_candidates:
+            # Build SlskdResult model
+            res_model = SlskdResult(
+                filename=cand["filename"],
+                size=cand["size"],
+                username=cand["username"],
+                format=cand["format"],
+                bitrate=cand["bitrate"],
+                sample_rate=cand["sample_rate"],
+                queue_length=cand["queue_length"],
+                parsed_artist=cand["parsed_artist"],
+                parsed_track=cand["parsed_track"],
+                parsed_album=cand["parsed_album"],
+                parsed_year=cand["parsed_year"],
+                beets_confidence=cand.get("beets_confidence", False)
+            )
+
+            # Calculate scores using ranking service
+            scores = SearchRankingService.score_candidate(res_model, query, beets_confidence=cand.get("beets_confidence", False))
+            res_model.score = scores["final_score"]
+
+            # Log exact required log keyword: RANKING_SCORE
+            logger.info(f"RANKING_SCORE - Filename: '{cand['filename']}', Score: {res_model.score}, Decisions: {scores}")
+            final_results.append(res_model)
+
+        # Sort final results by score descending, then lossless formats first
+        lossless_exts = {"flac", "alac", "wav", "ape", "aiff"}
+        final_results.sort(key=lambda x: (x.score or 0, x.format in lossless_exts), reverse=True)
+        return final_results

@@ -1,8 +1,10 @@
 import os
 import asyncio
 import logging
+import time
 from typing import List, Dict, Any, Optional
 from pydantic import ValidationError
+from app.config import settings
 from app.contracts.schemas import SearchQuery, SlskdResult
 from app.contracts.services import (
     SearchExecutorContract, SlskdClientContract, SearchProviderContract, CacheProviderContract
@@ -31,49 +33,123 @@ class FallbackSearchExecutor(SearchExecutorContract):
         self.search_provider = search_provider
         self.cache_provider = cache_provider
 
+    def generate_progressive_queries(self, artist: str, track: str, strategy: str) -> List[str]:
+        """
+        Generates progressive, broad, and forgiving queries based on SEARCH_STRATEGY settings.
+        """
+        queries = []
+        clean_artist = artist.replace('"', '').strip() if artist else ""
+        clean_track = track.replace('"', '').strip() if track else ""
+
+        strategy = strategy.upper().strip()
+
+        # Step 1: Artist + Track combinations
+        if clean_artist and clean_track:
+            queries.append(f"{clean_artist} {clean_track}")
+            queries.append(f'"{clean_artist}" {clean_track}')
+            queries.append(f'"{clean_artist}" "{clean_track}"')
+        elif clean_track:
+            queries.append(clean_track)
+        elif clean_artist:
+            queries.append(clean_artist)
+
+        # If STRICT mode, stop here
+        if strategy == "STRICT":
+            seen = set()
+            return [q for q in queries if q and not (q in seen or seen.add(q))]
+
+        # Step 2: Track only (if both were present)
+        if clean_artist and clean_track:
+            queries.append(clean_track)
+
+        # Step 3: Artist only (if both were present)
+        if clean_artist and clean_track:
+            queries.append(clean_artist)
+            # Add first word of artist
+            artist_words = clean_artist.split()
+            if len(artist_words) > 1:
+                queries.append(artist_words[0])
+
+        # If BALANCED mode, stop here
+        if strategy != "AGGRESSIVE":
+            seen = set()
+            return [q for q in queries if q and not (q in seen or seen.add(q))]
+
+        # Step 4: AGGRESSIVE partial track words
+        if clean_track:
+            track_words = clean_track.split()
+            if len(track_words) >= 2:
+                queries.append(" ".join(track_words[:2]))
+            if len(track_words) >= 1:
+                queries.append(track_words[0])
+
+        seen = set()
+        return [q for q in queries if q and not (q in seen or seen.add(q))]
+
     async def execute_search(self, query: SearchQuery) -> List[SlskdResult]:
         """
-        [QG-002] Fallback Search Loop: STRICT (Mode B) -> BALANCED (Mode A) -> AGGRESSIVE (Mode C).
+        [QG-002] Fallback Search Loop: STRICT -> BALANCED -> AGGRESSIVE.
         Funnels execution progressively until candidates are retrieved or search exhaustion.
         """
-        strategies = ["B", "A", "C"]  # B: STRICT, A: BALANCED, C: AGGRESSIVE
-        last_results: List[SlskdResult] = []
+        from app.routers.pages import SearchDebugTracker
 
-        logger.info(f"FallbackSearchExecutor: Starting progressive search loop for {query.artist} - {query.track}")
+        strategy = os.getenv("SEARCH_STRATEGY") or settings.SEARCH_STRATEGY or "BALANCED"
+        logger.info(f"FallbackSearchExecutor: Starting progressive search loop with strategy {strategy} for {query.artist} - {query.track}")
 
-        for mode in strategies:
-            logger.info(f"FallbackSearchExecutor: Transitioning search loop -> Mode {mode}")
-            current_query = SearchQuery(
-                artist=query.artist,
-                track=query.track,
-                album=query.album,
-                mode=mode
-            )
+        # Generate progressive queries list
+        query_strings = self.generate_progressive_queries(query.artist, query.track, strategy)
 
-            # Generate target slskd query strings
-            query_strings = self.search_provider.generate_queries(current_query)
-            if not query_strings:
-                continue
+        all_results: List[SlskdResult] = []
+        seen_files = set()
 
-            target_q = query_strings[0]
-            logger.info(f"FallbackSearchExecutor: Polling slskd with query '{target_q}' in Mode {mode}")
+        # Clear/Reset telemetry
+        SearchDebugTracker.last_queries_telemetry = []
+
+        for target_q in query_strings:
+            logger.info(f"FallbackSearchExecutor: Polling slskd with query '{target_q}' in Strategy {strategy}")
+            start_time = time.time()
 
             try:
-                candidates = await self._poll_slskd_search(target_q)
-                if candidates:
-                    logger.info(f"FallbackSearchExecutor: Found {len(candidates)} candidates in Mode {mode}. Breaking fallback loop.")
-                    last_results = candidates
+                candidates, responses = await self._poll_slskd_search(target_q)
+                duration = time.time() - start_time
+
+                # Log query telemetry to console/file
+                logger.info(
+                    f"\n[TELEMETRY] SEARCH_QUERY:\n"
+                    f"\"{target_q}\"\n"
+                    f"Results: (Peer responses): {len(responses)}, Files: {len(candidates)}, Duration: {duration:.2f}s\n"
+                )
+
+                # Store telemetry in SearchDebugTracker
+                SearchDebugTracker.last_queries_telemetry.append({
+                    "query": target_q,
+                    "peer_responses": len(responses),
+                    "files": len(candidates),
+                    "duration": duration
+                })
+
+                # Deduplicate and merge candidates
+                for cand in candidates:
+                    key = (cand.username, cand.filename)
+                    if key not in seen_files:
+                        seen_files.add(key)
+                        all_results.append(cand)
+
+                # Stop only when a meaningful result set is obtained (e.g. >= 15 unique files)
+                if len(all_results) >= 15:
+                    logger.info(f"FallbackSearchExecutor: Meaningful result count threshold met ({len(all_results)} >= 15). Breaking loop.")
                     break
                 else:
-                    logger.info(f"FallbackSearchExecutor: Mode {mode} yielded 0 candidates.")
+                    logger.info(f"FallbackSearchExecutor: Query yielded {len(candidates)} candidates. Combined total is {len(all_results)}. Proceeding with next fallback query if available.")
+
             except Exception as e:
-                logger.error(f"FallbackSearchExecutor: Query execution failed under Mode {mode}: {e}")
+                logger.error(f"FallbackSearchExecutor: Query execution failed for '{target_q}': {e}")
                 # Graceful degradation [RSL-003]: continue to next fallback mode
                 continue
 
-        return last_results
+        return all_results
 
-    async def _poll_slskd_search(self, query_string: str) -> List[SlskdResult]:
+    async def _poll_slskd_search(self, query_string: str) -> tuple[List[SlskdResult], List[Dict[str, Any]]]:
         """
         Helper method to coordinate active polling with slskd backend.
         Parses results into strongly-typed Pydantic SlskdResult schemas [CDA-002].
@@ -81,7 +157,7 @@ class FallbackSearchExecutor(SearchExecutorContract):
         search_obj = await self.slskd_client.search(query_string)
         search_id = search_obj.get("id")
         if not search_id:
-            return []
+            return [], []
 
         # Poll responses for up to 5 seconds
         responses = []
@@ -129,4 +205,4 @@ class FallbackSearchExecutor(SearchExecutorContract):
             if len(candidates) > 0 and len(responses) >= 8:
                 break
 
-        return candidates
+        return candidates, responses

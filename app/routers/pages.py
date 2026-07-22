@@ -49,6 +49,7 @@ class SearchDebugTracker:
     last_generated_query: Optional[str] = None
     last_slskd_search_id: Optional[str] = None
     last_result_count: int = 0
+    last_queries_telemetry: List[Dict[str, Any]] = []
 
 router = APIRouter()
 
@@ -314,6 +315,7 @@ async def post_search_results(
     search_mode: Optional[str] = Form("A"),
     slskd_client: SlskdClientContract = Depends(get_slskd_client),
     search_provider: SearchProviderContract = Depends(get_search_provider),
+    search_executor: SearchExecutorContract = Depends(get_search_executor),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
@@ -327,9 +329,9 @@ async def post_search_results(
     chosen_artist = canonical_artist.strip() if canonical_artist and canonical_artist.strip() else (artist.strip() if artist else "")
     chosen_track = canonical_track.strip() if canonical_track and canonical_track.strip() else (track.strip() if track else "")
 
-    clean_artist = chosen_artist.strip().strip("'\"").strip()
-    clean_track = chosen_track.strip().strip("'\"").strip()
-    clean_query = query.strip().strip("'\"").strip() if query else ""
+    clean_artist = chosen_artist.replace('"', '').strip() if chosen_artist else ""
+    clean_track = chosen_track.replace('"', '').strip() if chosen_track else ""
+    clean_query = query.replace('"', '').strip() if query else ""
 
     # Step 2: Build target search query matching contracts [CDA-002]
     search_query = ""
@@ -375,68 +377,50 @@ async def post_search_results(
     duplicate_checks_count = 0
 
     try:
-        search_obj = await slskd_client.search(search_query)
-        search_id = search_obj.get("id")
-        SearchDebugTracker.last_slskd_search_id = search_id
-        if not search_id:
-            log_structured_event("ERROR", "SEARCH_FAILED", "Failed to start search on slskd backend", correlation_id)
-            return "<div class='p-6 text-center text-rose-400'>Failed to start search in slskd.</div>"
-
-        # Poll search responses
-        responses = []
-        for _ in range(5):
-            await asyncio.sleep(1.2)
-            responses = await slskd_client.get_search_responses(search_id)
-            if len(responses) >= 12:
-                break
+        # Step 3: Run the fallback progressive search!
+        query_obj = SearchQuery(artist=clean_artist, track=clean_track or clean_query, mode=search_mode)
+        results = await search_executor.execute_search(query_obj)
 
         raw_results = []
-        for resp in responses:
-            username = resp.get("username", "")
-            queue_length = resp.get("queueLength", 0) or resp.get("queue_length", 0) or 0
-            files = resp.get("files", [])
-            for f in files:
-                filename = f.get("filename", "")
-                ext = os.path.splitext(filename)[1].lstrip(".").lower()
-                size = f.get("size", 0)
-                bitrate = f.get("bitRate", 0) or f.get("bitrate", 0) or 0
-                sample_rate = f.get("sampleRate", 0) or f.get("sample_rate", 0) or 0
+        for r in results:
+            filename = r.filename
+            ext = r.format
+            size = r.size
+            username = r.username
+            bitrate = r.bitrate or 0
+            sample_rate = r.sample_rate or 0
+            queue_length = r.queue_length or 0
 
-                # Reject non-music or junk immediately
-                if SearchRankingService.should_reject_result(filename, ext):
-                    rejected_results += 1
-                    continue
+            parsed = parse_filename(filename)
 
-                parsed = parse_filename(filename)
+            if parsed.get("artist") != "Unknown" and parsed.get("track") != "Unknown":
+                parsed_success += 1
+            else:
+                parser_failures += 1
 
-                if parsed.get("artist") != "Unknown" and parsed.get("track") != "Unknown":
-                    parsed_success += 1
-                else:
-                    parser_failures += 1
+            res_artist = parsed.get("artist") or clean_artist or "Unknown"
+            res_track = parsed.get("track") or clean_track or os.path.splitext(os.path.basename(filename))[0]
+            res_album = parsed.get("album") or ""
+            res_year = parsed.get("year") or None
+            featured = parsed.get("featured_artists", [])
 
-                res_artist = parsed.get("artist") or clean_artist or "Unknown"
-                res_track = parsed.get("track") or clean_track or os.path.splitext(os.path.basename(filename))[0]
-                res_album = parsed.get("album") or ""
-                res_year = parsed.get("year") or None
-                featured = parsed.get("featured_artists", [])
+            raw_results.append({
+                "artist": res_artist,
+                "track": res_track,
+                "album": res_album,
+                "year": res_year,
+                "cover_url": "",
+                "filename": filename,
+                "size": size,
+                "username": username,
+                "format": ext,
+                "bitrate": bitrate,
+                "sample_rate": sample_rate,
+                "queue_length": queue_length,
+                "featured_artists": featured
+            })
 
-                raw_results.append({
-                    "artist": res_artist,
-                    "track": res_track,
-                    "album": res_album,
-                    "year": res_year,
-                    "cover_url": "",
-                    "filename": filename,
-                    "size": size,
-                    "username": username,
-                    "format": ext,
-                    "bitrate": bitrate,
-                    "sample_rate": sample_rate,
-                    "queue_length": queue_length,
-                    "featured_artists": featured
-                })
-
-        total_slskd = len(raw_results) + rejected_results
+        total_slskd = len(raw_results)
 
         # Apply User Filters
         filtered_results = []

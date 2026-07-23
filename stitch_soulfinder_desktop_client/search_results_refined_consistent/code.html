@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SoulFinder Search Results</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "inverse-primary": "#006c49",
+                "tertiary-container": "#fc7c78",
+                "on-tertiary-container": "#711419",
+                "on-background": "#e5e2e3",
+                "on-surface": "#e5e2e3",
+                "on-primary-fixed-variant": "#005236",
+                "on-error": "#690005",
+                "primary": "#10B981",
+                "outline-variant": "#3c4a42",
+                "outline": "#86948a",
+                "tertiary": "#ffb3af",
+                "surface-container-low": "#1c1b1c",
+                "surface-container": "#201f20",
+                "surface-bright": "#3a393a",
+                "secondary-container": "#47464a",
+                "surface-container-lowest": "#0e0e0f",
+                "tertiary-fixed-dim": "#ffb3af",
+                "on-primary-fixed": "#002113",
+                "on-tertiary": "#650911",
+                "on-primary": "#003824",
+                "on-secondary-fixed": "#1b1b1e",
+                "surface-container-highest": "#353436",
+                "inverse-on-surface": "#313031",
+                "background": "#131314",
+                "on-primary-container": "#00422b",
+                "on-tertiary-fixed": "#410005",
+                "inverse-surface": "#e5e2e3",
+                "primary-fixed": "#6ffbbe",
+                "tertiary-fixed": "#ffdad7",
+                "on-tertiary-fixed-variant": "#842225",
+                "primary-fixed-dim": "#4edea3",
+                "secondary-fixed": "#e4e1e5",
+                "surface-dim": "#131314",
+                "surface-container-high": "#2a2a2b",
+                "on-secondary": "#303033",
+                "error": "#ffb4ab",
+                "surface": "#131314",
+                "surface-variant": "#353436",
+                "on-secondary-container": "#b6b4b8",
+                "on-error-container": "#ffdad6",
+                "error-container": "#93000a",
+                "primary-container": "#10b981",
+                "on-surface-variant": "#bbcabf",
+                "secondary-fixed-dim": "#c8c6c9",
+                "surface-tint": "#4edea3",
+                "on-secondary-fixed-variant": "#47464a",
+                "secondary": "#c8c6c9",
+                "emerald-technical": "#10B981"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "margin-desktop": "32px",
+                "unit": "4px",
+                "gutter": "16px",
+                "margin-mobile": "16px",
+                "container-max": "1440px"
+        },
+        "fontFamily": {
+                "headline-lg": [
+                        "Hanken Grotesk"
+                ],
+                "data-mono": [
+                        "JetBrains Mono"
+                ],
+                "body-lg": [
+                        "Hanken Grotesk"
+                ],
+                "headline-sm": [
+                        "Hanken Grotesk"
+                ],
+                "body-md": [
+                        "Hanken Grotesk"
+                ],
+                "label-caps": [
+                        "JetBrains Mono"
+                ],
+                "headline-md": [
+                        "Hanken Grotesk"
+                ]
+        },
+        "fontSize": {
+                "headline-lg": [
+                        "32px",
+                        {
+                                "lineHeight": "1.2",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "data-mono": [
+                        "13px",
+                        {
+                                "lineHeight": "1.4",
+                                "letterSpacing": "0.02em",
+                                "fontWeight": "400"
+                        }
+                ],
+                "body-lg": [
+                        "16px",
+                        {
+                                "lineHeight": "1.6",
+                                "fontWeight": "400"
+                        }
+                ],
+                "headline-sm": [
+                        "18px",
+                        {
+                                "lineHeight": "1.4",
+                                "fontWeight": "500"
+                        }
+                ],
+                "body-md": [
+                        "14px",
+                        {
+                                "lineHeight": "1.5",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-caps": [
+                        "11px",
+                        {
+                                "lineHeight": "1.2",
+                                "letterSpacing": "0.1em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "headline-md": [
+                        "24px",
+                        {
+                                "lineHeight": "1.3",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "600"
+                        }
+                ]
+        },
+        "animation": {
+            "fade-in-up": "fadeInUp 0.5s ease-out forwards",
+            "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+        },
+        "keyframes": {
+            "fadeInUp": {
+                "0%": { opacity: "0", transform: "translateY(10px)" },
+                "100%": { opacity: "1", transform: "translateY(0)" }
+            }
+        }
+},
+    },
+  }
+</script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        /* Custom scrollbar for data tables */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #131314; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #353436; 
+            border-radius: 0;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #47464a; 
+        }
+        
+        /* Table focus state */
+        tr:focus-within {
+            outline: 1px solid #10B981;
+            outline-offset: -1px;
+            background-color: rgba(16, 185, 129, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface-variant font-body-md text-body-md h-screen flex overflow-hidden">
+<!-- SideNavBar -->
+<nav class="bg-[#0A0A0B] fixed left-0 top-0 h-full w-[240px] border-r border-outline-variant flex flex-col z-50">
+<div class="px-4 py-6">
+<h1 class="font-headline-sm text-headline-sm font-bold tracking-tighter text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined icon-fill text-primary">graphic_eq</span>
+                SONIC ARCHIVE
+            </h1>
+<p class="font-data-mono text-data-mono text-on-surface-variant mt-1">Technical Audiophile V1</p>
+</div>
+<div class="flex-1 overflow-y-auto">
+<ul class="space-y-1">
+<li>
+<a class="text-on-surface hover:text-on-surface hover:bg-surface-container-low px-4 py-3 flex items-center gap-3 transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[18px]" data-icon="home">home</span>
+                        Home
+                        <span class="ml-auto font-data-mono text-[10px] text-on-surface-variant bg-surface-container border border-outline-variant px-1 py-0.5 rounded-none shadow-sm leading-none opacity-70">G H</span>
+</a>
+</li>
+<li>
+<a class="text-on-surface hover:text-on-surface hover:bg-surface-container-low px-4 py-3 flex items-center gap-3 transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[18px]" data-icon="explore">explore</span>
+                        Explore
+                        <span class="ml-auto font-data-mono text-[10px] text-on-surface-variant bg-surface-container border border-outline-variant px-1 py-0.5 rounded-none shadow-sm leading-none opacity-70">G E</span>
+</a>
+</li>
+<li>
+<a class="text-primary border-l-2 border-primary bg-surface-container-high px-4 py-3 flex items-center gap-3 transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[18px] icon-fill" data-icon="search">search</span>
+                        Search
+                        <span class="ml-auto font-data-mono text-[10px] text-primary bg-surface border border-outline-variant px-1 py-0.5 rounded-none shadow-sm leading-none opacity-90">G S</span>
+</a>
+</li>
+<li>
+<a class="text-on-surface hover:text-on-surface hover:bg-surface-container-low px-4 py-3 flex items-center gap-3 transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[18px]" data-icon="cloud_download">download</span>
+                        Downloads
+                        <span class="ml-auto font-data-mono text-[10px] text-on-surface-variant bg-surface-container border border-outline-variant px-1 py-0.5 rounded-none shadow-sm leading-none opacity-70">G D</span>
+</a>
+</li>
+<li>
+<a class="text-on-surface hover:text-on-surface hover:bg-surface-container-low px-4 py-3 flex items-center gap-3 transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[18px]" data-icon="settings">settings</span>
+                        Settings
+                        <span class="ml-auto font-data-mono text-[10px] text-on-surface-variant bg-surface-container border border-outline-variant px-1 py-0.5 rounded-none shadow-sm leading-none opacity-70">G ,</span>
+</a>
+</li>
+</ul>
+</div>
+<div class="px-4 mt-auto py-6">
+<div class="bg-surface-container border border-outline-variant p-3 mb-4">
+<p class="font-data-mono text-data-mono text-on-surface">Active Downloads: 4</p>
+<div class="w-full bg-surface-container-high h-1 mt-2 overflow-hidden">
+<div class="bg-primary h-full w-3/4"></div>
+</div>
+</div>
+</div>
+</nav>
+<!-- Main Content Area -->
+<div class="flex-1 flex flex-col ml-[240px] w-[calc(100%-240px)] h-screen overflow-hidden animate-fade-in-up">
+<!-- TopAppBar -->
+<header class="bg-surface border-b border-outline-variant flex items-center justify-between h-16 px-margin-desktop w-full z-40 sticky top-0 shrink-0">
+<div class="flex items-center gap-4">
+<!-- Search Bar -->
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-2 text-on-surface-variant text-[16px]">search</span>
+<input class="bg-surface-container border border-outline-variant text-on-surface font-body-md text-body-md rounded-none pl-8 pr-14 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary w-64 placeholder:text-on-surface-variant transition-colors duration-150" placeholder="Search archive..." type="text" value="Aphex Twin Selected Ambient Works"/>
+<div class="absolute right-1.5 flex items-center gap-0.5 opacity-60">
+<span class="font-data-mono text-[10px] text-on-surface-variant bg-surface border border-outline-variant px-1 py-0.5 leading-none">⌘</span>
+<span class="font-data-mono text-[10px] text-on-surface-variant bg-surface border border-outline-variant px-1 py-0.5 leading-none">K</span>
+</div>
+</div>
+<span class="text-primary font-label-caps text-label-caps flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary inline-block animate-pulse-slow"></span>
+                    Last.fm Sync Active
+                </span>
+</div>
+<div class="flex items-center gap-3">
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-150 cursor-pointer active:scale-95 relative group">
+<span class="material-symbols-outlined text-[18px]" data-icon="filter_list">filter_list</span>
+<div class="absolute -bottom-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-surface-container-highest border border-outline-variant px-1.5 py-0.5 rounded-none font-data-mono text-[10px] text-on-surface whitespace-nowrap pointer-events-none">F</div>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-150 cursor-pointer active:scale-95 relative group">
+<span class="material-symbols-outlined text-[18px]" data-icon="tune">tune</span>
+<div class="absolute -bottom-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-surface-container-highest border border-outline-variant px-1.5 py-0.5 rounded-none font-data-mono text-[10px] text-on-surface whitespace-nowrap pointer-events-none">T</div>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors duration-150 cursor-pointer active:scale-95 relative group">
+<span class="material-symbols-outlined text-[18px]" data-icon="settings_input_component">settings_input_component</span>
+<div class="absolute -bottom-7 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-surface-container-highest border border-outline-variant px-1.5 py-0.5 rounded-none font-data-mono text-[10px] text-on-surface whitespace-nowrap pointer-events-none">S</div>
+</button>
+</div>
+</header>
+<!-- Bulk Actions Bar (Hidden by default, shown when items selected) -->
+<div class="bg-surface-container border-b border-outline-variant px-margin-desktop py-2 flex items-center justify-between hidden">
+<div class="flex items-center gap-3">
+<span class="font-data-mono text-data-mono text-on-surface bg-surface-container-high px-2 py-0.5 border border-outline-variant">2 selected</span>
+<button class="bg-on-surface text-surface font-label-caps text-label-caps px-3 py-1 hover:bg-surface-container-high hover:text-on-surface border border-on-surface hover:border-outline-variant transition-colors duration-150 flex items-center gap-1 h-7">
+<span class="material-symbols-outlined text-[14px]">download</span>
+                    Download Selected
+                    <span class="ml-2 font-data-mono text-[10px] text-surface bg-on-surface border border-surface px-1 py-0.5 leading-none opacity-80 group-hover:text-on-surface group-hover:border-outline-variant group-hover:bg-surface-container">⇧D</span>
+</button>
+<button class="bg-surface-container-high text-on-surface font-label-caps text-label-caps px-3 py-1 hover:bg-surface-container border border-outline-variant transition-colors duration-150 flex items-center gap-1 h-7 group">
+<span class="material-symbols-outlined text-[14px]">compare</span>
+                    Compare Bitrates
+                    <span class="ml-2 font-data-mono text-[10px] text-on-surface bg-surface-container border border-outline-variant px-1 py-0.5 leading-none opacity-80 group-hover:bg-surface">⇧C</span>
+</button>
+</div>
+<button class="text-on-surface-variant hover:text-on-surface font-body-md flex items-center gap-1 transition-colors duration-150">
+<span class="material-symbols-outlined text-[16px]">close</span> Clear selection
+            </button>
+</div>
+<!-- Content Layout -->
+<div class="flex-1 flex overflow-hidden">
+<!-- Data Grid (Main Left) -->
+<main class="flex-1 overflow-auto bg-surface flex flex-col">
+<div class="p-margin-desktop pb-4 shrink-0 border-b border-outline-variant bg-surface z-20">
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-1">Search Results</h2>
+<p class="font-data-mono text-data-mono text-on-surface-variant">42 results found for "Aphex Twin Selected Ambient Works"</p>
+</div>
+<!-- Table Container -->
+<div class="flex-1 overflow-auto relative">
+<table class="w-full text-left border-collapse whitespace-nowrap table-fixed">
+<thead class="sticky top-0 bg-surface-container border-b border-outline-variant z-10 font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">
+<tr>
+<th class="p-2 w-8 pl-margin-desktop border-r border-outline-variant">
+<input class="rounded-none bg-surface border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface h-3 w-3 transition-colors duration-150" type="checkbox"/>
+</th>
+<th class="p-2 w-16 border-r border-outline-variant">Score</th>
+<th class="p-2 w-48 border-r border-outline-variant">Track</th>
+<th class="p-2 w-32 border-r border-outline-variant">Artist</th>
+<th class="p-2 w-48 border-r border-outline-variant">Album</th>
+<th class="p-2 w-16 border-r border-outline-variant">Fmt</th>
+<th class="p-2 w-20 border-r border-outline-variant">Bitrate</th>
+<th class="p-2 w-20 border-r border-outline-variant">Size</th>
+<th class="p-2 w-24 border-r border-outline-variant">User</th>
+<th class="p-2 w-12 border-r border-outline-variant">Q</th>
+<th class="p-2 w-10 text-center pr-margin-desktop"></th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-md text-on-surface-variant divide-y divide-outline-variant">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-high transition-colors duration-150 group cursor-pointer border-b border-outline-variant" tabindex="0">
+<td class="p-2 pl-margin-desktop border-r border-outline-variant">
+<input class="rounded-none bg-surface border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface h-3 w-3 transition-colors duration-150" type="checkbox"/>
+</td>
+<td class="p-2 border-r border-outline-variant">
+<div class="flex items-center gap-2">
+<span class="font-data-mono text-data-mono text-emerald-400">100</span>
+<div class="flex-1 h-1 bg-surface-container overflow-hidden rounded-none w-8">
+<div class="bg-emerald-400 h-full w-full"></div>
+</div>
+</div>
+</td>
+<td class="p-2 text-on-surface font-medium truncate border-r border-outline-variant" title="Xtal">Xtal</td>
+<td class="p-2 truncate border-r border-outline-variant" title="Aphex Twin">Aphex Twin</td>
+<td class="p-2 truncate border-r border-outline-variant" title="Selected Ambient Works 85-92">Selected Ambient Works 85-92</td>
+<td class="p-2 border-r border-outline-variant font-data-mono text-data-mono text-on-surface">FLAC</td>
+<td class="p-2 font-data-mono text-data-mono border-r border-outline-variant">Lossless</td>
+<td class="p-2 font-data-mono text-data-mono border-r border-outline-variant text-right pr-2">24.5M</td>
+<td class="p-2 font-data-mono text-data-mono truncate border-r border-outline-variant text-primary" title="user_analog">user_analog</td>
+<td class="p-2 font-data-mono text-data-mono border-r border-outline-variant text-right pr-2">0</td>
+<td class="p-2 text-center pr-margin-desktop">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity duration-150 hover:text-on-surface" tabindex="-1">
+<span class="material-symbols-outlined text-[16px]">download</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-high transition-colors duration-150 group cursor-pointer border-b border-outline-variant bg-surface-container-lowest" tabindex="0">
+<td class="p-2 pl-margin-desktop border-r border-outline-variant">
+<input class="rounded-none bg-surface border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface h-3 w-3 transition-colors duration-150" type="checkbox"/>
+</td>
+<td class="p-2 border-r border-outline-variant">
+<div class="flex items-center gap-2">
+<span class="font-data-mono text-data-mono text-emerald-400">98</span>
+<div class="flex-1 h-1 bg-surface-container overflow-hidden rounded-none w-8">
+<div class="bg-emerald-400 h-full w-[98%]"></div>
+</div>
+</div>
+</td>
+<td class="p-2 text-on-surface font-medium truncate border-r border-outline-variant" title="Tha">Tha</td>
+<td class="p-2 truncate border-r border-outline-variant" title="Aphex Twin">Aphex Twin</td>
+<td class="p-2 truncate border-r border-outline-variant" title="Selected Ambient Works 85-92">Selected Ambient Works 85-92</td>
+<td class="p-2 border-r border-outline-variant font-data-mono text-data-mono text-on-surface">FLAC</td>
+<td class="p-2 font-data-mono text-data-mono border-r border-outline-variant">Lossless</td>
+<td class="p-2 font-data-mono text-data-mono border-r border-outline-variant text-right pr-2">31.2M</td>
+<td class="p-2 font-data-mono text-data-mono truncate border-r border-outline-variant" title="ambient_drone">ambient_drone</td>
+<td class="p-2 font-data-mono text-data-mono border-r border-outline-variant text-right pr-2">2</td>
+<td class="p-2 text-center pr-margin-desktop">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity duration-150 hover:text-on-surface" tabindex="-1">
+<span class="material-symbols-outlined text-[16px]">download</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-high transition-colors duration-150 group cursor-pointer border-b border-outline-variant" tabindex="0">
+<td class="p-2 pl-margin-desktop border-r border-outline-variant">
+<input class="rounded-none bg-surface border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface h-3 w-3 transition-colors duration-150" type="checkbox"/>
+</td>
+<td class="p-2 border-r border-outline-variant">
+<div class="flex items-center gap-2">
+<span class="font-data-mono text-data-mono text-emerald-400">98</span>
+<div class="flex-1 h-1 bg-surface-container overflow-hidden rounded-none w-8">
+<div class="bg-emerald-400 h-full w-[98%]"></div>
+</div>
+</div>
+</td>
+<td class="p-2 text-on-surface font-medium truncate border-r border-outline-variant" title="Pulsewidth">Pulsewidth</td>
+<td class="p-2 truncate border-r border-outline-variant" title="Aphex Twin">Aphex Twin</td>
+<td class="p-2 truncate border-r border-outline-variant" title="Selected Ambient Works 85-92">Selected Ambient Works 85-92</td>
+<td class="p-2 border-r border-outline-variant font-data-mono text-data-mono text-on-surface">FLAC</td>
+<td class="p-2 font-data-mono text-data-mono border-r border-outline-variant">Lossless</td>
+<td class="p-2 font-data-mono text-data-mono border-r border-outline-variant text-right pr-2">28.9M</td>
+<td class="p-2 font-data-mono text-data-mono truncate border-r border-outline-variant" title="ambient_drone">ambient_drone</td>
+<td class="p-2 font-data-mono text-data-mono border-r border-outline-variant text-right pr-2">2</td>
+<td class="p-2 text-center pr-margin-desktop">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity duration-150 hover:text-on-surface" tabindex="-1">
+<span class="material-symbols-outlined text-[16px]">download</span>
+</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container-high transition-colors duration-150 group cursor-pointer border-b border-outline-variant bg-surface-container-lowest" tabindex="0">
+<td class="p-2 pl-margin-desktop border-r border-outline-variant">
+<input class="rounded-none bg-surface border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface h-3 w-3 transition-colors duration-150" type="checkbox"/>
+</td>
+<td class="p-2 border-r border-outline-variant">
+<div class="flex items-center gap-2">
+<span class="font-data-mono text-data-mono text-emerald-400">95</span>
+<div class="flex-1 h-1 bg-surface-container overflow-hidden rounded-none w-8">
+<div class="bg-emerald-400 h-full w-[95%]"></div>
+</div>
+</div>
+</td>
+<td class="p-2 text-on-surface font-medium truncate border-r border-outline-variant" title="Ageispolis">Ageispolis</td>
+<td class="p-2 truncate border-r border-outline-variant" title="Aphex Twin">Aphex Twin</td>
+<td class="p-2 truncate border-r border-outline-variant" title="Selected Ambient Works 85-92">Selected Ambient Works 85-92</td>
+<td class="p-2 border-r border-outline-variant font-data-mono text-data-mono text-on-surface-variant">MP3</td>
+<td class="p-2 font-data-mono text-data-mono border-r border-outline-variant">320kbps</td>
+<td class="p-2 font-data-mono text-data-mono border-r border-outline-variant text-right pr-2">12.1M</td>
+<td class="p-2 font-data-mono text-data-mono truncate border-r border-outline-variant" title="fast_leecher">fast_leecher</td>
+<td class="p-2 font-data-mono text-data-mono border-r border-outline-variant text-right pr-2">0</td>
+<td class="p-2 text-center pr-margin-desktop">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity duration-150 hover:text-on-surface" tabindex="-1">
+<span class="material-symbols-outlined text-[16px]">download</span>
+</button>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-surface-container-high transition-colors duration-150 group cursor-pointer border-b border-outline-variant" tabindex="0">
+<td class="p-2 pl-margin-desktop border-r border-outline-variant">
+<input class="rounded-none bg-surface border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface h-3 w-3 transition-colors duration-150" type="checkbox"/>
+</td>
+<td class="p-2 border-r border-outline-variant">
+<div class="flex items-center gap-2">
+<span class="font-data-mono text-data-mono text-yellow-500">82</span>
+<div class="flex-1 h-1 bg-surface-container overflow-hidden rounded-none w-8">
+<div class="bg-yellow-500 h-full w-[82%]"></div>
+</div>
+</div>
+</td>
+<td class="p-2 text-on-surface font-medium truncate border-r border-outline-variant" title="Green Calx">Green Calx</td>
+<td class="p-2 truncate border-r border-outline-variant" title="Aphex Twin">Aphex Twin</td>
+<td class="p-2 truncate border-r border-outline-variant" title="Selected Ambient Works 85-92">Selected Ambient Works 85-92</td>
+<td class="p-2 border-r border-outline-variant font-data-mono text-data-mono text-on-surface-variant">MP3</td>
+<td class="p-2 font-data-mono text-data-mono text-on-surface-variant border-r border-outline-variant">V0 (VBR)</td>
+<td class="p-2 font-data-mono text-data-mono border-r border-outline-variant text-right pr-2">10.4M</td>
+<td class="p-2 font-data-mono text-data-mono truncate border-r border-outline-variant" title="archive_bot">archive_bot</td>
+<td class="p-2 font-data-mono text-data-mono text-primary border-r border-outline-variant text-right pr-2">14</td>
+<td class="p-2 text-center pr-margin-desktop">
+<button class="opacity-0 group-hover:opacity-100 transition-opacity duration-150 hover:text-on-surface" tabindex="-1">
+<span class="material-symbols-outlined text-[16px]">download</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</main>
+<!-- Refinement Inspector (Right Sidebar) -->
+<aside class="w-[280px] bg-surface-container border-l border-outline-variant flex flex-col shrink-0 overflow-hidden z-30">
+<div class="p-4 border-b border-outline-variant bg-surface-container-high shrink-0 flex items-center justify-between">
+<h3 class="font-label-caps text-label-caps text-on-surface uppercase tracking-widest">Refine Search</h3>
+<button class="text-on-surface-variant hover:text-on-surface transition-colors duration-150 font-label-caps text-label-caps uppercase tracking-widest flex items-center">Clear All <span class="ml-2 font-data-mono text-[10px] bg-surface border border-outline-variant px-1 py-0.5 text-on-surface-variant opacity-80 normal-case tracking-normal">⇧X</span></button>
+</div>
+<div class="flex-1 overflow-y-auto p-4 space-y-6">
+<!-- Filter Group: Format -->
+<div>
+<h4 class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest mb-3 border-b border-outline-variant pb-1">Format</h4>
+<div class="space-y-2">
+<label class="flex items-center gap-2 cursor-pointer group">
+<input checked="" class="rounded-none bg-surface border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface-container h-3 w-3 transition-colors duration-150" type="checkbox"/>
+<span class="font-body-md text-body-md text-on-surface group-hover:text-on-surface transition-colors duration-150">FLAC</span>
+<span class="ml-auto font-data-mono text-data-mono text-on-surface-variant">18</span>
+</label>
+<label class="flex items-center gap-2 cursor-pointer group">
+<input checked="" class="rounded-none bg-surface border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface-container h-3 w-3 transition-colors duration-150" type="checkbox"/>
+<span class="font-body-md text-body-md text-on-surface group-hover:text-on-surface transition-colors duration-150">MP3</span>
+<span class="ml-auto font-data-mono text-data-mono text-on-surface-variant">24</span>
+</label>
+<label class="flex items-center gap-2 cursor-pointer group">
+<input class="rounded-none bg-surface border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface-container h-3 w-3 transition-colors duration-150" type="checkbox"/>
+<span class="font-body-md text-body-md text-on-surface-variant group-hover:text-on-surface transition-colors duration-150">WAV</span>
+<span class="ml-auto font-data-mono text-data-mono text-on-surface-variant">0</span>
+</label>
+</div>
+</div>
+<!-- Filter Group: Bitrate -->
+<div>
+<h4 class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest mb-3 border-b border-outline-variant pb-1">Bitrate</h4>
+<div class="flex flex-wrap gap-2">
+<button class="bg-primary text-on-primary border border-primary font-data-mono text-data-mono px-2 py-0.5 rounded-none transition-colors duration-150">Lossless</button>
+<button class="bg-surface text-on-surface-variant border border-outline-variant hover:border-on-surface-variant font-data-mono text-data-mono px-2 py-0.5 rounded-none transition-colors duration-150">320kbps</button>
+<button class="bg-surface text-on-surface-variant border border-outline-variant hover:border-on-surface-variant font-data-mono text-data-mono px-2 py-0.5 rounded-none transition-colors duration-150">V0 (VBR)</button>
+<button class="bg-surface text-on-surface-variant border border-outline-variant hover:border-on-surface-variant font-data-mono text-data-mono px-2 py-0.5 rounded-none transition-colors duration-150">256kbps</button>
+</div>
+</div>
+<!-- Filter Group: Size -->
+<div>
+<h4 class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest mb-3 border-b border-outline-variant pb-1">Max File Size</h4>
+<div class="px-1">
+<input class="w-full h-1 bg-surface rounded-none appearance-none cursor-pointer accent-primary border border-outline-variant" max="100" min="1" type="range" value="50"/>
+<div class="flex justify-between mt-2 font-data-mono text-data-mono text-on-surface-variant">
+<span>1MB</span>
+<span class="text-on-surface">50MB</span>
+</div>
+</div>
+</div>
+<!-- Filter Group: Queue Status -->
+<div>
+<h4 class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest mb-3 border-b border-outline-variant pb-1">Queue Length</h4>
+<div class="space-y-2">
+<label class="flex items-center gap-2 cursor-pointer group">
+<input checked="" class="bg-surface border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface-container h-3 w-3 transition-colors duration-150" name="queue" type="radio"/>
+<span class="font-body-md text-body-md text-on-surface group-hover:text-on-surface transition-colors duration-150">Any</span>
+</label>
+<label class="flex items-center gap-2 cursor-pointer group">
+<input class="bg-surface border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface-container h-3 w-3 transition-colors duration-150" name="queue" type="radio"/>
+<span class="font-body-md text-body-md text-on-surface-variant group-hover:text-on-surface transition-colors duration-150">Empty Queue Only (0)</span>
+</label>
+<label class="flex items-center gap-2 cursor-pointer group">
+<input class="bg-surface border-outline-variant text-primary focus:ring-primary focus:ring-offset-surface-container h-3 w-3 transition-colors duration-150" name="queue" type="radio"/>
+<span class="font-body-md text-body-md text-on-surface-variant group-hover:text-on-surface transition-colors duration-150">&lt; 5 Users Ahead</span>
+</label>
+</div>
+</div>
+<!-- User Search -->
+<div>
+<h4 class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest mb-3 border-b border-outline-variant pb-1">Specific User</h4>
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-2 text-on-surface-variant text-[14px]">person_search</span>
+<input class="w-full bg-surface border border-outline-variant text-on-surface font-body-md text-body-md rounded-none pl-7 pr-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-on-surface-variant transition-colors duration-150" placeholder="Filter by username..." type="text"/>
+</div>
+</div>
+</div>
+</aside>
+</div>
+</div>
+<!-- Command Palette Overlay -->
+<div class="fixed inset-0 z-[100] bg-surface/90 backdrop-blur-sm hidden items-start justify-center pt-24" id="command-palette">
+<div class="w-full max-w-2xl bg-surface-container border border-outline-variant shadow-2xl flex flex-col overflow-hidden">
+<!-- Input Area -->
+<div class="flex items-center px-4 py-3 border-b border-outline-variant bg-surface">
+<span class="material-symbols-outlined text-primary text-[20px] mr-3">search</span>
+<input autofocus="" class="flex-1 bg-transparent border-none text-on-surface font-body-lg focus:outline-none focus:ring-0 placeholder:text-on-surface-variant p-0" placeholder="Search archive or type &gt; for commands..." type="text"/>
+<span class="font-data-mono text-[10px] text-on-surface-variant bg-surface-container border border-outline-variant px-1.5 py-0.5 leading-none ml-3">ESC</span>
+</div>
+<!-- Results Area -->
+<div class="max-h-[60vh] overflow-y-auto p-2">
+<div class="px-2 py-1.5">
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest mb-2">Recent Searches</p>
+<ul class="space-y-0.5">
+<li>
+<button class="w-full flex items-center px-3 py-2 text-left hover:bg-surface-container-high focus:bg-surface-container-high focus:outline-none transition-colors duration-150 group">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-[18px] mr-3">history</span>
+<span class="font-body-md text-on-surface flex-1">Aphex Twin Selected Ambient Works</span>
+<span class="material-symbols-outlined text-on-surface-variant text-[16px] opacity-0 group-hover:opacity-100 transition-opacity duration-150">arrow_forward</span>
+</button>
+</li>
+<li>
+<button class="w-full flex items-center px-3 py-2 text-left hover:bg-surface-container-high focus:bg-surface-container-high focus:outline-none transition-colors duration-150 group">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-[18px] mr-3">history</span>
+<span class="font-body-md text-on-surface flex-1">Autechre LP5</span>
+<span class="material-symbols-outlined text-on-surface-variant text-[16px] opacity-0 group-hover:opacity-100 transition-opacity duration-150">arrow_forward</span>
+</button>
+</li>
+</ul>
+</div>
+<div class="px-2 py-1.5 mt-2">
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest mb-2">Commands</p>
+<ul class="space-y-0.5">
+<li>
+<button class="w-full flex items-center justify-between px-3 py-2 text-left bg-surface-container-high focus:outline-none transition-colors duration-150 group border-l-2 border-primary">
+<div class="flex items-center">
+<span class="material-symbols-outlined text-primary text-[18px] mr-3">tune</span>
+<span class="font-body-md text-on-surface flex-1">Toggle Bitrate Filter</span>
+</div>
+<span class="font-data-mono text-[10px] text-on-surface-variant bg-surface border border-outline-variant px-1.5 py-0.5 leading-none">⇧ F</span>
+</button>
+</li>
+<li>
+<button class="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-surface-container-high focus:bg-surface-container-high focus:outline-none transition-colors duration-150 group border-l-2 border-transparent">
+<div class="flex items-center">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary text-[18px] mr-3">cloud_download</span>
+<span class="font-body-md text-on-surface flex-1">Pause All Downloads</span>
+</div>
+<span class="font-data-mono text-[10px] text-on-surface-variant bg-surface border border-outline-variant px-1.5 py-0.5 leading-none">⇧ P</span>
+</button>
+</li>
+</ul>
+</div>
+</div>
+<!-- Footer -->
+<div class="px-4 py-2 border-t border-outline-variant bg-surface flex items-center gap-4 text-on-surface-variant font-body-md text-[12px]">
+<div class="flex items-center gap-1.5">
+<span class="font-data-mono text-[10px] bg-surface-container-high border border-outline-variant px-1 py-0.5 leading-none">↑</span>
+<span class="font-data-mono text-[10px] bg-surface-container-high border border-outline-variant px-1 py-0.5 leading-none">↓</span>
+<span>Navigate</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="font-data-mono text-[10px] bg-surface-container-high border border-outline-variant px-1.5 py-0.5 leading-none">↵</span>
+<span>Select</span>
+</div>
+</div>
+</div>
+</div>
+</body></html>

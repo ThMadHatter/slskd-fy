@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sonic Archive - Downloads</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-container": "#711419",
+                        "outline-variant": "#3c4a42",
+                        "inverse-on-surface": "#313031",
+                        "on-error": "#690005",
+                        "on-tertiary-fixed": "#410005",
+                        "tertiary-fixed": "#ffdad7",
+                        "surface": "#131314",
+                        "primary-container": "#10b981",
+                        "inverse-surface": "#e5e2e3",
+                        "on-secondary-fixed-variant": "#47464a",
+                        "on-secondary-container": "#b6b4b8",
+                        "surface-container-high": "#2a2a2b",
+                        "secondary-fixed": "#e4e1e5",
+                        "outline": "#86948a",
+                        "on-surface-variant": "#bbcabf",
+                        "on-primary-container": "#00422b",
+                        "surface-container-highest": "#353436",
+                        "on-primary": "#003824",
+                        "error-container": "#93000a",
+                        "secondary-container": "#47464a",
+                        "surface-container": "#201f20",
+                        "tertiary-fixed-dim": "#ffb3af",
+                        "on-background": "#e5e2e3",
+                        "surface-tint": "#4edea3",
+                        "on-secondary": "#303033",
+                        "on-primary-fixed-variant": "#005236",
+                        "on-secondary-fixed": "#1b1b1e",
+                        "surface-container-lowest": "#0e0e0f",
+                        "surface-container-low": "#1c1b1c",
+                        "secondary-fixed-dim": "#c8c6c9",
+                        "on-surface": "#e5e2e3",
+                        "tertiary": "#ffb3af",
+                        "primary-fixed-dim": "#4edea3",
+                        "on-tertiary": "#650911",
+                        "tertiary-container": "#fc7c78",
+                        "primary-fixed": "#6ffbbe",
+                        "on-tertiary-fixed-variant": "#842225",
+                        "surface-dim": "#131314",
+                        "on-primary-fixed": "#002113",
+                        "secondary": "#c8c6c9",
+                        "inverse-primary": "#006c49",
+                        "surface-variant": "#353436",
+                        "on-error-container": "#ffdad6",
+                        "error": "#ffb4ab",
+                        "primary": "#4edea3",
+                        "surface-bright": "#3a393a",
+                        "background": "#131314"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0",
+                        "lg": "0",
+                        "xl": "0",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "4px",
+                        "container-max": "1440px",
+                        "margin-mobile": "16px",
+                        "margin-desktop": "32px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "data-mono": ["JetBrains Mono"],
+                        "headline-sm": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "label-caps": ["JetBrains Mono"],
+                        "body-md": ["Hanken Grotesk"],
+                        "headline-md": ["Hanken Grotesk"],
+                        "headline-lg": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "data-mono": ["13px", { "lineHeight": "1.4", "letterSpacing": "0.02em", "fontWeight": "400" }],
+                        "headline-sm": ["18px", { "lineHeight": "1.4", "fontWeight": "500" }],
+                        "body-lg": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "label-caps": ["11px", { "lineHeight": "1.2", "letterSpacing": "0.1em", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "headline-md": ["24px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .progress-bar-stripe {
+            background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+            background-size: 1rem 1rem;
+            animation: progress-stripe 1s linear infinite;
+        }
+        @keyframes progress-stripe {
+            from { background-position: 1rem 0; }
+            to { background-position: 0 0; }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden">
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 h-full w-64 bg-surface border-r border-outline-variant flex flex-col py-margin-desktop z-20 flex-shrink-0">
+<div class="px-6 mb-8">
+<h1 class="font-headline-sm text-headline-sm font-bold tracking-tighter text-on-surface">SONIC ARCHIVE</h1>
+<p class="text-on-surface-variant font-data-mono text-data-mono mt-1">Technical Audiophile V1</p>
+</div>
+<ul class="flex flex-col flex-1 font-body-md text-body-md transition-colors duration-150 ease-in-out">
+<!-- Home -->
+<li>
+<a class="text-on-surface-variant hover:text-on-surface px-6 py-3 flex items-center transition-colors hover:bg-surface-container-low" href="#">
+<span class="material-symbols-outlined text-[20px] mr-3" style="font-variation-settings: 'FILL' 0;">home</span>
+                Home
+                <span class="ml-auto font-data-mono text-[10px] border border-outline-variant px-1 rounded opacity-60">⌘1</span>
+</a>
+</li>
+<!-- Explore -->
+<li>
+<a class="text-on-surface-variant hover:text-on-surface px-6 py-3 flex items-center transition-colors hover:bg-surface-container-low" href="#">
+<span class="material-symbols-outlined text-[20px] mr-3" style="font-variation-settings: 'FILL' 0;">explore</span>
+                Explore
+                <span class="ml-auto font-data-mono text-[10px] border border-outline-variant px-1 rounded opacity-60">⌘2</span>
+</a>
+</li>
+<!-- Search -->
+<li>
+<a class="text-on-surface-variant hover:text-on-surface px-6 py-3 flex items-center transition-colors hover:bg-surface-container-low" href="#">
+<span class="material-symbols-outlined text-[20px] mr-3" style="font-variation-settings: 'FILL' 0;">search</span>
+                Search
+                <span class="ml-auto font-data-mono text-[10px] border border-outline-variant px-1 rounded opacity-60">⌘3</span>
+</a>
+</li>
+<!-- Downloads (ACTIVE) -->
+<li>
+<a class="text-primary border-l-2 border-primary bg-surface-container-high px-6 py-3 flex items-center transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px] mr-3" style="font-variation-settings: 'FILL' 1;">download</span>
+                Downloads
+                <span class="ml-auto font-data-mono text-[10px] border border-primary/40 text-primary px-1 rounded opacity-80">⌘4</span>
+</a>
+</li>
+<!-- Settings -->
+<li>
+<a class="text-on-surface-variant hover:text-on-surface px-6 py-3 flex items-center transition-colors hover:bg-surface-container-low" href="#">
+<span class="material-symbols-outlined text-[20px] mr-3" style="font-variation-settings: 'FILL' 0;">settings</span>
+                Settings
+                <span class="ml-auto font-data-mono text-[10px] border border-outline-variant px-1 rounded opacity-60">⌘,</span>
+</a>
+</li>
+</ul>
+<div class="px-6 mt-auto mb-6">
+<div class="bg-surface-container-high border border-outline-variant p-3 text-xs text-on-surface-variant">
+<p class="font-data-mono text-data-mono text-on-surface mb-2">Active Downloads: 4</p>
+<div class="w-full h-1 bg-surface-container mt-2">
+<div class="h-full bg-primary w-3/4"></div>
+</div>
+</div>
+</div>
+<div class="mt-auto border-t border-outline-variant pt-4">
+<ul class="flex flex-col font-body-md text-body-md">
+<li>
+<a class="text-on-surface-variant hover:text-on-surface px-6 py-3 flex items-center gap-3 transition-colors hover:bg-surface-container-low" href="#">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 0;">person</span>
+                    Profile
+                </a>
+</li>
+<li>
+<a class="text-on-surface-variant hover:text-on-surface px-6 py-3 flex items-center gap-3 transition-colors hover:bg-surface-container-low" href="#">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 0;">sync_alt</span>
+                    Status
+                </a>
+</li>
+</ul>
+</div>
+</nav>
+<!-- TopAppBar -->
+<header class="fixed left-64 top-0 w-[calc(100%-16rem)] bg-surface border-b border-outline-variant flex items-center justify-between h-16 px-margin-desktop z-10">
+<div class="flex items-center space-x-6 text-on-surface-variant">
+<span class="font-label-caps text-label-caps text-primary tracking-widest uppercase">SONIC ARCHIVE</span>
+</div>
+<div class="flex items-center space-x-4 text-on-surface-variant">
+<!-- Trailing Icons -->
+<button class="hover:text-primary transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">filter_list</span>
+</button>
+<button class="hover:text-primary transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">tune</span>
+</button>
+<button class="hover:text-primary transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">settings_input_component</span>
+</button>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="ml-64 pt-16 min-h-screen p-margin-desktop">
+<!-- Toolbar -->
+<div class="flex items-center justify-between mb-8">
+<h2 class="font-headline-md text-headline-md font-bold text-on-surface">Queue</h2>
+<div class="flex items-center space-x-4">
+<!-- Search -->
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-3 top-1/2 transform -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+<input class="bg-surface border border-outline-variant text-on-surface font-body-md pl-10 pr-12 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary w-72 placeholder:text-on-surface-variant transition-colors" placeholder="Filter queue..." type="text"/>
+<span class="absolute right-3 font-data-mono text-[10px] text-on-surface-variant border border-outline-variant px-1.5 py-0.5 pointer-events-none opacity-60">⌘K</span>
+</div>
+<!-- Bulk Actions -->
+<div class="flex bg-surface border border-outline-variant">
+<button class="px-4 py-2 hover:bg-surface-container-high transition-colors border-r border-outline-variant text-on-surface-variant hover:text-on-surface flex items-center gap-2 group" title="Pause All">
+<span class="material-symbols-outlined text-[20px]">pause</span>
+<span class="font-data-mono text-[10px] border border-outline-variant px-1 rounded opacity-60 group-hover:opacity-100 transition-opacity">⌘P</span>
+</button>
+<button class="px-4 py-2 hover:bg-surface-container-high transition-colors border-r border-outline-variant text-on-surface-variant hover:text-on-surface flex items-center gap-2 group" title="Resume All">
+<span class="material-symbols-outlined text-[20px]">play_arrow</span>
+<span class="font-data-mono text-[10px] border border-outline-variant px-1 rounded opacity-60 group-hover:opacity-100 transition-opacity">⌘R</span>
+</button>
+<button class="px-4 py-2 hover:bg-surface-container-high transition-colors text-on-surface-variant hover:text-error flex items-center gap-2 group" title="Clear Completed">
+<span class="material-symbols-outlined text-[20px]">clear_all</span>
+<span class="font-data-mono text-[10px] border border-outline-variant px-1 rounded opacity-60 group-hover:opacity-100 group-hover:border-error/40 transition-opacity">⇧⌘⌫</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Data Table Container -->
+<div class="border border-outline-variant bg-surface">
+<!-- Table Header -->
+<div class="grid grid-cols-12 gap-gutter px-6 py-3 border-b border-outline-variant bg-surface-container-high font-label-caps text-label-caps text-on-surface-variant tracking-widest uppercase sticky top-16 z-0">
+<div class="col-span-5">Filename</div>
+<div class="col-span-3">Status</div>
+<div class="col-span-1 text-right">Size</div>
+<div class="col-span-1 text-right">Speed</div>
+<div class="col-span-1 text-right">ETA</div>
+<div class="col-span-1 text-right">Actions</div>
+</div>
+<!-- SECTION: ACTIVE -->
+<div class="group/section">
+<div class="px-6 py-2 bg-surface-container-lowest border-b border-outline-variant flex items-center">
+<span class="material-symbols-outlined text-[16px] text-primary mr-2">arrow_drop_down</span>
+<span class="font-label-caps text-label-caps text-primary uppercase">Active (2)</span>
+</div>
+<!-- Active Row 1 -->
+<div class="grid grid-cols-12 gap-gutter px-6 py-4 items-center border-b border-outline-variant hover:bg-surface-container-low transition-colors group">
+<div class="col-span-5 truncate pr-4 text-on-surface font-body-md">
+                    Aphex Twin - Selected Ambient Works 85-92 [FLAC].zip
+                </div>
+<div class="col-span-3 flex flex-col justify-center">
+<div class="flex justify-between font-data-mono text-data-mono text-on-surface-variant mb-2">
+<span>Downloading</span>
+<span class="text-primary">68%</span>
+</div>
+<div class="w-full h-1 bg-surface-container border border-outline-variant">
+<div class="h-full bg-primary progress-bar-stripe w-[68%]"></div>
+</div>
+</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">412 MB</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-primary">2.4 MB/s</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-primary">02:14</div>
+<div class="col-span-1 flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">pause</span></button>
+<button class="p-1 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[20px]">close</span></button>
+</div>
+</div>
+<!-- Active Row 2 -->
+<div class="grid grid-cols-12 gap-gutter px-6 py-4 items-center border-b border-outline-variant hover:bg-surface-container-low transition-colors group">
+<div class="col-span-5 truncate pr-4 text-on-surface font-body-md">
+                    Burial - Untrue (2007) [320kbps].rar
+                </div>
+<div class="col-span-3 flex flex-col justify-center">
+<div class="flex justify-between font-data-mono text-data-mono text-on-surface-variant mb-2">
+<span>Downloading</span>
+<span class="text-primary">12%</span>
+</div>
+<div class="w-full h-1 bg-surface-container border border-outline-variant">
+<div class="h-full bg-primary progress-bar-stripe w-[12%]"></div>
+</div>
+</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">104 MB</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-primary">1.1 MB/s</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-primary">04:45</div>
+<div class="col-span-1 flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">pause</span></button>
+<button class="p-1 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[20px]">close</span></button>
+</div>
+</div>
+</div>
+<!-- SECTION: QUEUED -->
+<div class="group/section">
+<div class="px-6 py-2 bg-surface-container-lowest border-b border-outline-variant flex items-center mt-4 border-t">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant mr-2">arrow_drop_down</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Queued (3)</span>
+</div>
+<!-- Queued Row 1 -->
+<div class="grid grid-cols-12 gap-gutter px-6 py-4 items-center border-b border-outline-variant hover:bg-surface-container-low transition-colors group">
+<div class="col-span-5 truncate pr-4 text-on-surface-variant font-body-md">
+                    Boards of Canada - Geogaddi.zip
+                </div>
+<div class="col-span-3 flex items-center font-data-mono text-data-mono text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] mr-2">schedule</span> Pending
+                </div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">250 MB</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">--</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">--</div>
+<div class="col-span-1 flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">play_arrow</span></button>
+<button class="p-1 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[20px]">close</span></button>
+</div>
+</div>
+<!-- Queued Row 2 -->
+<div class="grid grid-cols-12 gap-gutter px-6 py-4 items-center border-b border-outline-variant hover:bg-surface-container-low transition-colors group">
+<div class="col-span-5 truncate pr-4 text-on-surface-variant font-body-md">
+                    Autechre - Tri Repetae.rar
+                </div>
+<div class="col-span-3 flex items-center font-data-mono text-data-mono text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] mr-2">schedule</span> Pending
+                </div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">180 MB</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">--</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">--</div>
+<div class="col-span-1 flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-1 text-on-surface-variant hover:text-on-surface"><span class="material-symbols-outlined text-[20px]">play_arrow</span></button>
+<button class="p-1 text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-[20px]">close</span></button>
+</div>
+</div>
+</div>
+<!-- SECTION: COMPLETED -->
+<div class="group/section">
+<div class="px-6 py-2 bg-surface-container-lowest border-b border-outline-variant flex items-center mt-4 border-t">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant mr-2">arrow_right</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Completed (1)</span>
+</div>
+<!-- Completed Row -->
+<div class="grid grid-cols-12 gap-gutter px-6 py-4 items-center border-b border-outline-variant hover:bg-surface-container-low transition-colors group">
+<div class="col-span-5 truncate pr-4 text-on-surface-variant font-body-md">
+                    Massive Attack - Mezzanine (FLAC).zip
+                </div>
+<div class="col-span-3 flex items-center font-data-mono text-data-mono text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] mr-2">check_circle</span> Done
+                </div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">385 MB</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">-</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">-</div>
+<div class="col-span-1 flex justify-end">
+<button class="p-1 text-on-surface-variant hover:text-on-surface" title="Open Folder"><span class="material-symbols-outlined text-[20px]">folder_open</span></button>
+</div>
+</div>
+</div>
+<!-- SECTION: FAILED -->
+<div class="group/section">
+<div class="px-6 py-2 bg-surface-container-lowest border-b border-outline-variant flex items-center mt-4 border-t">
+<span class="material-symbols-outlined text-[16px] text-error mr-2">arrow_right</span>
+<span class="font-label-caps text-label-caps text-error uppercase">Failed (1)</span>
+</div>
+<!-- Failed Row -->
+<div class="grid grid-cols-12 gap-gutter px-6 py-4 items-center border-b border-outline-variant hover:bg-surface-container-low transition-colors group">
+<div class="col-span-5 truncate pr-4 text-on-surface-variant font-body-md">
+                    Various Artists - 90s Jungle Classics.rar
+                </div>
+<div class="col-span-3 flex items-center font-data-mono text-data-mono text-error">
+<span class="material-symbols-outlined text-[16px] mr-2">error</span> Connection Lost
+                </div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">45/450 MB</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">-</div>
+<div class="col-span-1 text-right font-data-mono text-data-mono text-on-surface-variant">-</div>
+<div class="col-span-1 flex justify-end space-x-2">
+<button class="p-1 text-on-surface-variant hover:text-on-surface" title="Retry"><span class="material-symbols-outlined text-[20px]">refresh</span></button>
+<button class="p-1 text-on-surface-variant hover:text-error" title="Remove"><span class="material-symbols-outlined text-[20px]">close</span></button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Command Palette Overlay -->
+<div class="hidden fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-surface/80 backdrop-blur-sm p-4" id="command-palette">
+<div class="w-full max-w-2xl bg-surface border border-outline-variant shadow-2xl flex flex-col overflow-hidden">
+<!-- Search Input -->
+<div class="flex items-center px-4 py-4 border-b border-outline-variant bg-surface-container-low">
+<span class="material-symbols-outlined text-on-surface-variant mr-3 text-[24px]">search</span>
+<input class="flex-1 bg-transparent border-none text-on-surface font-body-md focus:ring-0 p-0 placeholder-on-surface-variant text-lg" placeholder="Type a command or search..." type="text"/>
+<span class="font-data-mono text-[10px] text-on-surface-variant border border-outline-variant px-1.5 py-0.5 rounded opacity-60 ml-3">ESC</span>
+</div>
+<!-- Results Area -->
+<div class="max-h-[50vh] overflow-y-auto py-2">
+<!-- Section: Actions -->
+<div class="px-4 py-2 mt-1">
+<div class="text-label-caps text-on-surface-variant tracking-widest uppercase mb-2">Queue Actions</div>
+<button class="w-full flex items-center px-3 py-2.5 text-left text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors group">
+<span class="material-symbols-outlined text-[20px] mr-4">pause</span>
+<span class="font-body-md flex-1">Pause All Downloads</span>
+<span class="font-data-mono text-[10px] border border-outline-variant px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">⌘P</span>
+</button>
+<button class="w-full flex items-center px-3 py-2.5 text-left text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors group">
+<span class="material-symbols-outlined text-[20px] mr-4">play_arrow</span>
+<span class="font-body-md flex-1">Resume All Downloads</span>
+<span class="font-data-mono text-[10px] border border-outline-variant px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">⌘R</span>
+</button>
+<button class="w-full flex items-center px-3 py-2.5 text-left text-on-surface-variant hover:bg-surface-container-high hover:text-error transition-colors group">
+<span class="material-symbols-outlined text-[20px] mr-4">clear_all</span>
+<span class="font-body-md flex-1">Clear Completed</span>
+<span class="font-data-mono text-[10px] border border-outline-variant px-1 rounded opacity-0 group-hover:opacity-100 group-hover:border-error/40 transition-opacity">⇧⌘⌫</span>
+</button>
+</div>
+<!-- Section: Navigation -->
+<div class="px-4 py-2 mt-2 border-t border-outline-variant pt-4">
+<div class="text-label-caps text-on-surface-variant tracking-widest uppercase mb-2">Navigation</div>
+<button class="w-full flex items-center px-3 py-2.5 text-left text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors group">
+<span class="material-symbols-outlined text-[20px] mr-4">settings</span>
+<span class="font-body-md flex-1">Open Settings</span>
+<span class="font-data-mono text-[10px] border border-outline-variant px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">⌘,</span>
+</button>
+<button class="w-full flex items-center px-3 py-2.5 text-left text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors group">
+<span class="material-symbols-outlined text-[20px] mr-4">home</span>
+<span class="font-body-md flex-1">Go to Home</span>
+<span class="font-data-mono text-[10px] border border-outline-variant px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">⌘1</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<script>
+    document.addEventListener('keydown', (e) => {
+        // Toggle Command Palette on Cmd/Ctrl + K
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+            e.preventDefault();
+            const palette = document.getElementById('command-palette');
+            const input = palette.querySelector('input');
+            palette.classList.toggle('hidden');
+            if (!palette.classList.contains('hidden')) {
+                input.focus();
+            }
+        }
+        // Close on Escape
+        if (e.key === 'Escape') {
+            const palette = document.getElementById('command-palette');
+            if (!palette.classList.contains('hidden')) {
+                palette.classList.add('hidden');
+                palette.querySelector('input').blur();
+            }
+        }
+    });
+
+    // Close when clicking outside the modal content
+    document.getElementById('command-palette').addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.classList.add('hidden');
+        }
+    });
+</script>
+</body></html>

@@ -1,0 +1,138 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@theme {
+  --color-primary: #10b981;
+  --color-background: #0a0a0b;
+  --color-foreground: #e5e2e3;
+  --color-surface: #131314;
+  --color-surface-dim: #131314;
+  --color-surface-bright: #3a393a;
+  --color-surface-container-lowest: #0e0e0f;
+  --color-surface-container-low: #1c1b1c;
+  --color-surface-container: #201f20;
+  --color-surface-container-high: #2a2a2b;
+  --color-surface-container-highest: #353436;
+  --color-on-surface: #e5e2e3;
+  --color-on-surface-variant: #bbcabf;
+  --color-inverse-surface: #e5e2e3;
+  --color-inverse-on-surface: #313031;
+  --color-outline: #86948a;
+  --color-outline-variant: #3c4a42;
+  --color-primary-container: #10b981;
+  --color-on-primary-container: #00422b;
+  --color-inverse-primary: #006c49;
+  --color-secondary: #c8c6c9;
+  --color-on-secondary: #303033;
+  --color-secondary-container: #47464a;
+  --color-on-secondary-container: #b6b4b8;
+  --color-tertiary: #ffb3af;
+  --color-on-tertiary: #650911;
+  --color-tertiary-container: #fc7c78;
+  --color-on-tertiary-container: #711419;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+  --color-border-sharp: #27272a;
+  --color-bg-near-black: #0a0a0b;
+
+  --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --radius-none: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-full: 9999px;
+
+  --animate-fade-in-up: fadeInUp 0.5s ease-out forwards;
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes fadeInUp {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+:root {
+  --background: #0a0a0b;
+  --foreground: #e5e2e3;
+}
+
+body {
+  background-color: #0a0a0b;
+  color: #e5e2e3;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+}
+
+/* Custom scrollbars matching the physical audiophile interface spec */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0b;
+}
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 0px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #353436;
+}
+
+input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Typography styles matching DESIGN.md specs */
+.font-headline-lg {
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.font-headline-md {
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.font-headline-sm {
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.font-body-lg {
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+.font-body-md {
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.font-data-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+}
+.font-label-caps {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}

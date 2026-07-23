@@ -7,3 +7,6 @@
 htmlcov/
 *.db
 .env
+**/node_modules/
+**/.next/
+**/out/

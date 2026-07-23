@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Track Portal - Search Engine</title>
+    <!-- Tailwind CSS (via CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0f172a',
+                        darkPanel: '#1e293b',
+                        accentGreen: '#10b981',
+                        accentBlue: '#3b82f6',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- AG Grid Styles & Themes -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-alpine.css">
+    <!-- AG Grid Library -->
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
+</head>
+<body class="bg-darkBg text-slate-100 font-sans min-h-screen flex flex-col">
+
+    <!-- Header Section -->
+    <header class="bg-darkPanel border-b border-slate-700 px-8 py-5 flex items-center justify-between shrink-0 shadow-lg">
+        <div class="flex items-center space-x-3 text-emerald-400 font-bold text-2xl">
+            <i class="fa-solid fa-record-vinyl text-3xl animate-spin-slow"></i>
+            <span>Track Portal <span class="text-xs text-slate-400 font-normal">v2.0 (Search Engine)</span></span>
+        </div>
+        <div class="text-xs text-slate-400">
+            Decoupled. Robust. Progressive.
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-6 flex flex-col space-y-6 overflow-hidden">
+
+        <!-- Search Inputs Card -->
+        <section class="bg-darkPanel border border-slate-700/80 rounded-xl p-6 shadow-xl space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="artistInput" class="block text-sm font-semibold text-slate-300 mb-1.5">Artist</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                            <i class="fa-solid fa-user"></i>
+                        </span>
+                        <input type="text" id="artistInput" placeholder="e.g. Kendrick Lamar"
+                               class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition">
+                    </div>
+                </div>
+                <div>
+                    <label for="trackInput" class="block text-sm font-semibold text-slate-300 mb-1.5">Track or Album</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                            <i class="fa-solid fa-music"></i>
+                        </span>
+                        <input type="text" id="trackInput" placeholder="e.g. Not Like Us"
+                               class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Actions -->
+            <div class="flex justify-end">
+                <button onclick="triggerSearch()" id="searchBtn"
+                        class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-6 rounded-lg transition duration-150 flex items-center space-x-2 shadow-lg hover:shadow-emerald-900/20">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <span>Search</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Results & Grid Card -->
+        <section class="bg-darkPanel border border-slate-700/80 rounded-xl p-6 shadow-xl flex-1 flex flex-col min-h-[400px]">
+            <div class="flex items-center justify-between mb-4 shrink-0">
+                <h2 class="text-lg font-bold text-slate-200 flex items-center space-x-2">
+                    <i class="fa-solid fa-list-ul text-emerald-400"></i>
+                    <span>Search Results</span>
+                </h2>
+                <div id="statusLabel" class="text-sm text-slate-400">
+                    Enter artist and track to begin
+                </div>
+            </div>
+
+            <!-- Loading overlay -->
+            <div id="loadingOverlay" class="hidden flex-1 flex flex-col items-center justify-center space-y-4">
+                <div class="w-12 h-12 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+                <div class="text-sm font-medium text-slate-300">Executing progressive searches...</div>
+            </div>
+
+            <!-- AG Grid element -->
+            <div id="gridContainer" class="flex-1 w-full relative">
+                <div id="myGrid" class="ag-theme-alpine-dark w-full h-full absolute inset-0 rounded-lg"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-darkPanel/40 border-t border-slate-800/80 px-8 py-3 text-center text-xs text-slate-500 shrink-0">
+        Track Portal search engine is running. Built for high fidelity Soulseek queries.
+    </footer>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-6 right-6 transform translate-y-10 opacity-0 pointer-events-none bg-slate-800 border border-slate-700 text-slate-100 px-5 py-3.5 rounded-lg shadow-2xl flex items-center space-x-3 transition-all duration-300 z-50">
+        <span id="toastIcon" class="text-emerald-400"><i class="fa-solid fa-circle-check text-lg"></i></span>
+        <span id="toastMessage" class="text-sm font-medium">Message here</span>
+    </div>
+
+    <!-- AG Grid & Search Script -->
+    <script>
+        let gridApi;
+
+        // Bytes formater helper
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Column definitions
+        const columnDefs = [
+            {
+                field: "score",
+                headerName: "Score",
+                sortable: true,
+                filter: "agNumberColumnFilter",
+                width: 100,
+                cellClass: "font-bold text-center",
+                cellRenderer: params => {
+                    const val = params.value;
+                    let color = 'text-rose-400';
+                    if (val >= 80) color = 'text-emerald-400';
+                    else if (val >= 50) color = 'text-sky-400';
+                    else if (val >= 30) color = 'text-amber-400';
+                    return `<span class="${color}">${val}</span>`;
+                }
+            },
+            {
+                field: "parsed_artist",
+                headerName: "Artist",
+                sortable: true,
+                filter: "agTextColumnFilter",
+                resizable: true,
+                width: 180
+            },
+            {
+                field: "parsed_track",
+                headerName: "Track",
+                sortable: true,
+                filter: "agTextColumnFilter",
+                resizable: true,
+                width: 180
+            },
+            {
+                field: "parsed_album",
+                headerName: "Album",
+                sortable: true,
+                filter: "agTextColumnFilter",
+                resizable: true,
+                width: 160
+            },
+            {
+                field: "format",
+                headerName: "Format",
+                sortable: true,
+                filter: "agTextColumnFilter",
+                width: 100,
+                cellClass: "uppercase text-xs font-semibold tracking-wider text-center"
+            },
+            {
+                field: "bitrate",
+                headerName: "Bitrate",
+                sortable: true,
+                filter: "agNumberColumnFilter",
+                width: 110,
+                cellClass: "font-mono text-right",
+                valueFormatter: params => params.value ? `${params.value} kbps` : '-'
+            },
+            {
+                field: "size",
+                headerName: "Size",
+                sortable: true,
+                filter: "agNumberColumnFilter",
+                width: 110,
+                cellClass: "font-mono text-right",
+                valueFormatter: params => formatBytes(params.value)
+            },
+            {
+                field: "username",
+                headerName: "Source Username",
+                sortable: true,
+                filter: "agTextColumnFilter",
+                resizable: true,
+                width: 160
+            },
+            {
+                field: "filename",
+                headerName: "Filename",
+                sortable: true,
+                filter: "agTextColumnFilter",
+                resizable: true,
+                minWidth: 250,
+                flex: 1
+            },
+            {
+                headerName: "Download",
+                width: 130,
+                pinned: "right",
+                cellRenderer: params => {
+                    const btn = document.createElement('button');
+                    btn.className = 'w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold py-1 px-3 rounded-md text-xs transition duration-150 flex items-center justify-center space-x-1 shadow-sm';
+                    btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-down"></i> <span>Download</span>`;
+                    btn.onclick = () => startDownload(params.data, btn);
+                    return btn;
+                }
+            }
+        ];
+
+        // Grid Options
+        const gridOptions = {
+            columnDefs: columnDefs,
+            rowData: [],
+            pagination: true,
+            paginationPageSize: 100,
+            domLayout: 'normal',
+            rowHeight: 48,
+            headerHeight: 40,
+            defaultColDef: {
+                resizable: true,
+                filter: true,
+                sortable: true
+            }
+        };
+
+        // Initialize AG Grid
+        document.addEventListener('DOMContentLoaded', () => {
+            const gridDiv = document.querySelector('#myGrid');
+            gridApi = agGrid.createGrid(gridDiv, gridOptions);
+        });
+
+        // Search trigger
+        async function triggerSearch() {
+            const artist = document.getElementById('artistInput').value.trim();
+            const track = document.getElementById('trackInput').value.trim();
+
+            if (!artist && !track) {
+                showToast("Please enter an artist or track to search.", "error");
+                return;
+            }
+
+            // UI feedback
+            document.getElementById('searchBtn').disabled = true;
+            document.getElementById('searchBtn').classList.add('opacity-50');
+            document.getElementById('gridContainer').classList.add('hidden');
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            document.getElementById('statusLabel').innerText = "Searching Soulseek network...";
+
+            try {
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ artist, track_or_album: track })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || "Search request failed");
+                }
+
+                const data = await response.json();
+                const results = data.results || [];
+
+                gridApi.setGridOption('rowData', results);
+                document.getElementById('statusLabel').innerText = `Found ${results.length} unique candidates`;
+                showToast(`Search completed. Retrieved ${results.length} unique results!`);
+            } catch (error) {
+                console.error(error);
+                showToast(error.message, "error");
+                document.getElementById('statusLabel').innerText = "Search failed";
+            } finally {
+                document.getElementById('searchBtn').disabled = false;
+                document.getElementById('searchBtn').classList.remove('opacity-50');
+                document.getElementById('gridContainer').classList.remove('hidden');
+                document.getElementById('loadingOverlay').classList.add('hidden');
+            }
+        }
+
+        // Download action handler
+        async function startDownload(data, btn) {
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> <span>Queuing...</span>`;
+            btn.className = 'w-full bg-slate-700 text-slate-400 font-bold py-1 px-3 rounded-md text-xs cursor-not-allowed flex items-center justify-center space-x-1';
+
+            try {
+                const response = await fetch('/api/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        artist: data.parsed_artist,
+                        track: data.parsed_track,
+                        album: data.parsed_album,
+                        filename: data.filename,
+                        size: data.size,
+                        username: data.username,
+                        format: data.format,
+                        bitrate: data.bitrate
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || "Download queue failed");
+                }
+
+                btn.innerHTML = `<i class="fa-solid fa-check"></i> <span>Enqueued</span>`;
+                btn.className = 'w-full bg-emerald-800 text-emerald-300 font-bold py-1 px-3 rounded-md text-xs cursor-default flex items-center justify-center space-x-1';
+                showToast(`Successfully enqueued download from ${data.username}!`);
+            } catch (error) {
+                console.error(error);
+                showToast(error.message, "error");
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+                btn.className = 'w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold py-1 px-3 rounded-md text-xs transition duration-150 flex items-center justify-center space-x-1 shadow-sm';
+            }
+        }
+
+        // Toast display helper
+        function showToast(message, type = "success") {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.innerText = message;
+
+            if (type === "error") {
+                toastIcon.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-lg"></i>`;
+                toastIcon.className = "text-rose-400";
+                toast.className = toast.className.replace("border-slate-700", "border-rose-500");
+            } else {
+                toastIcon.innerHTML = `<i class="fa-solid fa-circle-check text-lg"></i>`;
+                toastIcon.className = "text-emerald-400";
+                toast.className = toast.className.replace("border-rose-500", "border-slate-700");
+            }
+
+            // Animate toast in
+            toast.classList.remove('translate-y-10', 'opacity-0', 'pointer-events-none');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                // Animate toast out
+                toast.classList.add('translate-y-10', 'opacity-0', 'pointer-events-none');
+                toast.classList.remove('translate-y-0', 'opacity-100');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

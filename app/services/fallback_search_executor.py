@@ -18,7 +18,7 @@ logger = logging.getLogger("track_portal.fallback_search_executor")
 
 class FallbackSearchExecutor(SearchExecutorContract):
     """
-    [CDA-001] FallbackSearchExecutor coordinates the fallback search loop strategy.
+    [CDA-001] FallbackSearchExecutor coordinates the fallback search loop strategy sequentially.
     Implements SearchExecutorContract, utilizing dependency injection [CDA-003]
     and validating incoming data structures via Pydantic [CDA-002].
     """
@@ -45,7 +45,8 @@ class FallbackSearchExecutor(SearchExecutorContract):
 
     async def execute_search(self, query: SearchQuery) -> List[SlskdResult]:
         """
-        Progressively triggers, polls, merges, enriches with beets, and ranks candidates.
+        Sequentially triggers, polls, merges, enriches with beets, and ranks candidates.
+        Guarantees that only ONE active slskd search operation is performed at any time to avoid HTTP 429.
         """
         artist = query.artist.strip()
         track = query.track.strip()
@@ -59,35 +60,38 @@ class FallbackSearchExecutor(SearchExecutorContract):
         # Log exact required log keyword: GENERATED QUERIES
         logger.info(f"GENERATED QUERIES: {query_strings}")
 
-        # 2. Execute searches progressively/concurrently to gather raw results
-        async def run_and_poll_query(q_str: str) -> List[Dict[str, Any]]:
-            # Log exact required log keyword: QUERY_EXECUTED
-            logger.info(f"QUERY_EXECUTED - Executing query: '{q_str}'")
+        unique_candidates = []
+        seen_files = set()
+
+        # 2. Execute searches sequentially to avoid slskd parallel search limit (HTTP 429)
+        for idx, q_str in enumerate(query_strings):
+            # Log exact required log keyword: SEARCH_STEP_START
+            logger.info(f"SEARCH_STEP_START - Executing query: '{q_str}'")
+
+            # Fire search to slskd
+            responses = []
+            search_id = None
             try:
+                # Log exact required log keyword: QUERY_EXECUTED
+                logger.info(f"QUERY_EXECUTED - Executing query: '{q_str}'")
                 search_obj = await self.slskd_client.search(q_str)
                 search_id = search_obj.get("id")
-                if not search_id:
-                    return []
 
-                # Poll responses for 5 seconds
-                responses = []
-                for _ in range(5):
-                    await asyncio.sleep(1.0)
-                    responses = await self.slskd_client.get_search_responses(search_id)
-                    if len(responses) >= 8:
-                        break
-                return responses
+                if search_id:
+                    # Poll responses sequentially
+                    for _ in range(5):
+                        await asyncio.sleep(1.0)
+                        responses = await self.slskd_client.get_search_responses(search_id)
+                        if len(responses) >= 8:
+                            break
             except Exception as e:
-                logger.error(f"Error executing query '{q_str}': {e}")
-                return []
+                logger.error(f"Error executing sequential query '{q_str}': {e}")
 
-        # Run queries concurrently for maximum efficiency and speed
-        tasks = [run_and_poll_query(q) for q in query_strings]
-        results_lists = await asyncio.gather(*tasks)
+            # Log exact required log keyword: SEARCH_STEP_COMPLETE
+            logger.info(f"SEARCH_STEP_COMPLETE - Query: '{q_str}'")
 
-        raw_candidates = []
-        for q_str, responses in zip(query_strings, results_lists):
-            count = 0
+            # Parse and merge files from this query
+            query_candidates_count = 0
             for resp in responses:
                 username = resp.get("username", "")
                 queue_length = resp.get("queueLength", 0) or resp.get("queue_length", 0) or 0
@@ -103,41 +107,52 @@ class FallbackSearchExecutor(SearchExecutorContract):
                     if SearchRankingService.should_reject_result(filename, ext):
                         continue
 
-                    raw_candidates.append({
-                        "filename": filename,
-                        "size": size,
-                        "username": username,
-                        "format": ext,
-                        "bitrate": bitrate,
-                        "sample_rate": sample_rate,
-                        "queue_length": queue_length
-                    })
-                    count += 1
+                    # Deduplicate in-memory by username and filename
+                    key = (username, filename)
+                    if key not in seen_files:
+                        seen_files.add(key)
+
+                        parsed = parse_filename(filename)
+                        unique_candidates.append({
+                            "filename": filename,
+                            "size": size,
+                            "username": username,
+                            "format": ext,
+                            "bitrate": bitrate,
+                            "sample_rate": sample_rate,
+                            "queue_length": queue_length,
+                            "parsed_artist": parsed.get("artist") or artist or "Unknown",
+                            "parsed_track": parsed.get("track") or track or "Unknown",
+                            "parsed_album": parsed.get("album") or "",
+                            "parsed_year": parsed.get("year") or None
+                        })
+                    query_candidates_count += 1
+
+            # Clean up the search in slskd sequentially before initiating the next query
+            if search_id:
+                try:
+                    await self.slskd_client.delete_search(search_id)
+                except Exception as e:
+                    logger.warning(f"Failed to delete search {search_id} from slskd: {e}")
 
             # Log exact required log keyword: QUERY_RESULT_COUNT
-            logger.info(f"QUERY_RESULT_COUNT - Query: '{q_str}', Count: {count}")
+            logger.info(f"QUERY_RESULT_COUNT - Query: '{q_str}', Count: {query_candidates_count}")
 
-        # 3. Deduplicate by username and filename
+            # Log exact required log keyword: RESULT_COUNT
+            logger.info(f"RESULT_COUNT - Query: '{q_str}', Results: {query_candidates_count}")
+
+            # Stop the sequential fallback loop early if we hit a robust threshold of results (e.g. 15 unique results)
+            if len(unique_candidates) >= 15:
+                logger.info(f"Sequential search threshold reached ({len(unique_candidates)} >= 15). Stopping fallback loop.")
+                break
+            elif idx < len(query_strings) - 1:
+                # Log exact required log keyword: FALLBACK_TRIGGERED
+                logger.info(f"FALLBACK_TRIGGERED - Low result count ({len(unique_candidates)}). Proceeding with next sequential query.")
+
         # Log exact required log keyword: DEDUPLICATION
-        logger.info("DEDUPLICATION - Starting merge and deduplication of results")
-        seen_files = set()
-        unique_candidates = []
-        for cand in raw_candidates:
-            key = (cand["username"], cand["filename"])
-            if key not in seen_files:
-                seen_files.add(key)
-                unique_candidates.append(cand)
         logger.info(f"DEDUPLICATION - Completed. Unique count: {len(unique_candidates)}")
 
-        # Parse filenames for all candidates
-        for cand in unique_candidates:
-            parsed = parse_filename(cand["filename"])
-            cand["parsed_artist"] = parsed.get("artist") or artist or "Unknown"
-            cand["parsed_track"] = parsed.get("track") or track or "Unknown"
-            cand["parsed_album"] = parsed.get("album") or ""
-            cand["parsed_year"] = parsed.get("year") or None
-
-        # 4. Beets Enrichment on top candidates
+        # 3. Beets Enrichment on top candidates
         # Sort initially by raw match heuristics to get the top results (e.g. up to 20 candidates)
         for cand in unique_candidates:
             temp_score = 0
@@ -167,7 +182,7 @@ class FallbackSearchExecutor(SearchExecutorContract):
                 # Log exact required log keyword: ENRICHMENT_APPLIED
                 logger.info(f"ENRICHMENT_APPLIED - Filename: '{cand['filename']}', Beets Artist: '{best_match.get('artist')}', Beets Track: '{best_match.get('title')}'")
 
-        # 5. Final Ranking and Scoring
+        # 4. Final Ranking and Scoring
         # Log exact required log keyword: RANKING DECISIONS
         logger.info("RANKING DECISIONS - Computing final scores and sorting candidates")
         final_results: List[SlskdResult] = []

@@ -25,7 +25,7 @@ class SearchRankingService(SearchProviderContract):
     @staticmethod
     def should_reject_result(filename: str, ext: str) -> bool:
         """
-        Rejects non-music formats or obviously junk files.
+        [HARD REJECTION] Immediately discards non-song result types (e.g. sample packs, stems, etc.).
         """
         filename_lower = filename.lower()
 
@@ -33,12 +33,22 @@ class SearchRankingService(SearchProviderContract):
         if ext not in ["mp3", "flac", "wav", "m4a", "ogg", "alac", "wma", "aac", "aiff", "ape"]:
             return True
 
-        # 2. Check JUNK patterns
+        # 2. Hard Rejection of specific non-song categories
+        hard_reject_words = [
+            "samplepack", "samplepacks", "stems", "multitracks", "drumkits",
+            "loop packs", "looppack", "looppacks", "loop pack", "drumkit", "drum kit",
+            "producer packs", "producerpack", "producerpacks", "producer pack"
+        ]
+        for word in hard_reject_words:
+            if word in filename_lower:
+                return True
+
+        # 3. Check JUNK patterns
         for pattern in JUNK_FILENAME_PATTERNS:
             if re.search(pattern, filename_lower):
                 return True
 
-        # 3. Obviously malformed / blob names
+        # 4. Obviously malformed / blob names
         basename = os.path.splitext(os.path.basename(filename))[0]
         if len(basename) < 3:
             return True
@@ -97,9 +107,11 @@ class SearchRankingService(SearchProviderContract):
         beets_confidence: bool = False
     ) -> Dict[str, Any]:
         """
-        Scores a candidate result based on robust criteria from 0 to 100.
+        Scores a candidate result based on exact matching, folder structures,
+        lossless files, bitrates, and a negative scoring penalty engine.
         """
         filename = result.filename
+        filename_lower = filename.lower()
         ext = result.format.lower().strip(".")
         size = result.size
         bitrate = result.bitrate or 0
@@ -112,63 +124,170 @@ class SearchRankingService(SearchProviderContract):
         tgt_artist = query.artist.lower().strip()
         tgt_track = query.track.lower().strip()
 
-        # Score components
+        # --- Positive Scoring Elements ---
         artist_score = 0
         track_score = 0
-        album_score = 0
-        beets_score = 0
-        quality_score = 0
-        bitrate_score = 0
-        filename_score = 0
+        artist_folder_bonus = 0
+        album_folder_bonus = 0
+        flac_bonus = 0
+        lossless_bonus = 0
+        bitrate_bonus = 0
+        clean_filename_bonus = 0
 
-        # 1. Exact artist match
+        # 1. Exact artist match: +40
         if tgt_artist and parsed_artist == tgt_artist:
             artist_score = 40
-        elif tgt_artist and (tgt_artist in parsed_artist or parsed_artist in tgt_artist):
-            artist_score = 20
 
-        # 2. Exact track match
+        # 2. Exact track match: +30
         if tgt_track and parsed_track == tgt_track:
             track_score = 30
-        elif tgt_track and (tgt_track in parsed_track or parsed_track in tgt_track):
-            track_score = 15
 
-        # 3. Album match (heuristic)
-        if tgt_track and parsed_album == tgt_track:
-            album_score = 10
+        # Folder hierarchy scanning
+        path_lower = filename_lower.replace("\\", "/")
+        path_parts = [p.strip() for p in path_lower.split("/") if p.strip()]
 
-        # 4. Metadata confidence from Beets
-        if beets_confidence:
-            beets_score = 20
+        # 3. Artist found in folder hierarchy: +10
+        artist_in_folders = False
+        if len(path_parts) > 1:
+            for folder in path_parts[:-1]:
+                if tgt_artist in folder:
+                    artist_in_folders = True
+                    break
+        if artist_in_folders:
+            artist_folder_bonus = 10
 
-        # 5. Lossless formats (flac, alac, wav, ape, aiff)
+        # 4. Album found in folder hierarchy: +10
+        album_in_folders = False
+        if len(path_parts) > 1:
+            for folder in path_parts[:-1]:
+                if tgt_track in folder:
+                    album_in_folders = True
+                    break
+        if album_in_folders:
+            album_folder_bonus = 10
+
+        # 5. FLAC bonus: +15
+        if ext == "flac":
+            flac_bonus = 15
+
+        # 6. Lossless bonus: +15
         lossless_exts = {"flac", "alac", "wav", "ape", "aiff"}
         if ext in lossless_exts:
-            quality_score = 15
+            lossless_bonus = 15
 
-        # 6. Higher bitrate
-        if ext in lossless_exts:
-            bitrate_score = 10
-        elif ext == "mp3" and bitrate >= 320:
-            bitrate_score = 10
-        elif bitrate >= 192:
-            bitrate_score = 5
+        # 7. High bitrate MP3: +10
+        if ext == "mp3" and bitrate >= 320:
+            bitrate_bonus = 10
 
-        # 7. Better filename quality (fully parsed, no "Unknown")
-        if parsed_artist != "unknown" and parsed_track != "unknown":
-            filename_score = 5
+        # 8. Clean filename structure: +5 (fully parsed, no "Unknown")
+        if parsed_artist != "unknown" and parsed_track != "unknown" and "unknown" not in filename_lower:
+            clean_filename_bonus = 5
 
-        total_score = artist_score + track_score + album_score + beets_score + quality_score + bitrate_score + filename_score
-        final_score = min(max(total_score, 0), 100)
+        # --- Negative Penalty Stage ---
+        remix_penalty = 0
+        mashup_penalty = 0
+        bootleg_penalty = 0
+        dj_edit_penalty = 0
+        acapella_penalty = 0
+        instrumental_penalty = 0
+        sample_pack_penalty = 0
+        stems_penalty = 0
+
+        # Remix Penalty: -20
+        remix_words = ["remix", "rework", "vip mix", "extended mix"]
+        if any(w in filename_lower for w in remix_words):
+            remix_penalty = 20
+
+        # Mashup Penalty: -25
+        if "mashup" in filename_lower:
+            mashup_penalty = 25
+
+        # Bootleg Penalty: -25
+        if "bootleg" in filename_lower:
+            bootleg_penalty = 25
+
+        # DJ Edit Penalty: -30
+        dj_words = [
+            "edit", "clean edit", "dirty edit", "intro", "outro",
+            "transition", "transition edit", "quick hit", "radio edit", "dj tool", "dj tools"
+        ]
+        if any(w in filename_lower for w in dj_words):
+            dj_edit_penalty = 30
+
+        # Acapella Penalty: -50
+        acapella_words = ["acapella", "acapellas"]
+        if any(w in filename_lower for w in acapella_words):
+            acapella_penalty = 50
+
+        # Instrumental Penalty: -50
+        if "instrumental" in filename_lower:
+            instrumental_penalty = 50
+
+        # Sample Pack Penalty: -100
+        if "samplepack" in filename_lower or "samplepacks" in filename_lower:
+            sample_pack_penalty = 100
+
+        # Stems Penalty: -100
+        if "stems" in filename_lower or "stem" in filename_lower:
+            stems_penalty = 100
+
+        # Converge Score
+        positive_total = (
+            artist_score + track_score + artist_folder_bonus + album_folder_bonus +
+            flac_bonus + lossless_bonus + bitrate_bonus + clean_filename_bonus
+        )
+        negative_total = (
+            remix_penalty + mashup_penalty + bootleg_penalty + dj_edit_penalty +
+            acapella_penalty + instrumental_penalty + sample_pack_penalty + stems_penalty
+        )
+
+        final_score = positive_total - negative_total
+        final_score = min(max(final_score, 0), 100)
+
+        # Log exact required multiline format
+        pos_logs = []
+        if artist_score > 0: pos_logs.append(f"Artist Match +{artist_score}")
+        if track_score > 0: pos_logs.append(f"Track Match +{track_score}")
+        if artist_folder_bonus > 0: pos_logs.append(f"Artist found in folder hierarchy +{artist_folder_bonus}")
+        if album_folder_bonus > 0: pos_logs.append(f"Album found in folder hierarchy +{album_folder_bonus}")
+        if flac_bonus > 0: pos_logs.append(f"FLAC +{flac_bonus}")
+        if lossless_bonus > 0: pos_logs.append(f"Lossless +{lossless_bonus}")
+        if bitrate_bonus > 0: pos_logs.append(f"High Bitrate MP3 +{bitrate_bonus}")
+        if clean_filename_bonus > 0: pos_logs.append(f"Clean Filename Structure +{clean_filename_bonus}")
+
+        neg_logs = []
+        if remix_penalty > 0: neg_logs.append(f"Remix Penalty -{remix_penalty}")
+        if mashup_penalty > 0: neg_logs.append(f"Mashup Penalty -{mashup_penalty}")
+        if bootleg_penalty > 0: neg_logs.append(f"Bootleg Penalty -{bootleg_penalty}")
+        if dj_edit_penalty > 0: neg_logs.append(f"DJ Edit Penalty -{dj_edit_penalty}")
+        if acapella_penalty > 0: neg_logs.append(f"Acapella Penalty -{acapella_penalty}")
+        if instrumental_penalty > 0: neg_logs.append(f"Instrumental Penalty -{instrumental_penalty}")
+        if sample_pack_penalty > 0: neg_logs.append(f"Sample Pack Penalty -{sample_pack_penalty}")
+        if stems_penalty > 0: neg_logs.append(f"Stems Penalty -{stems_penalty}")
+
+        log_lines = []
+        log_lines.extend(pos_logs)
+        log_lines.extend(neg_logs)
+        log_lines.append(f"Final Score: {final_score}")
+        log_str = "\n".join(log_lines)
+
+        logger.info(f"\n[RANKING DETAIL] Filename: '{filename}'\n{log_str}")
 
         return {
             "artist_score": artist_score,
             "track_score": track_score,
-            "album_score": album_score,
-            "beets_score": beets_score,
-            "quality_score": quality_score,
-            "bitrate_score": bitrate_score,
-            "filename_score": filename_score,
+            "artist_folder_bonus": artist_folder_bonus,
+            "album_folder_bonus": album_folder_bonus,
+            "flac_bonus": flac_bonus,
+            "lossless_bonus": lossless_bonus,
+            "bitrate_bonus": bitrate_bonus,
+            "clean_filename_bonus": clean_filename_bonus,
+            "remix_penalty": remix_penalty,
+            "mashup_penalty": mashup_penalty,
+            "bootleg_penalty": bootleg_penalty,
+            "dj_edit_penalty": dj_edit_penalty,
+            "acapella_penalty": acapella_penalty,
+            "instrumental_penalty": instrumental_penalty,
             "final_score": final_score
         }
 

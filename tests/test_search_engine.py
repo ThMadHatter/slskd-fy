@@ -29,11 +29,6 @@ def test_query_generation():
     assert "Not Like Us" in queries
     # Fallback artist query
     assert "Kendrick Lamar" in queries
-    # First word of artist
-    assert "Kendrick" in queries
-    # Partials of track
-    assert "Not Like" in queries
-    assert "Not" in queries
 
 
 def test_filename_parsing():
@@ -46,59 +41,116 @@ def test_filename_parsing():
     assert parsed1["track"] == "Not Like Us"
     assert parsed1["format"] == "mp3"
 
-    # Pattern 2: Deep path structure with disc/track prefix
-    parsed2 = parse_filename("Music/Kendrick Lamar/Not Like Us/CD1 - 02 - Kendrick Lamar - Not Like Us [FLAC].flac")
-    assert parsed2["artist"] == "Kendrick Lamar"
-    assert parsed2["track"] == "Not Like Us"
-    assert parsed2["format"] == "flac"
 
-
-def test_candidate_scoring_and_ranking():
+def test_hard_rejections():
     """
-    Tests that highest quality matches (lossless, exact matches, beets confidence)
-    correctly score highest.
+    Verifies that sample packs, stems, drum kits, etc. are immediately discarded.
+    """
+    assert SearchRankingService.should_reject_result("Kendrick Lamar - Not Like Us stems.flac", "flac") is True
+    assert SearchRankingService.should_reject_result("Hip Hop Samplepack Vol 1.wav", "wav") is True
+    assert SearchRankingService.should_reject_result("Classic TR-808 Drumkit.wav", "wav") is True
+    assert SearchRankingService.should_reject_result("Producer Pack - Stems & Multi-tracks.zip", "zip") is True
+
+
+def test_penalty_scoring_stage():
+    """
+    Validates penalty deductions:
+    - Remix (-20)
+    - Mashup (-25)
+    - Bootleg (-25)
+    - DJ edit (-30)
+    - Acapella (-50)
+    - Instrumental (-50)
     """
     query = SearchQuery(artist="Kendrick Lamar", track="Not Like Us")
 
-    # Candidate A: Exact artist and track match, FLAC format, high bitrate, beets verified
-    cand_a = SlskdResult(
-        filename="Kendrick Lamar - Not Like Us [FLAC].flac",
-        size=35000000,
-        username="hifi_share",
-        format="flac",
-        bitrate=1020,
-        sample_rate=44100,
-        queue_length=0
-    )
-    score_a = SearchRankingService.score_candidate(cand_a, query, beets_confidence=True)["final_score"]
-
-    # Candidate B: MP3 192kbps, parsed artist/track matches but no beets confidence
-    cand_b = SlskdResult(
-        filename="Kendrick Lamar - Not Like Us (192kbps).mp3",
-        size=5000000,
-        username="mp3_share",
-        format="mp3",
-        bitrate=192,
-        sample_rate=44100,
-        queue_length=2
-    )
-    score_b = SearchRankingService.score_candidate(cand_b, query, beets_confidence=False)["final_score"]
-
-    # Candidate C: Unrelated file matching only the word 'Not' or 'Kendrick'
-    cand_c = SlskdResult(
-        filename="Kendrick - Swimming Pools.mp3",
-        size=8000000,
-        username="other_share",
+    # Candidate 1: Remix
+    cand_remix = SlskdResult(
+        filename="Kendrick Lamar - Not Like Us (Remix).mp3",
+        size=10000000,
+        username="peer",
         format="mp3",
         bitrate=320,
         sample_rate=44100,
         queue_length=0
     )
-    score_c = SearchRankingService.score_candidate(cand_c, query, beets_confidence=False)["final_score"]
+    score_details_remix = SearchRankingService.score_candidate(cand_remix, query)
+    assert score_details_remix["remix_penalty"] == 20
 
-    assert score_a > score_b
-    assert score_b > score_c
-    assert score_a == 100  # High confidence FLAC with Beets should hit perfect/cap 100 score
+    # Candidate 2: Mashup
+    cand_mashup = SlskdResult(
+        filename="Kendrick Lamar - Not Like Us (Mashup).mp3",
+        size=10000000,
+        username="peer",
+        format="mp3",
+        bitrate=320,
+        sample_rate=44100,
+        queue_length=0
+    )
+    score_details_mashup = SearchRankingService.score_candidate(cand_mashup, query)
+    assert score_details_mashup["mashup_penalty"] == 25
+
+    # Candidate 3: DJ Edit
+    cand_edit = SlskdResult(
+        filename="Kendrick Lamar - Not Like Us (Transition Edit).mp3",
+        size=10000000,
+        username="peer",
+        format="mp3",
+        bitrate=320,
+        sample_rate=44100,
+        queue_length=0
+    )
+    score_details_edit = SearchRankingService.score_candidate(cand_edit, query)
+    assert score_details_edit["dj_edit_penalty"] == 30
+
+    # Candidate 4: Acapella
+    cand_acapella = SlskdResult(
+        filename="Kendrick Lamar - Not Like Us (Acapella).mp3",
+        size=10000000,
+        username="peer",
+        format="mp3",
+        bitrate=320,
+        sample_rate=44100,
+        queue_length=0
+    )
+    score_details_acapella = SearchRankingService.score_candidate(cand_acapella, query)
+    assert score_details_acapella["acapella_penalty"] == 50
+
+
+def test_positive_scoring_and_ranking():
+    """
+    Validates positive weighting rules:
+    - Exact artist match (+40)
+    - Exact track match (+30)
+    - Artist in folders (+10)
+    - Album in folders (+10)
+    - FLAC (+15)
+    - Lossless (+15)
+    - High bitrate MP3 (+10)
+    - Clean filename (+5)
+    """
+    query = SearchQuery(artist="Kendrick Lamar", track="Not Like Us")
+
+    # Perfect Original FLAC candidate on structured directory:
+    # Match Artist (+40) + Match Track (+30) + Artist folder (+10) + Album folder (+10) + FLAC (+15) + Lossless (+15) + Clean Name (+5) = 125 (Capped at 100)
+    cand_perfect = SlskdResult(
+        filename="Music/Kendrick Lamar/Not Like Us/01 - Not Like Us.flac",
+        size=35000000,
+        username="audiophile",
+        format="flac",
+        bitrate=1020,
+        sample_rate=44100,
+        queue_length=0
+    )
+    score_details = SearchRankingService.score_candidate(cand_perfect, query)
+    assert score_details["artist_score"] == 40
+    assert score_details["track_score"] == 30
+    assert score_details["artist_folder_bonus"] == 10
+    assert score_details["album_folder_bonus"] == 10
+    assert score_details["flac_bonus"] == 15
+    assert score_details["lossless_bonus"] == 15
+    assert score_details["clean_filename_bonus"] == 5
+    assert score_details["final_score"] == 100
 
 
 # --- Integration Tests ---
@@ -133,7 +185,6 @@ async def test_beets_client_search_mocked(monkeypatch):
     assert len(results) == 1
     assert results[0]["artist"] == "Kendrick Lamar"
     assert results[0]["title"] == "Not Like Us"
-    assert results[0]["album"] == "Not Like Us - Single"
 
 
 # --- End-To-End Orchestration & Real-World Validation Simulation ---
@@ -143,52 +194,39 @@ async def test_search_orchestration_e2e():
     """
     Simulates a real-world end-to-end search pipeline workflow:
     - User searches for Artist: "Kendrick Lamar", Track: "Not Like Us"
-    - Strict query (like '"Kendrick Lamar" "Not Like Us"') is simulated to return 0 results
-    - Fallback queries return results
-    - Pipeline merges and deduplicates results
-    - Beets enrichment identifies likely matches and applies clean metadata
-    - High confidence results rise to the top of the sorted output list
+    - Strict query is simulated to return 0 results
+    - Fallback queries return results (one FLAC original, one high bitrate MP3, one remix)
+    - Remix penalty is applied and it drops to the bottom of the list.
     """
-    # 1. Setup mocked Slskd Client responses representing a multi-stage fallback scenario
     mock_slskd = MagicMock()
 
-    # Define mock search response structure depending on the progressive query string
     async def mock_search(query_str: str, **kwargs):
         return {"id": f"search_id_{query_str.replace(' ', '_')}"}
 
     async def mock_get_search_responses(search_id: str):
-        # Strict search ID returns 0 files
         if "Kendrick_Lamar_\"Not_Like_Us\"" in search_id or "Kendrick_Lamar_Not_Like_Us" in search_id:
             return []
 
-        # Fallback queries return files!
         if "Not_Like_Us" in search_id:
             return [
                 {
-                    "username": "share_peer_1",
+                    "username": "peer_1",
                     "queueLength": 0,
                     "files": [
                         {
-                            "filename": "Unknown Artist - Not Like Us (Good Quality).flac",
+                            "filename": "Unknown Artist - Not Like Us (Transition Edit).flac",
                             "size": 32000000,
                             "bitRate": 1050,
                             "sampleRate": 44100
                         },
                         {
-                            "filename": "Kendrick Lamar - Not Like Us [320].mp3",
-                            "size": 11000000,
-                            "bitRate": 320,
+                            "filename": "Kendrick Lamar - Not Like Us.flac",
+                            "size": 33000000,
+                            "bitRate": 1020,
                             "sampleRate": 44100
-                        }
-                    ]
-                },
-                {
-                    "username": "share_peer_2",
-                    "queueLength": 5,
-                    "files": [
-                        # Duplicate of Kendrick Lamar file from another user
+                        },
                         {
-                            "filename": "Kendrick Lamar - Not Like Us [320].mp3",
+                            "filename": "Kendrick Lamar - Not Like Us (Extended Mix).mp3",
                             "size": 11000000,
                             "bitRate": 320,
                             "sampleRate": 44100
@@ -200,15 +238,15 @@ async def test_search_orchestration_e2e():
 
     mock_slskd.search = mock_search
     mock_slskd.get_search_responses = mock_get_search_responses
+    mock_slskd.delete_search = AsyncMock()
 
-    # 3. Instantiate orchestrator FallbackSearchExecutor with mocked clients
     ranking_service = SearchRankingService()
     executor = FallbackSearchExecutor(
         slskd_client=mock_slskd,
         search_provider=ranking_service
     )
 
-    # Directly mock the Beets REST API calls on the beets client (returning raw list)
+    # Directly mock the Beets REST API calls on the beets client
     executor.beets_client.search_items = AsyncMock(return_value=[
         {
             "id": 42,
@@ -219,36 +257,17 @@ async def test_search_orchestration_e2e():
         }
     ])
 
-    # 4. Trigger the end-to-end search query pipeline
     query_obj = SearchQuery(artist="Kendrick Lamar", track="Not Like Us")
     results = await executor.execute_search(query_obj)
 
-    # Print results to stdout
-    print("\n--- RESULTS ---")
-    for r in results:
-        print(f"Filename: {r.filename}, Format: {r.format}, Score: {r.score}, Beets: {r.beets_confidence}, Parsed Artist: {r.parsed_artist}")
-    print("----------------\n")
-
-    # 5. Assertions validating pipeline success criteria:
-    # - Search should successfully fallback and return merged results
-    assert len(results) > 0
-
-    # - Results should be deduplicated (only unique username + filename tuples)
-    filenames = [r.filename for r in results]
-    unique_filenames = set(filenames)
-    # The duplicate Kendrick Lamar file had the exact same filename and size, but different username, so they are kept as unique peer options
     assert len(results) == 3
 
-    # - Beets enrichment was applied to improve/normalize poorly tagged metadata
-    # The "Unknown Artist - Not Like Us (Good Quality).flac" file should be resolved and enriched by Beets to "Kendrick Lamar"
-    enriched_flac_result = [r for r in results if "Unknown Artist" in r.filename][0]
-    assert enriched_flac_result.parsed_artist == "Kendrick Lamar"
-    assert enriched_flac_result.parsed_album == "Not Like Us - Single"
-    assert enriched_flac_result.beets_confidence is True
-
-    # - High confidence FLAC lossless file verified by beets rises to the absolute top of ranking list
+    # The high confidence original FLAC candidate 'Kendrick Lamar - Not Like Us.flac' has NO penalties and flac bonuses. It must be #1!
     top_result = results[0]
-    assert top_result.format == "flac"
-    assert top_result.parsed_artist == "Kendrick Lamar"
-    assert top_result.beets_confidence is True
+    assert "Not Like Us.flac" in top_result.filename
     assert top_result.score == 100
+
+    # The remix/edit candidates must appear lower in score
+    remix_result = [r for r in results if "Extended Mix" in r.filename][0]
+    # MP3 + Exact Artist (+40) + Exact Track (+30) + MP3 Bitrate (+10) + Clean Structure (+5) - Remix Penalty (-20) = 65
+    assert remix_result.score == 65

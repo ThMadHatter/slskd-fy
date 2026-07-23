@@ -206,12 +206,36 @@ class FallbackSearchExecutor(SearchExecutorContract):
             # Calculate scores using ranking service
             scores = SearchRankingService.score_candidate(res_model, query, beets_confidence=cand.get("beets_confidence", False))
             res_model.score = scores["final_score"]
-
-            # Log exact required log keyword: RANKING_SCORE
-            logger.info(f"RANKING_SCORE - Filename: '{cand['filename']}', Score: {res_model.score}, Decisions: {scores}")
             final_results.append(res_model)
 
-        # Sort final results by score descending, then lossless formats first
-        lossless_exts = {"flac", "alac", "wav", "ape", "aiff"}
-        final_results.sort(key=lambda x: (x.score or 0, x.format in lossless_exts), reverse=True)
+        # 5. Tie-breaker sorting
+        # Prefer: 1. Original release, 2. Single release, 3. Album release, 4. FLAC, 5. High bitrate MP3
+        # Over: remixes, edits, mashups, DJ versions
+        def sort_key(x: SlskdResult):
+            fn_lower = x.filename.lower()
+
+            # Detect any remix/edit/mashup/dj keywords
+            has_penalties = any(w in fn_lower for w in [
+                "remix", "rework", "vip mix", "extended mix", "mashup", "bootleg",
+                "edit", "intro", "outro", "transition", "quick hit", "radio edit", "dj tool", "dj tools"
+            ])
+            prefer_original = not has_penalties
+
+            is_single = "single" in fn_lower or (x.parsed_album and "single" in x.parsed_album.lower())
+            is_album = bool(x.parsed_album) and not is_single
+
+            is_flac = x.format.lower() == "flac"
+            is_high_bitrate_mp3 = x.format.lower() == "mp3" and (x.bitrate or 0) >= 320
+
+            # Boolean True (1) sorts before False (0) under reverse=True
+            return (
+                x.score or 0,
+                prefer_original,
+                is_single,
+                is_album,
+                is_flac,
+                is_high_bitrate_mp3
+            )
+
+        final_results.sort(key=sort_key, reverse=True)
         return final_results

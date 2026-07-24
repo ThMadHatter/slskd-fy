@@ -374,7 +374,7 @@ The purpose of this analysis is to map visible UI components, identify fully fun
 
 ---
 
-## 5. Prioritized Project Roadmap
+## 4. Prioritized Project Roadmap
 
 The following defines the prioritized development roadmap to systematically resolve all implementation gaps.
 
@@ -402,6 +402,66 @@ The following defines the prioritized development roadmap to systematically reso
 1. **Cosmetic Cleanup:** Polishing typography, layouts, and responsiveness.
 2. **Removal of Mock Indicators:** Strip out static charts and unresolved buttons.
 3. **Visual Polish:** CSS animations, state transition smoothing, and empty state guides.
+
+---
+
+## 6. MusicBrainz-First Grouping Architecture
+
+### Previous Architecture
+Under the initial search results grouping strategy, clustering was filename and directory path based. This introduced noisy, non-semantic, and fractured albums in the results grid (such as `CD 1`, `CD 2`, `2004 - Encore`, `Bonus Disc`, etc.).
+
+To bridge this, we implemented a reactive backend mapping workflow during searches:
+1. Extract album candidates from raw Soulseek directory strings.
+2. Formulate cleanup permutations for each folder.
+3. Query the MusicBrainz API on-the-fly for *every* unique candidate in the search set.
+4. Attempt fuzzy clustering.
+
+### Current Limitations
+While the reactive approach resolved visual folders into clean album titles, real-world high-volume testing highlighted major production scaling bottlenecks:
+1. **API Timeout Storms:** High-yield searches returning hundreds of tracks from dozens of diverse users triggered massive, concurrent MusicBrainz HTTP API lookups.
+2. **Poor Scalability:** Large search sets took long durations to complete, resulting in UI loading lags and blocking network threads.
+3. **Noise-Heavy Lookups:** Non-semantic and generic folder descriptors (e.g., `party mix`, `Random Songs`, `Music files`, `compilation folders`, `mashups`, `cd 3`) still triggered redundant external MusicBrainz requests, only to return zero matches and consume valuable API quota.
+4. **Rate Limit Throttling:** MusicBrainz enforces strict rate limits (1 request per second per IP). Rapid succession search-time lookups repeatedly tripped our circuit breaker, degrading the system to raw unverified fallbacks.
+
+### New Architecture: MusicBrainz-First Approach
+To establish a fully deterministic, robust, and lightning-fast search matching pipeline, we have designed the **MusicBrainz-First Grouping Architecture**. Instead of performing reactive external lookups *during* the search stage, the system pre-caches the artist catalog *before* executing any Soulseek queries.
+
+```
+      User selects Artist
+              ↓
+   Autocomplete selects Artist (stores Artist Name + MusicBrainz MBID)
+              ↓
+   Fetch Artist's entire Release Group Catalog (Album, EP, Single) from MusicBrainz
+              ↓
+   Aggressively Cache Catalog locally (SQLite / CacheService, 30 days TTL)
+              ↓
+   Run Soulseek Search
+              ↓
+   Normalize Search Folders locally (Remove tags, years, brackets, disc noise)
+              ↓
+   Perform deterministic Local Fuzzy Matching against cached Artist Catalog
+              ↓
+   Render 3-Level Canonical Release Grouping (Canonical Release -> Source Folders -> Files)
+```
+
+#### Detailed Workflow Mechanics:
+1. **Artist Selection & MBID Binding:** When the user utilizes artist autocompletion, the frontend captures both the `Artist Name` (e.g. `Eminem`) and its unique MusicBrainz `Artist MBID` (e.g. `b95ce3ff-3d05-4e87-9e01-c97b66af13d4`).
+2. **Pre-emptive Release Catalog Import:** Upon artist selection, the backend background worker fetches the artist's complete Release Groups catalog (filtering by primary types: `Album`, `EP`, `Single`). The system registers the `MBID`, `Release Title`, `Release Year` (parsed from release date), `Primary Type`, and any known `Aliases`.
+3. **Aggressive 30-Day Caching:** The imported artist release catalog is written locally to SQLite via `CacheService` with a minimum TTL of **30 days**. Subsequent queries for the same artist completely bypass the MusicBrainz API network loop.
+4. **Deterministic Local Matching Heuristics:** When a Soulseek search completes, raw folder paths are normalized locally. We then run high-speed local string similarity fuzzy matching (e.g. using SequenceMatcher or Levenshtein distance calculations) against the cached artist catalog.
+5. **No-Query Unresolved Bucket Routing:** If a folder name does not confidently match any catalog items (such as `party mix` or `CD 3`), it is immediately and silently routed to the **Unresolved Bucket** (`► Unresolved (17)`) **without** invoking any external MusicBrainz API calls.
+
+### Expected Performance Improvements
+- **MusicBrainz API Call Reduction:** From **hundreds of outbound queries per search** to exactly **2 lookups** (1 artist lookup + 1 release catalog lookup) once every 30 days.
+- **Search Completion Speeds:** Instantaneous local matching, reducing search grouping calculations to sub-millisecond threads.
+- **Determinism & Cleanliness:** Avoids false positives on noise-heavy folders and forces perfect clustering under verified, normalized albums.
+
+### Migration & Implementation Plan
+1. **Step 1: Autocomplete MBID Enrichment:** Modify the artist autocomplete database and router (`/api/autocomplete/artist`) to include the MusicBrainz `mbid` in the JSON response payload.
+2. **Step 2: Catalog Sync Router Endpoint:** Create a backend endpoint `POST /api/catalog/sync` which fetches, parses, and caches the release groups for a specified `artist_mbid`. Trigger this endpoint immediately upon frontend artist selection.
+3. **Step 3: SQLite Catalog Cache Schema:** Configure CacheService or an independent SQLAlchemy model to persist complete artist catalogs with support for aliases and strict 30-day TTL limits.
+4. **Step 4: Local Fuzzy Matching Engine:** Implement a pure-python string similarity normalizer inside `app/services/search_ranking_service.py` or a dedicated service, completely replacing search-time MusicBrainz API lookups.
+5. **Step 5: Frontend Hierarchy Binding:** Bind the 3-level nested accordion table view to render either verified Canonical Release Groups or the unassigned Unresolved Bucket cleanly.
 
 ---
 
@@ -434,3 +494,4 @@ This section tracks incremental updates to this audit document.
 - Completed all Phase 1 (P0 Core Flow Integrity) milestones, transitioning component statuses and documenting technical resolutions.
 - Added and fully implemented **Gap 9: Version Visibility & Build Verification** with build-time arguments, api version endpoints, nav widgets, and verification modal.
 - Added and fully implemented **Gap 10: Canonical Album Grouping** with regular expression metadata cleaning, cached MusicBrainz API release resolution, and nested 3-level visual table hierarchy.
+- Authored **Section 6: MusicBrainz-First Grouping Architecture** audit outlining reactive query bottlenecks, MusicBrainz-First cached catalog workflows, fuzzy local matching heuristics, performance gains, and technical migration plan.

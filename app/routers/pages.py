@@ -13,6 +13,7 @@ from app.dependencies import get_slskd_client, get_search_executor
 from app.database import get_db
 from app.services.artist_service import ArtistService
 from app.services.track_service import TrackService
+from app.services.musicbrainz_service import MusicBrainzService, clean_album_name
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger("track_portal.pages")
@@ -50,7 +51,8 @@ async def get_spa(request: Request):
 @router.post("/api/search", response_class=JSONResponse)
 async def api_search(
     payload: SearchRequest,
-    search_executor: SearchExecutorContract = Depends(get_search_executor)
+    search_executor: SearchExecutorContract = Depends(get_search_executor),
+    db: Session = Depends(get_db)
 ):
     """
     Triggers progressive fallback query generation, executes on slskd,
@@ -65,6 +67,32 @@ async def api_search(
 
     query_obj = SearchQuery(artist=artist, track=track_or_album, mode=payload.mode or "A")
     results = await search_executor.execute_search(query_obj)
+
+    # Resolve Canonical Release via MusicBrainz [RSL-001]
+    unique_albums = set(r.parsed_album for r in results if r.parsed_album)
+    matched_releases = {}
+
+    for alb in unique_albums:
+        try:
+            match = await MusicBrainzService.match_release(artist, alb, db)
+            if match:
+                matched_releases[alb] = match
+        except Exception as e:
+            logger.error(f"Error matching MusicBrainz release for '{alb}': {e}")
+
+    # Enrich the SlskdResult models with canonical fields
+    for r in results:
+        if r.parsed_album in matched_releases:
+            match = matched_releases[r.parsed_album]
+            r.canonical_album = match["release_name"]
+            r.canonical_year = match["release_year"]
+            r.canonical_mbid = match["release_mbid"]
+            r.canonical_confidence = match["confidence_score"]
+            r.canonical_verified = True
+        else:
+            r.canonical_album = r.parsed_album
+            r.canonical_year = r.parsed_year
+            r.canonical_verified = False
 
     # Serialize results list of SlskdResult Pydantic models
     serialized_results = [r.model_dump() for r in results]

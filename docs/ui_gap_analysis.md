@@ -15,6 +15,7 @@ The purpose of this analysis is to map visible UI components, identify fully fun
 - **Explore & Discoverability (P1/P2):** The **Explore** view is entirely static mock data on the frontend. No real "Trending", "Similar Artists", or "Global Additions" backend data exists.
 - **System Settings & Integrations (P1):** The **Settings** view is fully disconnected from the backend. Saving configuration parameters only modifies local frontend Zustand state and does not persist to backend settings or environmental databases.
 - **Version Verification (P0):** The **Version Visibility & Build Verification** flow is **fully implemented** and connected to the backend. Users can instantly verify the exact container build properties (application version, git commit, build timestamp) served directly from the UI, avoiding stale asset cached delivery.
+- **Canonical Album Grouping (P0):** The **Search Results Canonical Album Grouping** is **fully implemented** and integrated into both frontend and backend layers, utilizing MusicBrainz metadata normalization to cluster results under verified releases rather than raw folder names.
 
 ---
 
@@ -83,6 +84,20 @@ The purpose of this analysis is to map visible UI components, identify fully fun
   - Dynamically fetches build attributes on mount to ensure real-time build tracking.
 - **User Impact:** High. Developers and operators can instantly verify whether their active browser session is rendering the latest container compilation, completely bypassing cached asset distribution bottlenecks.
 - **Technical Complexity:** Low.
+- **Recommended Priority:** P0 (Completed)
+
+---
+
+### Component: Canonical Album Grouping (SearchResultsView Accordion)
+- **Current State:** IMPLEMENTED
+- **Backend Implementation Status:** IMPLEMENTED
+  - Normalized album candidates are queried against MusicBrainz releases in a rate-limit safe manner.
+  - Assigns unique canonical release MBIDs, names, years, and confidence parameters.
+- **Frontend Implementation Status:** IMPLEMENTED
+  - Organizes searches under a robust 3-level visual hierarchy: Canonical Release -> Source Folders (sorted by track count, then avg score) -> Files.
+  - Renders MusicBrainz verified checkmarks, track counts, source folder counts, and unresolved buckets with custom badges.
+- **User Impact:** High. Users can identify complete albums and the best peer folder sharing them at a single glance, avoiding raw folder noise (like `CD1`, `CD2`, `2004 - Encore`, etc.).
+- **Technical Complexity:** Medium.
 - **Recommended Priority:** P0 (Completed)
 
 ---
@@ -343,6 +358,22 @@ The purpose of this analysis is to map visible UI components, identify fully fun
 
 ---
 
+### Gap 10: Canonical Album Grouping
+- **Status:** COMPLETED
+- **Date Created:** 2026-07-24
+- **Date Last Updated:** 2026-07-24
+- **Owner:** Jules
+- **Description:** Poor album/release representation due to filename and raw directory clustering (e.g. `CD1`, `CD2`, `Encore`).
+- **Root Cause:** Lack of metadata cleaning and authority release integration.
+- **Suggested Solution:**
+  1. Implement regular expression normalizer `clean_album_name` in `musicbrainz_service.py` to strip out common tag noise.
+  2. Resolve and cache release metadata via `MusicBrainzService.match_release` backend service.
+  3. Build 3-level accordion grouping structure in React `SearchResultsView.tsx`.
+- **Implementation Notes:** Fully implemented and tested. Results are grouped under canonical MusicBrainz verified releases, sub-grouped by source folders sorted by track counts, then scores.
+- **Estimated Effort:** 1.5 Days
+
+---
+
 ## 5. Prioritized Project Roadmap
 
 The following defines the prioritized development roadmap to systematically resolve all implementation gaps.
@@ -353,6 +384,7 @@ The following defines the prioritized development roadmap to systematically reso
 3. **Connect Real-time Transfers (Gap 3):** Bind the Downloads tab to actual background polling states. Enable cancel/pause actions. (**COMPLETED**)
 4. **Results Grid Scalability (Gap 6):** Integrate virtualized row rendering for 1000+ items to eliminate lag. (**COMPLETED**)
 5. **Version Visibility & Build Verification (Gap 9):** Establish containerized build versioning parameters and display build metrics in UI. (**COMPLETED**)
+6. **Canonical Album Grouping (Gap 10):** Restructure results groupings based on normalized MusicBrainz releases and source folders. (**COMPLETED**)
 
 ### Phase 2: Metadata & Diagnostics (P1) - *High Value*
 1. **Expose Scoring Explanations:** Display detailed positive/negative scoring contributions in a tooltip or custom badge in the results grid.
@@ -385,6 +417,7 @@ This section serves as a history log of completed roadmap tasks.
 | 2026-07-24 | Connect Real-time Transfers (Gap 3) | Wired Downloads tab to slskd transfers via GET/DELETE API polling. | COMPLETED |
 | 2026-07-24 | Results Grid Scalability (Gap 6) | Integrated TanStack Table pagination (page size of 50) in SearchResultsView.tsx. | COMPLETED |
 | 2026-07-24 | Version Visibility & Build Verification (Gap 9) | Added Dockerfile ARG/ENV versions, FastAPI API endpoint, and modal UI. | COMPLETED |
+| 2026-07-24 | Canonical Album Grouping (Gap 10) | Integrated MusicBrainz release matching, metadata cleaning, and nested 3-level accordion UI. | COMPLETED |
 
 ---
 
@@ -400,3 +433,4 @@ This section tracks incremental updates to this audit document.
 - Initialized `# Completed Work` history and `# Audit Change Log` registries.
 - Completed all Phase 1 (P0 Core Flow Integrity) milestones, transitioning component statuses and documenting technical resolutions.
 - Added and fully implemented **Gap 9: Version Visibility & Build Verification** with build-time arguments, api version endpoints, nav widgets, and verification modal.
+- Added and fully implemented **Gap 10: Canonical Album Grouping** with regular expression metadata cleaning, cached MusicBrainz API release resolution, and nested 3-level visual table hierarchy.

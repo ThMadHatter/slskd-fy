@@ -12,6 +12,13 @@ export interface SlskdResult {
   parsed_album?: string;
   parsed_year?: number;
   beets_confidence?: boolean;
+
+  // Canonical Release metadata fields
+  canonical_album?: string;
+  canonical_year?: number;
+  canonical_mbid?: string;
+  canonical_confidence?: number;
+  canonical_verified?: boolean;
 }
 
 export interface SearchQuery {

@@ -49,6 +49,13 @@ class SlskdResult(BaseModel):
     parsed_year: Optional[int] = Field(None)
     beets_confidence: Optional[bool] = Field(False)
 
+    # Canonical Release grouping metadata
+    canonical_album: Optional[str] = Field(None)
+    canonical_year: Optional[int] = Field(None)
+    canonical_mbid: Optional[str] = Field(None)
+    canonical_confidence: Optional[int] = Field(0)
+    canonical_verified: Optional[bool] = Field(False)
+
     @field_validator("format")
     @classmethod
     def validate_format(cls, v: str) -> str:

@@ -23,6 +23,37 @@ SEMAPHORE = asyncio.Semaphore(CONCURRENCY_LIMIT)
 LAST_REQUEST_TIME = 0.0
 RATE_LIMIT_LOCK = asyncio.Lock()
 
+def clean_album_name(album: str) -> str:
+    """
+    Cleans raw album/folder candidates to remove common noise terms before MusicBrainz queries.
+    -CD1, -CD2, -Disc 1, -Disc 2, [FLAC], [MP3], Single, EP, Deluxe, WEB, Remastered, Explicit, Clean
+    """
+    if not album:
+        return ""
+
+    cleaned = album
+
+    # 1. Strip bracketed extension tags
+    cleaned = re.sub(r"\[(FLAC|MP3|WEB-FLAC|WEB-MP3|WEB)\]", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\((CD\d+|Disc\s*\d+|Disk\s*\d+|Deluxe|Remastered|Explicit|Clean|EP|Single)\)", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(CD\d+|Disc\s*\d+|Disk\s*\d+|Deluxe|Remastered|Explicit|Clean|EP|Single)\b", "", cleaned, flags=re.IGNORECASE)
+
+    # 2. Strip prefixes and suffixes
+    cleaned = re.sub(r"\b\d{4}\s*-\s*", "", cleaned)
+    cleaned = re.sub(r"\s*-\s*\d{4}\b", "", cleaned)
+    cleaned = re.sub(r"\b(Single|EP)\s*-\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*-\s*(Single|EP)\b", "", cleaned, flags=re.IGNORECASE)
+
+    # Strip spaces and redundant dashes
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = cleaned.strip("-").strip()
+
+    # Reject unresolved generic candidates
+    if not cleaned or cleaned.isdigit() or len(cleaned) < 2:
+        return ""
+
+    return cleaned
+
 class MusicBrainzService:
     """
     [CDA-001] Service layer handling MusicBrainz metadata resolution with robust circuit breaker
@@ -201,3 +232,74 @@ class MusicBrainzService:
         # Cache results for 1 day
         CacheService.set(db, cache_key, results, "track", ttl_seconds=86400)
         return results
+
+    @classmethod
+    async def match_release(cls, artist_name: str, album_name: str, db: Session) -> Optional[Dict[str, Any]]:
+        """
+        Attempts to match a cleaned album candidate and artist against MusicBrainz releases.
+        Computes a confidence score out of 100.
+        """
+        cleaned_album = clean_album_name(album_name)
+        if not cleaned_album:
+            return None
+
+        clean_artist = artist_name.lower().strip()
+        clean_album_q = cleaned_album.lower().strip()
+        cache_key = f"mb:release_match:{clean_artist}:{clean_album_q}"
+
+        cached = CacheService.get(db, cache_key, "track")
+        if cached is not None:
+            return cached
+
+        logger.info(f"MusicBrainz release match miss for '{artist_name} - {cleaned_album}'. Querying MusicBrainz...")
+
+        lucene_query = f"artist:\"{artist_name}\" AND release:\"{cleaned_album}\""
+        url = "https://musicbrainz.org/ws/2/release/"
+        params = {
+            "query": lucene_query,
+            "fmt": "json",
+            "limit": 5
+        }
+
+        data = await cls._make_request(url, params)
+        if data and "releases" in data and data["releases"]:
+            best_match = None
+            highest_score = 0
+
+            for r in data["releases"]:
+                title = r.get("title", "")
+                mbid = r.get("id", "")
+                date = r.get("date", "")
+
+                score = 0
+                if title.lower().strip() == cleaned_album.lower().strip():
+                    score += 50
+                elif cleaned_album.lower().strip() in title.lower().strip():
+                    score += 35
+
+                artist_credits = r.get("artist-credit", [])
+                for ac in artist_credits:
+                    if artist_name.lower().strip() == ac.get("artist", {}).get("name", "").lower().strip():
+                        score += 40
+                        break
+
+                if score > highest_score:
+                    highest_score = score
+                    year = None
+                    if date:
+                        match = re.search(r"\b(19|20)\d{2}\b", date)
+                        if match:
+                            year = int(match.group(0))
+
+                    best_match = {
+                        "release_name": title,
+                        "release_year": year,
+                        "release_mbid": mbid,
+                        "confidence_score": min(score + 10, 100)
+                    }
+
+            if best_match and best_match["confidence_score"] >= 65:
+                CacheService.set(db, cache_key, best_match, "track", ttl_seconds=86400)
+                return best_match
+
+        return None

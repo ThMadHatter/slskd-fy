@@ -90,6 +90,10 @@ templates = Jinja2Templates(directory="app/templates")
 os.makedirs("app/static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+# Mount Next.js static files exported path
+os.makedirs("app/static/_next", exist_ok=True)
+app.mount("/_next", StaticFiles(directory="app/static/_next"), name="next_static")
+
 # Middleware to support request.state properties (like CSRF tokens)
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):

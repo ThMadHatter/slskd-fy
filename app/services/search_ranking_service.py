@@ -292,8 +292,143 @@ class SearchRankingService(SearchProviderContract):
         }
 
     # Contract implementation methods
-    def generate_queries(self, query: SearchQuery) -> List[str]:
-        return self.generate_queries_progressive(query.artist, query.track)
+    @classmethod
+    def generate_queries(cls, artist_or_query: Union[str, SearchQuery], track: Optional[str] = None, mode: Optional[str] = "A") -> List[str]:
+        if isinstance(artist_or_query, SearchQuery):
+            return cls.generate_queries(artist_or_query.artist, artist_or_query.track, mode=artist_or_query.mode)
 
-    def score_result(self, result: SlskdResult, query: SearchQuery) -> Dict[str, Any]:
-        return self.score_candidate(result, query, beets_confidence=False)
+        # If it's called with artist string and track string
+        if mode == "B":
+            # Mode B (Quotes)
+            clean_artist = artist_or_query.replace('"', '').strip() if artist_or_query else ""
+            clean_track = track.replace('"', '').strip() if track else ""
+            return [f'"{clean_artist}" "{clean_track}"']
+        elif mode == "C":
+            # Mode C (Prefixes)
+            clean_artist = artist_or_query.replace('"', '').strip() if artist_or_query else ""
+            clean_track = track.replace('"', '').strip() if track else ""
+            return [f"artist:{clean_artist} track:{clean_track}"]
+        else:
+            # Mode A (Default)
+            return cls.generate_queries_progressive(artist_or_query, track or "")
+
+    def score_result(
+        self,
+        result: Union[Dict[str, Any], SlskdResult],
+        *args,
+        target_artist: Optional[str] = None,
+        target_track: Optional[str] = None,
+        target_album: Optional[str] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Backward and Contract-compatible score_result method.
+        """
+        # Parse inputs
+        if isinstance(result, dict):
+            filename = result["filename"]
+            format_ext = result["format"]
+            size = result.get("size", 0)
+            bitrate = result.get("bitrate", 0)
+            sample_rate = result.get("sample_rate", 0)
+            username = result.get("username", "peer")
+            queue_length = result.get("queue_length", 0)
+        else:
+            filename = result.filename
+            format_ext = result.format
+            size = result.size
+            bitrate = result.bitrate or 0
+            sample_rate = result.sample_rate or 0
+            username = result.username
+            queue_length = result.queue_length
+
+        # Parse target artist/track/album
+        if args and isinstance(args[0], SearchQuery):
+            query = args[0]
+            tgt_artist = query.artist
+            tgt_track = query.track
+            tgt_album = query.album or ""
+        else:
+            tgt_artist = target_artist
+            tgt_track = target_track
+            tgt_album = target_album or ""
+
+            if args:
+                if len(args) > 0 and not tgt_artist:
+                    tgt_artist = args[0]
+                if len(args) > 1 and not tgt_track:
+                    tgt_track = args[1]
+                if len(args) > 2 and not tgt_album:
+                    tgt_album = args[2]
+
+        tgt_artist = (tgt_artist or "").lower().strip()
+        tgt_track = (tgt_track or "").lower().strip()
+        tgt_album = (tgt_album or "").lower().strip()
+
+        filename_lower = filename.lower()
+        ext = format_ext.lower().strip(".")
+
+        # Compute artist match score and classification
+        artist_score = 0
+        classification = "NO_MATCH"
+
+        parsed_info = parse_filename(filename)
+        parsed_artist = (parsed_info.get("artist") or "").lower().strip()
+        parsed_track = (parsed_info.get("track") or "").lower().strip()
+
+        if tgt_artist:
+            # Word sharing partial match
+            tgt_words = [w for w in tgt_artist.split() if len(w) >= 3]
+            parsed_words = [w for w in parsed_artist.split() if len(w) >= 3]
+            shared_words = set(tgt_words).intersection(set(parsed_words))
+
+            if parsed_artist == tgt_artist:
+                artist_score = 50
+                classification = "PRIMARY_ARTIST_MATCH"
+            elif f"feat. {tgt_artist}" in filename_lower or f"featuring {tgt_artist}" in filename_lower or f"ft. {tgt_artist}" in filename_lower:
+                artist_score = 35
+                classification = "FEATURED_ARTIST_MATCH"
+            elif len(shared_words) > 0 or tgt_artist in parsed_artist or parsed_artist in tgt_artist:
+                artist_score = 15
+                classification = "PARTIAL_MATCH"
+            elif tgt_artist in filename_lower:
+                artist_score = 15
+                classification = "PARTIAL_MATCH"
+
+        track_score = 0
+        if tgt_track:
+            if parsed_track == tgt_track or tgt_track in filename_lower:
+                track_score = 30
+
+        album_score = 0
+        if tgt_album and tgt_album in filename_lower:
+            album_score = 10
+
+        # Codec / format bonus
+        format_bonus = 0
+        if ext == "flac":
+            format_bonus = 20
+        elif ext == "mp3" and bitrate >= 320:
+            format_bonus = 10
+
+        # Size bonus
+        size_bonus = 0
+        if size <= 1024 * 1024: # <= 1MB
+            size_bonus = 0
+        elif size > 10 * 1024 * 1024: # > 10MB
+            size_bonus = 5
+        else:
+            size_bonus = 2
+
+        final_score = artist_score + track_score + album_score + format_bonus + size_bonus
+        final_score = min(max(final_score, 0), 100)
+
+        return {
+            "artist_score": artist_score,
+            "track_score": track_score,
+            "album_score": album_score,
+            "format_bonus": format_bonus,
+            "size_bonus": size_bonus,
+            "final_score": final_score,
+            "classification": classification
+        }

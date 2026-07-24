@@ -221,8 +221,8 @@ class FallbackSearchExecutor(SearchExecutorContract):
             ])
             prefer_original = not has_penalties
 
-            is_single = "single" in fn_lower or (x.parsed_album and "single" in x.parsed_album.lower())
-            is_album = bool(x.parsed_album) and not is_single
+            is_single = bool("single" in fn_lower or (x.parsed_album and "single" in x.parsed_album.lower()))
+            is_album = bool(bool(x.parsed_album) and not is_single)
 
             is_flac = x.format.lower() == "flac"
             is_high_bitrate_mp3 = x.format.lower() == "mp3" and (x.bitrate or 0) >= 320

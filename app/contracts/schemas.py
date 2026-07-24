@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List
 
 class SearchQuery(BaseModel):
@@ -6,8 +6,8 @@ class SearchQuery(BaseModel):
     [CDA-002] SearchQuery input boundary schema.
     Enforces required search parameter structures and query modes.
     """
-    artist: str = Field(..., min_length=1, description="Target artist name")
-    track: str = Field(..., min_length=1, description="Target track name")
+    artist: Optional[str] = Field(None, description="Target artist name")
+    track: Optional[str] = Field(None, description="Target track name")
     album: Optional[str] = Field(None, description="Optional target album")
     mode: str = Field("A", description="Search query generation mode")
 
@@ -18,6 +18,14 @@ class SearchQuery(BaseModel):
         if upper_v not in ("A", "B", "C"):
             raise ValueError("Search mode must be 'A', 'B', or 'C'")
         return upper_v
+
+    @model_validator(mode="after")
+    def validate_has_query_params(self) -> 'SearchQuery':
+        artist_val = (self.artist or "").strip()
+        track_val = (self.track or "").strip()
+        if not artist_val and not track_val:
+            raise ValueError("At least one search parameter (artist or track) must be provided")
+        return self
 
 
 class SlskdResult(BaseModel):

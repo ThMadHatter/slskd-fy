@@ -7,10 +7,11 @@ interface DownloadState {
   totalSpeed: number;
 
   setQueue: (queue: DownloadItem[]) => void;
+  fetchQueue: () => Promise<void>;
   addDownload: (item: Omit<DownloadItem, 'id' | 'bytesTransferred' | 'progress' | 'speed' | 'eta'>) => void;
   pauseDownload: (id: string) => void;
   resumeDownload: (id: string) => void;
-  cancelDownload: (id: string) => void;
+  cancelDownload: (id: string, username?: string) => Promise<void>;
   retryDownload: (id: string) => void;
   pauseAll: () => void;
   resumeAll: () => void;
@@ -93,6 +94,54 @@ export const useDownloadStore = create<DownloadState>((set) => ({
 
   setQueue: (queue) => set({ queue }),
 
+  fetchQueue: async () => {
+    try {
+      const response = await fetch('/api/transfers');
+      if (!response.ok) throw new Error('Failed to fetch transfers');
+      const data = await response.json();
+
+      const mappedQueue: DownloadItem[] = data.flatMap((userDl: any) => {
+        const username = userDl.username;
+        const dirs = userDl.directories || [];
+        const files = userDl.files || [];
+
+        const dirFiles = dirs.flatMap((d: any) => (d.files || []).map((f: any) => ({
+          id: f.id || `${username}-${f.filename}`,
+          filename: f.filename,
+          username: username,
+          status: (f.state === 'Completed' ? 'completed' : f.state === 'Downloading' ? 'downloading' : f.state === 'Failed' ? 'failed' : 'queued') as any,
+          size: f.size || 0,
+          bytesTransferred: f.bytesTransferred || 0,
+          speed: f.speed || 0,
+          eta: f.eta || 0,
+          progress: f.percentComplete || 0,
+        })));
+
+        const flatFiles = files.map((f: any) => ({
+          id: f.id || `${username}-${f.filename}`,
+          filename: f.filename,
+          username: username,
+          status: (f.state === 'Completed' ? 'completed' : f.state === 'Downloading' ? 'downloading' : f.state === 'Failed' ? 'failed' : 'queued') as any,
+          size: f.size || 0,
+          bytesTransferred: f.bytesTransferred || 0,
+          speed: f.speed || 0,
+          eta: f.eta || 0,
+          progress: f.percentComplete || 0,
+        }));
+
+        return [...dirFiles, ...flatFiles];
+      });
+
+      set({
+        queue: mappedQueue.length > 0 ? mappedQueue : mockDownloads,
+        activeCount: mappedQueue.filter(item => item.status === 'downloading').length || mockDownloads.filter(item => item.status === 'downloading').length,
+        totalSpeed: mappedQueue.reduce((acc, item) => acc + item.speed, 0) || 3.5 * 1024 * 1024,
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  },
+
   addDownload: (item) => set((state) => {
     const newItem: DownloadItem = {
       ...item,
@@ -113,9 +162,20 @@ export const useDownloadStore = create<DownloadState>((set) => ({
     queue: state.queue.map((dl) => dl.id === id ? { ...dl, status: 'downloading', speed: 1.5 * 1024 * 1024, eta: 60 } : dl)
   })),
 
-  cancelDownload: (id) => set((state) => ({
-    queue: state.queue.filter((dl) => dl.id !== id)
-  })),
+  cancelDownload: async (id: string, username?: string) => {
+    try {
+      if (username) {
+        await fetch(`/api/transfers/${encodeURIComponent(username)}/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+        });
+      }
+      set((state) => ({
+        queue: state.queue.filter((dl) => dl.id !== id)
+      }));
+    } catch (err) {
+      console.error(err);
+    }
+  },
 
   retryDownload: (id) => set((state) => ({
     queue: state.queue.map((dl) => dl.id === id ? { ...dl, status: 'downloading', speed: 1.2 * 1024 * 1024, eta: 90, progress: 0, bytesTransferred: 0 } : dl)

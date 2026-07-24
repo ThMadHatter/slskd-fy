@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { useSearchStore } from '../store/searchStore';
 import { useDownloadStore } from '../store/downloadStore';
 import { SlskdResult } from '../types';
-import { useReactTable, getCoreRowModel, flexRender, createColumnHelper } from '@tanstack/react-table';
+import { useReactTable, getCoreRowModel, getPaginationRowModel, flexRender, createColumnHelper } from '@tanstack/react-table';
 import { Search, Filter, Sliders, CheckSquare, Square, Download, ChevronDown, ChevronRight, HelpCircle, ArrowUpDown } from 'lucide-react';
 import Button from './ui/Button';
 import Card from './ui/Card';
@@ -227,6 +227,12 @@ export default function SearchResultsView() {
     state: { rowSelection },
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
   });
 
   const selectedCount = Object.keys(rowSelection).length;
@@ -382,48 +388,77 @@ export default function SearchResultsView() {
             </div>
           ) : (
             /* SECTION: FLAT GRID VIEW (DEFAULT) */
-            <div className="w-full h-full overflow-x-auto">
-              <table className="w-full text-left border-collapse whitespace-nowrap table-fixed">
-                <thead className="sticky top-0 bg-[#1c1b1c] border-b border-[#27272a] z-10 font-label-caps text-label-caps text-[#bbcabf] uppercase tracking-widest">
-                  {table.getHeaderGroups().map(headerGroup => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map(header => (
-                        <th
-                          key={header.id}
-                          className="p-3 border-r border-[#27272a] text-left select-none text-[11px]"
-                          style={{ width: (header.column.columnDef.meta as any)?.width }}
-                        >
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody className="font-body-md text-body-md text-[#bbcabf] divide-y divide-[#27272a]">
-                  {table.getRowModel().rows.map((row, idx) => (
-                    <tr
-                      key={row.id}
-                      className={`hover:bg-[#1c1b1c] transition-colors duration-150 group cursor-pointer border-b border-[#27272a] ${
-                        idx % 2 === 1 ? 'bg-[#0e0e0f]' : 'bg-[#131314]'
-                      }`}
-                    >
-                      {row.getVisibleCells().map(cell => (
-                        <td
-                          key={cell.id}
-                          className="p-3 border-r border-[#27272a] last:border-0 overflow-hidden truncate"
-                        >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="w-full h-full overflow-x-auto flex flex-col justify-between">
+              <div className="overflow-auto flex-1">
+                <table className="w-full text-left border-collapse whitespace-nowrap table-fixed">
+                  <thead className="sticky top-0 bg-[#1c1b1c] border-b border-[#27272a] z-10 font-label-caps text-label-caps text-[#bbcabf] uppercase tracking-widest">
+                    {table.getHeaderGroups().map(headerGroup => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map(header => (
+                          <th
+                            key={header.id}
+                            className="p-3 border-r border-[#27272a] text-left select-none text-[11px]"
+                            style={{ width: (header.column.columnDef.meta as any)?.width }}
+                          >
+                            {header.isPlaceholder
+                              ? null
+                              : flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext()
+                                )}
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody className="font-body-md text-body-md text-[#bbcabf] divide-y divide-[#27272a]">
+                    {table.getRowModel().rows.map((row, idx) => (
+                      <tr
+                        key={row.id}
+                        className={`hover:bg-[#1c1b1c] transition-colors duration-150 group cursor-pointer border-b border-[#27272a] ${
+                          idx % 2 === 1 ? 'bg-[#0e0e0f]' : 'bg-[#131314]'
+                        }`}
+                      >
+                        {row.getVisibleCells().map(cell => (
+                          <td
+                            key={cell.id}
+                            className="p-3 border-r border-[#27272a] last:border-0 overflow-hidden truncate"
+                          >
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              <div className="bg-[#131314] border-t border-[#27272a] px-8 py-3 flex items-center justify-between shrink-0 select-none">
+                <div className="flex items-center gap-2 font-data-mono text-data-mono text-xs text-[#bbcabf]">
+                  <span>Page</span>
+                  <strong className="text-[#e5e2e3]">
+                    {table.getState().pagination.pageIndex + 1} of{' '}
+                    {table.getPageCount() || 1}
+                  </strong>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => table.previousPage()}
+                    disabled={!table.getCanPreviousPage()}
+                    className="border border-[#27272a] px-3 py-1 font-label-caps text-label-caps text-xs hover:border-[#10b981] disabled:opacity-30 disabled:hover:border-[#27272a] cursor-pointer bg-[#1c1b1c] text-[#bbcabf]"
+                  >
+                    PREV
+                  </button>
+                  <button
+                    onClick={() => table.nextPage()}
+                    disabled={!table.getCanNextPage()}
+                    className="border border-[#27272a] px-3 py-1 font-label-caps text-label-caps text-xs hover:border-[#10b981] disabled:opacity-30 disabled:hover:border-[#27272a] cursor-pointer bg-[#1c1b1c] text-[#bbcabf]"
+                  >
+                    NEXT
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -86,6 +86,7 @@ export default function HomeView() {
         body: JSON.stringify({
           artist: searchArtist,
           track_or_album: searchTrack,
+          mode: searchMode,
         }),
       });
 

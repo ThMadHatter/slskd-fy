@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDownloadStore } from '../store/downloadStore';
 import { DownloadItem, DownloadStatus } from '../types';
 import { Search, Pause, Play, RefreshCw, X, FolderOpen, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
@@ -10,6 +10,7 @@ import ProgressBar from './ui/ProgressBar';
 export default function DownloadsView() {
   const {
     queue,
+    fetchQueue,
     pauseDownload,
     resumeDownload,
     cancelDownload,
@@ -20,6 +21,12 @@ export default function DownloadsView() {
   } = useDownloadStore();
 
   const [filterQuery, setFilterQuery] = useState('');
+
+  useEffect(() => {
+    fetchQueue();
+    const interval = setInterval(fetchQueue, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   const formatBytes = (bytes: number) => {
     if (!bytes || bytes === 0) return '0 B';
@@ -152,7 +159,7 @@ export default function DownloadsView() {
                     <Pause size={16} />
                   </button>
                   <button
-                    onClick={() => cancelDownload(item.id)}
+                    onClick={() => cancelDownload(item.id, item.username)}
                     className="p-1 text-[#bbcabf] hover:text-red-400 cursor-pointer"
                     title="Cancel"
                   >
@@ -195,7 +202,7 @@ export default function DownloadsView() {
                     <Play size={16} />
                   </button>
                   <button
-                    onClick={() => cancelDownload(item.id)}
+                    onClick={() => cancelDownload(item.id, item.username)}
                     className="p-1 text-[#bbcabf] hover:text-red-400 cursor-pointer"
                     title="Cancel"
                   >
@@ -273,7 +280,7 @@ export default function DownloadsView() {
                     <RefreshCw size={16} />
                   </button>
                   <button
-                    onClick={() => cancelDownload(item.id)}
+                    onClick={() => cancelDownload(item.id, item.username)}
                     className="p-1 text-[#bbcabf] hover:text-red-400 cursor-pointer"
                     title="Remove"
                   >

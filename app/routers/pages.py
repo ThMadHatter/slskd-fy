@@ -25,8 +25,9 @@ class SearchDebugTracker:
     last_queries_telemetry = []
 
 class SearchRequest(BaseModel):
-    artist: str
-    track_or_album: str
+    artist: Optional[str] = ""
+    track_or_album: Optional[str] = ""
+    mode: Optional[str] = "A"
 
 class DownloadRequest(BaseModel):
     artist: str
@@ -56,13 +57,13 @@ async def api_search(
     merges & deduplicates results, parses filenames, enriches with Beets,
     ranks, and returns the sorted candidates.
     """
-    artist = payload.artist.strip()
-    track_or_album = payload.track_or_album.strip()
+    artist = (payload.artist or "").strip()
+    track_or_album = (payload.track_or_album or "").strip()
 
     if not artist and not track_or_album:
         raise HTTPException(status_code=400, detail="Artist or Track/Album must be provided")
 
-    query_obj = SearchQuery(artist=artist, track=track_or_album)
+    query_obj = SearchQuery(artist=artist, track=track_or_album, mode=payload.mode or "A")
     results = await search_executor.execute_search(query_obj)
 
     # Serialize results list of SlskdResult Pydantic models
@@ -160,6 +161,31 @@ async def get_admin_search_debug():
     </html>
     """
     return HTMLResponse(content=content)
+
+@router.get("/api/transfers", response_class=JSONResponse)
+async def api_get_transfers(
+    slskd_client: SlskdClientContract = Depends(get_slskd_client)
+):
+    """
+    Retrieves the real-time downloads/transfers from slskd.
+    """
+    downloads = await slskd_client.get_downloads()
+    return JSONResponse(content=downloads)
+
+@router.delete("/api/transfers/{username}/{id_}", response_class=JSONResponse)
+async def api_cancel_transfer(
+    username: str,
+    id_: str,
+    slskd_client: SlskdClientContract = Depends(get_slskd_client)
+):
+    """
+    Cancels a specific transfer in slskd.
+    """
+    success = await slskd_client.cancel_download(username, id_)
+    if success:
+        return {"status": "success", "message": "Transfer cancelled"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to cancel transfer")
 
 @router.post("/admin/search-debug/benchmark", response_class=HTMLResponse)
 async def post_admin_benchmark():

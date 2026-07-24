@@ -21,6 +21,15 @@ COPY alembic.ini /app/alembic.ini
 ENV PATH=/root/.local/bin:$PATH
 ENV PYTHONPATH=/app
 
+# Dynamic Build Information Arguments (Injected at Docker build-time)
+ARG APP_VERSION=0.4.7
+ARG GIT_COMMIT=unknown
+ARG BUILD_DATE=unknown
+
+ENV APP_VERSION=$APP_VERSION
+ENV GIT_COMMIT=$GIT_COMMIT
+ENV BUILD_DATE=$BUILD_DATE
+
 EXPOSE 8000
 
 # Container healthcheck

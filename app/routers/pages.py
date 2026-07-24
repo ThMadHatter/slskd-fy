@@ -187,6 +187,21 @@ async def api_cancel_transfer(
     else:
         raise HTTPException(status_code=500, detail="Failed to cancel transfer")
 
+@router.get("/api/version", response_class=JSONResponse)
+def api_get_version():
+    """
+    Returns application build version and metadata.
+    """
+    return JSONResponse(content={
+        "version": settings.APP_VERSION,
+        "build_date": settings.BUILD_DATE,
+        "git_commit": settings.GIT_COMMIT,
+        "git_branch": "main",
+        "api_version": "2.0.0",
+        "slskd_version": "0.17.x",
+        "beets_version": "1.6.0"
+    })
+
 @router.post("/admin/search-debug/benchmark", response_class=HTMLResponse)
 async def post_admin_benchmark():
     """

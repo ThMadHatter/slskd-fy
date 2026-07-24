@@ -14,9 +14,11 @@ export default function HomeView() {
   const { setActiveTab } = useNavigationStore();
   const {
     artist,
+    artistMbid,
     track,
     searchMode,
     setArtist,
+    setArtistMbid,
     setTrack,
     setSearchMode,
     setResults,
@@ -87,6 +89,7 @@ export default function HomeView() {
           artist: searchArtist,
           track_or_album: searchTrack,
           mode: searchMode,
+          artist_mbid: artistMbid,
         }),
       });
 
@@ -154,6 +157,7 @@ export default function HomeView() {
                     value={artistInput}
                     onChange={(e) => {
                       setArtistInput(e.target.value);
+                      setArtistMbid(''); // Clear MBID cache on manual edits
                       setShowArtistDropdown(true);
                     }}
                     onFocus={() => setShowArtistDropdown(true)}
@@ -170,8 +174,10 @@ export default function HomeView() {
                     {artistSuggestions.map((item: any) => (
                       <li key={item.id}>
                         <button
+                          type="button"
                           onMouseDown={() => {
                             setArtistInput(item.name);
+                            setArtistMbid(item.id); // Bind selected MBID!
                             setShowArtistDropdown(false);
                           }}
                           className="w-full text-left px-4 py-2.5 hover:bg-[#1c1b1c] text-[#bbcabf] hover:text-[#e5e2e3] font-data-mono text-data-mono flex items-center justify-between cursor-pointer"
@@ -216,6 +222,7 @@ export default function HomeView() {
                     {trackSuggestions.map((item: any) => (
                       <li key={item.id}>
                         <button
+                          type="button"
                           onMouseDown={() => {
                             setTrackInput(item.title);
                             setShowTrackDropdown(false);
@@ -300,9 +307,11 @@ export default function HomeView() {
             ].map((q, idx) => (
               <button
                 key={idx}
+                type="button"
                 onClick={() => {
                   if (q.label === 'ARTIST') {
                     setArtistInput(q.value);
+                    setArtistMbid('');
                   } else {
                     setTrackInput(q.value);
                   }

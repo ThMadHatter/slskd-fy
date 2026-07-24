@@ -303,3 +303,48 @@ class MusicBrainzService:
                 return best_match
 
         return None
+
+    @classmethod
+    async def fetch_artist_releases(cls, artist_mbid: str, db: Session) -> List[Dict[str, Any]]:
+        """
+        Fetches the complete release group catalog for an artist from MusicBrainz.
+        Saves and caches locally in SQLite with a 30-day TTL (2,592,000 seconds).
+        """
+        cache_key = f"mb:artist_releases:{artist_mbid}"
+        cached = CacheService.get(db, cache_key, "track")
+        if cached is not None:
+            logger.info(f"MusicBrainz artist releases cache hit for MBID '{artist_mbid}'")
+            return cached
+
+        logger.info(f"MusicBrainz artist releases cache miss for MBID '{artist_mbid}'. Fetching catalog...")
+        url = "https://musicbrainz.org/ws/2/release-group/"
+        params = {
+            "artist": artist_mbid,
+            "fmt": "json",
+            "limit": 100
+        }
+
+        data = await cls._make_request(url, params)
+        results = []
+        if data and "release-groups" in data:
+            for rg in data["release-groups"]:
+                title = rg.get("title", "")
+                mbid = rg.get("id", "")
+                primary_type = rg.get("primary-type", "Album")
+                first_release_date = rg.get("first-release-date", "")
+
+                year = None
+                if first_release_date:
+                    match = re.search(r"\b(19|20)\d{2}\b", first_release_date)
+                    if match:
+                        year = int(match.group(0))
+
+                results.append({
+                    "mbid": mbid,
+                    "title": title,
+                    "year": year,
+                    "primary_type": primary_type,
+                })
+
+        CacheService.set(db, cache_key, results, "track", ttl_seconds=2592000)
+        return results

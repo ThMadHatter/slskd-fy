@@ -11,6 +11,7 @@ interface SearchFilters {
 
 interface SearchState {
   artist: string;
+  artistMbid: string;
   track: string;
   searchMode: 'A' | 'B' | 'C';
   results: SlskdResult[];
@@ -19,6 +20,7 @@ interface SearchState {
   filters: SearchFilters;
 
   setArtist: (artist: string) => void;
+  setArtistMbid: (mbid: string) => void;
   setTrack: (track: string) => void;
   setSearchMode: (mode: 'A' | 'B' | 'C') => void;
   setResults: (results: SlskdResult[]) => void;
@@ -41,6 +43,7 @@ const defaultFilters: SearchFilters = {
 
 export const useSearchStore = create<SearchState>((set) => ({
   artist: '',
+  artistMbid: '',
   track: '',
   searchMode: 'A',
   results: [],
@@ -49,6 +52,7 @@ export const useSearchStore = create<SearchState>((set) => ({
   filters: { ...defaultFilters },
 
   setArtist: (artist) => set({ artist }),
+  setArtistMbid: (artistMbid) => set({ artistMbid }),
   setTrack: (track) => set({ track }),
   setSearchMode: (searchMode) => set({ searchMode }),
   setResults: (results) => set({ results }),

@@ -25,10 +25,55 @@ class SearchDebugTracker:
     last_generated_query = ""
     last_queries_telemetry = []
 
+import difflib
+
 class SearchRequest(BaseModel):
     artist: Optional[str] = ""
     track_or_album: Optional[str] = ""
     mode: Optional[str] = "A"
+    artist_mbid: Optional[str] = ""
+
+def match_catalog_release(cleaned_album: str, catalog: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """
+    Performs deterministic local fuzzy matching of a cleaned album folder name
+    against the cached artist release group catalog.
+    Returns best matched release with a calculated confidence score.
+    """
+    if not cleaned_album or not catalog:
+        return None
+
+    best_match = None
+    best_ratio = 0.0
+
+    clean_album_lower = cleaned_album.lower().strip()
+
+    for release in catalog:
+        title = release.get("title", "")
+        title_lower = title.lower().strip()
+
+        # Match using difflib SequenceMatcher
+        ratio = difflib.SequenceMatcher(None, clean_album_lower, title_lower).ratio()
+
+        # Substring exact matches get a boost
+        if clean_album_lower == title_lower:
+            ratio = 1.0
+        elif clean_album_lower in title_lower or title_lower in clean_album_lower:
+            ratio = max(ratio, 0.85)
+
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_match = release
+
+    # Success threshold: match ratio >= 0.70 (confidence >= 70%)
+    if best_ratio >= 0.70:
+        return {
+            "release_name": best_match["title"],
+            "release_year": best_match["year"],
+            "release_mbid": best_match["mbid"],
+            "confidence_score": int(best_ratio * 100)
+        }
+
+    return None
 
 class DownloadRequest(BaseModel):
     artist: str
@@ -68,22 +113,33 @@ async def api_search(
     query_obj = SearchQuery(artist=artist, track=track_or_album, mode=payload.mode or "A")
     results = await search_executor.execute_search(query_obj)
 
-    # Resolve Canonical Release via MusicBrainz [RSL-001]
-    unique_albums = set(r.parsed_album for r in results if r.parsed_album)
-    matched_releases = {}
+    # 1. Resolve / Fetch complete Artist Catalog with strict 30-day pre-caching [RSL-001]
+    artist_mbid = payload.artist_mbid
+    catalog = []
 
-    for alb in unique_albums:
+    if not artist_mbid and artist:
         try:
-            match = await MusicBrainzService.match_release(artist, alb, db)
-            if match:
-                matched_releases[alb] = match
+            artists = await MusicBrainzService.search_artists(artist, db)
+            if artists:
+                artist_mbid = artists[0].get("id")
         except Exception as e:
-            logger.error(f"Error matching MusicBrainz release for '{alb}': {e}")
+            logger.error(f"Error resolving artist MBID dynamically: {e}")
 
-    # Enrich the SlskdResult models with canonical fields
+    if artist_mbid:
+        try:
+            catalog = await MusicBrainzService.fetch_artist_releases(artist_mbid, db)
+        except Exception as e:
+            logger.error(f"Error pre-fetching artist releases catalog: {e}")
+
+    # 2. Local Fuzzy Matching Stage (ZERO outbound lookup calls during grouping)
     for r in results:
-        if r.parsed_album in matched_releases:
-            match = matched_releases[r.parsed_album]
+        match = None
+        if r.parsed_album:
+            cleaned = clean_album_name(r.parsed_album)
+            if cleaned:
+                match = match_catalog_release(cleaned, catalog)
+
+        if match:
             r.canonical_album = match["release_name"]
             r.canonical_year = match["release_year"]
             r.canonical_mbid = match["release_mbid"]

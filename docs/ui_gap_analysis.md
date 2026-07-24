@@ -4,7 +4,7 @@
 
 This document presents a comprehensive audit and gap analysis of the Track Portal frontend (redesigned with Google Stitch) against the FastAPI backend services and slskd/Beets integration.
 
-The purpose of this analysis is to map visible UI components, identify fully functioning features, highlight partially implemented logic, detect broken flows, and document purely decorative placeholders. This analysis forms the technical roadmap for connecting the high-fidelity UI to real, production-ready system functionality.
+The purpose of this analysis is to map visible UI components, identify fully functioning features, highlight partially implemented logic, detect broken flows, and document purely decorative placeholders. This analysis forms the living technical roadmap for connecting the high-fidelity UI to real, production-ready system functionality.
 
 ---
 
@@ -177,66 +177,88 @@ The purpose of this analysis is to map visible UI components, identify fully fun
 
 ---
 
-## 3. Gap Details and Remediations
+## 3. Gap Details, Remediation and Maintenance Tracking
 
 ### Gap 1: Free Text Search Validation Error
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-24
+- **Date Last Updated:** 2026-07-24
+- **Owner:** Jules
 - **Description:** Executing keywords search triggers an HTTP 422 Unprocessable Entity error.
 - **Root Cause:** Backend contract validation schema `SearchQuery` in `app/contracts/schemas.py` requires both `artist` and `track` to have `min_length=1`. Free Text Keywords search submits an empty artist name.
 - **Suggested Solution:**
   1. Modify `SearchQuery` constraints to allow either `artist` or `track` to be empty, as long as at least one parameter is supplied (e.g., using a model validator).
   2. Ensure the query generation engine properly formats raw text string structures.
+- **Implementation Notes:** Awaiting backend Pydantic validation refactoring task.
 - **Estimated Effort:** 2 Hours
 
 ---
 
 ### Gap 2: Disconnected Strategy Mode Selection
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-24
+- **Date Last Updated:** 2026-07-24
+- **Owner:** Jules
 - **Description:** Clicking Mode A, B, or C strategy filters does not alter search behavior or query formatting.
 - **Root Cause:** The frontend `fetch` request payload in `HomeView.tsx` neglects to map the `searchMode` from Zustand store into the POST body under `mode`.
 - **Suggested Solution:**
-  - Update `HomeView.tsx` search trigger body to:
-    ```json
-    {
-      "artist": searchArtist,
-      "track_or_album": searchTrack,
-      "mode": searchMode
-    }
-    ```
+  - Update `HomeView.tsx` search trigger body to include the target `mode`.
+- **Implementation Notes:** Requires immediate Next.js action update.
 - **Estimated Effort:** 1 Hour
 
 ---
 
 ### Gap 3: Disconnected Real-time Downloads
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-24
+- **Date Last Updated:** 2026-07-24
+- **Owner:** Jules
 - **Description:** Downloads tab is decoupled from the active slskd transfers.
 - **Root Cause:** Frontend store `downloadStore.ts` starts with static mocked objects and fails to poll any backend APIs.
 - **Suggested Solution:**
   1. Add a backend controller endpoint `GET /api/transfers` which queries `SlskdClientContract.get_downloads()`.
-  2. Configure frontend `downloadStore.ts` to execute recursive polling (e.g., via React Query or standard fetch intervals) to fetch and map slskd transfer states.
+  2. Configure frontend `downloadStore.ts` to execute recursive polling to fetch and map slskd transfer states.
   3. Map action methods (Pause, Cancel, Resume) to active slskd client REST endpoints.
+- **Implementation Notes:** Will require backend endpoint writing and async client polling mapping.
 - **Estimated Effort:** 1.5 Days
 
 ---
 
 ### Gap 4: Disconnected System Configurations
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-24
+- **Date Last Updated:** 2026-07-24
+- **Owner:** Jules
 - **Description:** Modifying Settings does not affect environment variables or backend configurations.
 - **Root Cause:** Missing backend configuration endpoints (`GET /api/settings` and `POST /api/settings`) to dynamically load and write settings.
 - **Suggested Solution:**
   1. Create a dynamic configuration model or database table in SQLAlchemy.
   2. Implement backend settings router endpoints to read/update settings.
   3. Update `SettingsView.tsx` to pull and persist state via standard API calls instead of frontend local storage.
+- **Implementation Notes:** To be handled after Core Flow Integrity is finalized.
 - **Estimated Effort:** 1 Day
 
 ---
 
 ### Gap 5: Last.fm Pulsing Fake Sync
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-24
+- **Date Last Updated:** 2026-07-24
+- **Owner:** Jules
 - **Description:** TopAppBar claims "Last.fm Sync Active" but no actual Last.fm sync exists.
 - **Root Cause:** Decorative feature mockup added by design tools.
 - **Suggested Solution:**
   - Remove the pulsing fake sync label from `TopAppBar.tsx`, or replace it with a genuine connection indicator mapping to Beets/slskd daemon status.
+- **Implementation Notes:** Minor aesthetic optimization.
 - **Estimated Effort:** 1 Hour
 
 ---
 
 ### Gap 6: Results Grid Scalability
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-24
+- **Date Last Updated:** 2026-07-24
+- **Owner:** Jules
 - **Description:** The results grid lags, raises memory consumption, and freezes browsers on larger search results (1000+ entries).
 - **Root Cause:** Dom layout overload due to synchronous rendering of 1000+ comprehensive records containing checkmarks, buttons, icons, and conditional components.
 - **Suggested Solution Investigation:**
@@ -246,11 +268,16 @@ The purpose of this analysis is to map visible UI components, identify fully fun
   - *Option D: Backend Pagination:* Solves rendering but introduces state management latency during fast client-side sorting and multi-criteria filters.
   - *Recommended Approach:* **Hybrid Virtualized Rendering with TanStack Virtual**. Virtualization keeps only visible table nodes in the DOM, maintaining 60FPS fluid scrolling. This approach retains all instant client-side calculations and filters from `useMemo` without adding pagination delays or heavy licensing overhead.
   - *Drawbacks:* Does not resolve the initial network transfer size, but a payload of 1000 JSON items is negligible (~300KB) compared to DOM construction.
+- **Implementation Notes:** Highly critical for production setups containing high-yield queries.
 - **Estimated Effort:** 1 Day
 
 ---
 
 ### Gap 7: Ranking Noise Reduction
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-24
+- **Date Last Updated:** 2026-07-24
+- **Owner:** Jules
 - **Description:** Low-quality derivative audio items (like sample packs, stems, acapellas, DJ edits, remixes) rank undesirably high, clogging search lists.
 - **Root Cause:** Score weighting fails to strictly separate original content from derivative works.
 - **Suggested Solution:**
@@ -261,22 +288,28 @@ The purpose of this analysis is to map visible UI components, identify fully fun
      - DJ Edit: `-30`
      - Acapella / Instrumental: `-50`
   3. **Original Priority Bias:** Apply flat positive weight (+30 for exact title matches, +40 for exact artist match) to push original releases above remixes or bootlegs.
+- **Implementation Notes:** Focuses purely on python backend services adjustments.
 - **Estimated Effort:** 4 Hours
 
 ---
 
 ### Gap 8: Beets Integration Validation
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-24
+- **Date Last Updated:** 2026-07-24
+- **Owner:** Jules
 - **Description:** Beets is connected and returns HTTP 200, but results in zero candidate matches due to an unpopulated local library database, contributing no enrichment score.
 - **Root Cause:** Underpopulated beets index.
 - **Suggested Architectural Investigation:**
   - *Option A: Post-Download Processor Only:* Beets acts solely on finished files. This restricts beets from being utilized during search heuristics, which means we cannot leverage its robust semantic matching to boost candidate scoring.
   - *Option B: Search-Enrichment and Local Database Sync:* Beets maintains a local DB mapping library tracks and syncs via background cron metadata tasks. During the progressive search stage, candidate metadata is parsed and hits Beets API. Matches get a positive scoring boost (e.g. +15), guaranteeing perfect duplicates resolution.
   - *Recommended Architecture:* **Option B (Search-Enrichment and Local Database Sync)**. This leverages Beets as the brain of the discovery process. We must implement a background syncing task that catalogs active directories into the local Beets instance, ensuring `beet ls` is populated and query matches return hits.
+- **Implementation Notes:** Needs coordination with backend docker-compose environment setups.
 - **Estimated Effort:** 1 Day
 
 ---
 
-## 4. Prioritized Project Roadmap
+## 5. Prioritized Project Roadmap
 
 The following defines the prioritized development roadmap to systematically resolve all implementation gaps.
 
@@ -302,3 +335,26 @@ The following defines the prioritized development roadmap to systematically reso
 1. **Cosmetic Cleanup:** Polishing typography, layouts, and responsiveness.
 2. **Removal of Mock Indicators:** Strip out static charts and unresolved buttons.
 3. **Visual Polish:** CSS animations, state transition smoothing, and empty state guides.
+
+---
+
+# Completed Work
+
+This section serves as a history log of completed roadmap tasks.
+
+| Date | Task | Result | Status |
+|---|---|---|---|
+| 2026-07-24 | Setup Redesign Base | Initial Google Stitch Redesign template files and mock Zustand stores written. | COMPLETED |
+
+---
+
+# Audit Change Log
+
+This section tracks incremental updates to this audit document.
+
+## 2026-07-24
+
+- Updated `docs/ui_gap_analysis.md` to conform to the living Continuous Audit Maintenance Process standards.
+- Integrated new Gaps #6, #7, and #8 metadata fields (Status, Dates, Owner, Notes).
+- Restructured Project Roadmap into standard 4-phase sequential execution pipelines.
+- Initialized `# Completed Work` history and `# Audit Change Log` registries.

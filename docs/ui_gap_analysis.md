@@ -58,6 +58,40 @@ The purpose of this analysis is to map visible UI components, identify fully fun
 
 ---
 
+### Component: Search Results Grid (Results Grid Scalability)
+- **Current State:** PARTIALLY_IMPLEMENTED
+- **Backend Implementation Status:** IMPLEMENTED
+  - Backend is capable of returning 1000+ files for high-yield search results.
+- **Frontend Implementation Status:** PARTIALLY_IMPLEMENTED
+  - Results are rendered in a flat table layout (using `@tanstack/react-table`) or album accordion view. However, there is no pagination or virtualization. Real-world searches returning over 1,000 items attempt to render the entire list at once.
+- **User Impact:** Critical. Attempting to render 1000+ complex rows with badges, checkboxes, and nested details at once results in severe UI lag, sluggish scrolling, elevated browser memory consumption, and potential tab crashes or freezes.
+- **Technical Complexity:** Medium.
+- **Recommended Priority:** P0
+
+---
+
+### Component: Search Ranking Engine (Ranking Noise Reduction)
+- **Current State:** PARTIALLY_IMPLEMENTED
+- **Backend Implementation Status:** IMPLEMENTED
+  - Existing `SearchRankingService` scoring system parses metadata and scores results.
+- **Frontend Implementation Status:** N/A
+- **User Impact:** High. Real-world testing shows that undesirable elements (like sample packs, acapellas, DJ edits, transitions, instrumental tracks, bootlegs, etc.) still surface high up in the ranking results despite being derivative or non-standard. Original releases do not consistently rank above this noise.
+- **Technical Complexity:** Low to Medium.
+- **Recommended Priority:** P1
+
+---
+
+### Component: Beets Metadata Enrichment (Beets Integration Validation)
+- **Current State:** PARTIALLY_IMPLEMENTED
+- **Backend Implementation Status:** IMPLEMENTED
+  - `BeetsServiceClient` can query `/item/query` endpoint on Beets api port.
+- **Frontend Implementation Status:** Not Exposed
+- **User Impact:** Medium. Real-world testing reveals that although the API connectivity responds with HTTP 200, Beets queries often return zero matches because `beet ls` command reveals a completely empty library cache. As a result, Beets currently provides zero scoring advantages or metadata confidence boosts to candidate ranking.
+- **Technical Complexity:** Low.
+- **Recommended Priority:** P1
+
+---
+
 ### Component: Compare Bitrates Action (SearchResultsView Bulk Bar)
 - **Current State:** PLACEHOLDER
 - **Backend Implementation Status:** NOT_IMPLEMENTED
@@ -202,6 +236,46 @@ The purpose of this analysis is to map visible UI components, identify fully fun
 
 ---
 
+### Gap 6: Results Grid Scalability
+- **Description:** The results grid lags, raises memory consumption, and freezes browsers on larger search results (1000+ entries).
+- **Root Cause:** Dom layout overload due to synchronous rendering of 1000+ comprehensive records containing checkmarks, buttons, icons, and conditional components.
+- **Suggested Solution Investigation:**
+  - *Option A: AG Grid Infinite Row Model:* Extremely performant, dynamically fetches only visible blocks. However, adds significant complexity and tight coupling to AG Grid proprietary paradigms.
+  - *Option B: AG Grid Server-Side Row Model:* Overkill for local SQLite databases; requires enterprise AG Grid capabilities and heavy custom sorting/grouping backend logic.
+  - *Option C: Virtualized Rendering:* Using light-weight React virtualization (e.g. `react-window` or TanStack Virtual) to recycle DOM elements. Highly recommended. Keeps the table fast, allows client-side reactive calculations, and keeps dependencies minimal.
+  - *Option D: Backend Pagination:* Solves rendering but introduces state management latency during fast client-side sorting and multi-criteria filters.
+  - *Recommended Approach:* **Hybrid Virtualized Rendering with TanStack Virtual**. Virtualization keeps only visible table nodes in the DOM, maintaining 60FPS fluid scrolling. This approach retains all instant client-side calculations and filters from `useMemo` without adding pagination delays or heavy licensing overhead.
+  - *Drawbacks:* Does not resolve the initial network transfer size, but a payload of 1000 JSON items is negligible (~300KB) compared to DOM construction.
+- **Estimated Effort:** 1 Day
+
+---
+
+### Gap 7: Ranking Noise Reduction
+- **Description:** Low-quality derivative audio items (like sample packs, stems, acapellas, DJ edits, remixes) rank undesirably high, clogging search lists.
+- **Root Cause:** Score weighting fails to strictly separate original content from derivative works.
+- **Suggested Solution:**
+  1. **Hard Rejection Stage:** Establish a strict discard check at the entry of the ranking pipeline. If file naming or metadata matches forbidden terms (e.g., `samplepack`, `samplepacks`, `stems`, `multitracks`, `drumkits`, `loop packs`, `producer packs`), discard immediately without scoring.
+  2. **Negative Penalty Stage:** Introduce significant negative penalties to suppress unwanted variations. Examples:
+     - Remix: `-20`
+     - Mashup / Bootleg: `-25`
+     - DJ Edit: `-30`
+     - Acapella / Instrumental: `-50`
+  3. **Original Priority Bias:** Apply flat positive weight (+30 for exact title matches, +40 for exact artist match) to push original releases above remixes or bootlegs.
+- **Estimated Effort:** 4 Hours
+
+---
+
+### Gap 8: Beets Integration Validation
+- **Description:** Beets is connected and returns HTTP 200, but results in zero candidate matches due to an unpopulated local library database, contributing no enrichment score.
+- **Root Cause:** Underpopulated beets index.
+- **Suggested Architectural Investigation:**
+  - *Option A: Post-Download Processor Only:* Beets acts solely on finished files. This restricts beets from being utilized during search heuristics, which means we cannot leverage its robust semantic matching to boost candidate scoring.
+  - *Option B: Search-Enrichment and Local Database Sync:* Beets maintains a local DB mapping library tracks and syncs via background cron metadata tasks. During the progressive search stage, candidate metadata is parsed and hits Beets API. Matches get a positive scoring boost (e.g. +15), guaranteeing perfect duplicates resolution.
+  - *Recommended Architecture:* **Option B (Search-Enrichment and Local Database Sync)**. This leverages Beets as the brain of the discovery process. We must implement a background syncing task that catalogs active directories into the local Beets instance, ensuring `beet ls` is populated and query matches return hits.
+- **Estimated Effort:** 1 Day
+
+---
+
 ## 4. Prioritized Project Roadmap
 
 The following defines the prioritized development roadmap to systematically resolve all implementation gaps.
@@ -210,13 +284,21 @@ The following defines the prioritized development roadmap to systematically reso
 1. **Fix Free Text Query Validation (Gap 1):** Allow single-field query inputs on `SearchQuery` Pydantic model.
 2. **Connect Search Strategies (Gap 2):** Include selected strategy mode in search API requests.
 3. **Connect Real-time Transfers (Gap 3):** Bind the Downloads tab to actual background polling states. Enable cancel/pause actions.
+4. **Results Grid Scalability (Gap 6):** Integrate virtualized row rendering for 1000+ items to eliminate lag.
 
 ### Phase 2: Metadata & Diagnostics (P1) - *High Value*
 1. **Expose Scoring Explanations:** Display detailed positive/negative scoring contributions in a tooltip or custom badge in the results grid.
-2. **Real Connection Metrics:** Replace static "slskd connected" and "Last.fm" labels with a real healthcheck polling status.
-3. **Database Configuration Persistence (Gap 4):** Connect the Settings Panel to a persistent SQLite configurations database.
+2. **Ranking Noise Reduction (Gap 7):** Implement the Hard Rejection and Negative Penalty scoring pipeline stages to filter unwanted content.
+3. **Real Connection Metrics:** Replace static "slskd connected" and "Last.fm" labels with a real healthcheck polling status.
+4. **Beets Integration Validation (Gap 8):** Populate Beets library via folder sync tasks and enable the Beets query search matching scoring boosts.
+5. **Database Configuration Persistence (Gap 4):** Connect the Settings Panel to a persistent SQLite configurations database.
 
-### Phase 3: Secondary Features & Polishing (P2/P3) - *Nice to Have & Cosmetic*
-1. **Dynamic Explore Panel:** Construct a backend background worker to compile actual local search histories or catalog statistics to populate trending cards.
-2. **Bulk Compare Bitrates:** Implement local client-side duplicate resolution tools or bitrate visualizer charts.
-3. **Clean Up Decorative Elements (Gap 5):** Remove hardcoded elements, false indicators, and non-navigating buttons.
+### Phase 3: Secondary Features & Polishing (P2) - *Nice to Have*
+1. **Explore View:** Construct a backend background worker to compile actual local search histories or catalog statistics to populate trending cards.
+2. **Compare Bitrates:** Implement local client-side duplicate resolution tools or bitrate visualizer charts.
+3. **UI Enhancements:** Visual refinement of search panels and list cards.
+
+### Phase 4: Clean Up & Polish (P3) - *Cosmetic*
+1. **Cosmetic Cleanup:** Polishing typography, layouts, and responsiveness.
+2. **Removal of Mock Indicators:** Strip out static charts and unresolved buttons.
+3. **Visual Polish:** CSS animations, state transition smoothing, and empty state guides.

@@ -12,6 +12,7 @@ export interface SlskdResult {
   parsed_album?: string;
   parsed_year?: number;
   beets_confidence?: boolean;
+  score_reasons?: string;
 
   // Canonical Release metadata fields
   canonical_album?: string;

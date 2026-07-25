@@ -48,6 +48,7 @@ class SlskdResult(BaseModel):
     parsed_album: Optional[str] = Field(None)
     parsed_year: Optional[int] = Field(None)
     beets_confidence: Optional[bool] = Field(False)
+    score_reasons: Optional[str] = Field(None, description="Detailed score contributions")
 
     # Canonical Release grouping metadata
     canonical_album: Optional[str] = Field(None)

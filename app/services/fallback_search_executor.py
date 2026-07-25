@@ -206,6 +206,7 @@ class FallbackSearchExecutor(SearchExecutorContract):
             # Calculate scores using ranking service
             scores = SearchRankingService.score_candidate(res_model, query, beets_confidence=cand.get("beets_confidence", False))
             res_model.score = scores["final_score"]
+            res_model.score_reasons = scores.get("score_reasons")
             final_results.append(res_model)
 
         # 5. Tie-breaker sorting

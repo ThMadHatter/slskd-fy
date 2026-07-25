@@ -243,7 +243,20 @@ export default function SearchResultsView() {
     }),
     columnHelper.accessor('score', {
       header: 'Score',
-      cell: (info) => <ScoreBadge score={info.getValue() || 0} />,
+      cell: (info) => {
+        const score = info.getValue() || 0;
+        const reasons = info.row.original.score_reasons || '';
+        return (
+          <div className="relative group/score inline-block">
+            <ScoreBadge score={score} />
+            {reasons && (
+              <div className="absolute left-12 top-0 scale-0 group-hover/score:scale-100 transition-all duration-150 bg-[#131314] border border-[#27272a] p-3 text-left font-data-mono text-[10px] text-[#bbcabf] whitespace-pre z-50 shadow-2xl rounded-none w-max max-w-xs pointer-events-none select-none">
+                {reasons}
+              </div>
+            )}
+          </div>
+        );
+      },
       meta: { width: 'w-16' }
     }),
     columnHelper.accessor('parsed_track', {
@@ -488,8 +501,13 @@ export default function SearchResultsView() {
                                     <tbody className="divide-y divide-[#27272a]/40 font-body-md text-sm text-[#bbcabf]">
                                       {folder.tracks.map((track) => (
                                         <tr key={track.filename} className="hover:bg-[#1c1b1c]/70 group border-b border-[#27272a]/30">
-                                          <td className="p-2">
-                                            <span className="font-data-mono text-data-mono text-[#10b981] font-bold">{track.score}</span>
+                                          <td className="p-2 relative group/scorecell">
+                                            <span className="font-data-mono text-data-mono text-[#10b981] font-bold cursor-help">{track.score}</span>
+                                            {track.score_reasons && (
+                                              <div className="absolute left-12 top-0 scale-0 group-hover/scorecell:scale-100 transition-all duration-150 bg-[#131314] border border-[#27272a] p-3 text-left font-data-mono text-[10px] text-[#bbcabf] whitespace-pre z-50 shadow-2xl rounded-none w-max max-w-xs pointer-events-none select-none">
+                                                {track.score_reasons}
+                                              </div>
+                                            )}
                                           </td>
                                           <td className="p-2 text-[#e5e2e3] font-medium truncate" title={track.parsed_track}>{track.parsed_track || 'Unknown'}</td>
                                           <td className="p-2 font-data-mono text-data-mono uppercase">{track.format}</td>

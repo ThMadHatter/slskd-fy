@@ -317,7 +317,7 @@ The purpose of this analysis is to map visible UI components, identify fully fun
 ### Gap 6: Results Grid Scalability
 - **Status:** COMPLETED
 - **Date Created:** 2026-07-24
-- **Date Last Updated:** 2026-07-24
+- **Date Last Updated:** 2026-07-25
 - **Owner:** Jules
 - **Description:** The results grid lags, raises memory consumption, and freezes browsers on larger search results (1000+ entries).
 - **Root Cause:** Dom layout overload due to synchronous rendering of 1000+ comprehensive records containing checkmarks, buttons, icons, and conditional components.
@@ -326,10 +326,9 @@ The purpose of this analysis is to map visible UI components, identify fully fun
   - *Option B: AG Grid Server-Side Row Model:* Overkill for local SQLite databases; requires enterprise AG Grid capabilities and heavy custom sorting/grouping backend logic.
   - *Option C: Virtualized Rendering:* Using light-weight React virtualization (e.g. `react-window` or TanStack Virtual) to recycle DOM elements. Highly recommended. Keeps the table fast, allows client-side reactive calculations, and keeps dependencies minimal.
   - *Option D: Backend Pagination:* Solves rendering but introduces state management latency during fast client-side sorting and multi-criteria filters.
-  - *Recommended Approach:* **Hybrid Virtualized Rendering with TanStack Virtual**. Virtualization keeps only visible table nodes in the DOM, maintaining 60FPS fluid scrolling. This approach retains all instant client-side calculations and filters from `useMemo` without adding pagination delays or heavy licensing overhead.
-  - *Drawbacks:* Does not resolve the initial network transfer size, but a payload of 1000 JSON items is negligible (~300KB) compared to DOM construction.
-- **Implementation Notes:** Implemented pagination with a default page size of 50 in `SearchResultsView.tsx` utilizing `@tanstack/react-table`'s built-in `getPaginationRowModel` to prevent DOM node bloat.
-- **Estimated Effort:** 1 Day
+  - *Final Decision & Implementation:* **Client-side Pagination via TanStack Table** (`getPaginationRowModel`). While virtualization (Option C) was considered, pagination with a default page size of 50 provided immediate, highly stable relief from DOM bloat without the complex edge-case management required for virtualized dynamic row heights (especially within nested accordion tables).
+- **Implementation Notes:** Implemented pagination with a default page size of 50 in `SearchResultsView.tsx` utilizing `@tanstack/react-table` built-in handlers. The virtualization approach is discarded for this release.
+- **Estimated Effort:** 1 Day (Completed)
 
 ---
 
@@ -433,7 +432,116 @@ The purpose of this analysis is to map visible UI components, identify fully fun
 
 ---
 
-## 4. Prioritized Project Roadmap
+### Gap 13: Real Connection Status Verification
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-25
+- **Date Last Updated:** 2026-07-25
+- **Owner:** Jules
+- **Description:** The "slskd connected" widget in the SideNavBar footer is a static placeholder, presenting a false positive even if the slskd daemon or backend services are completely offline.
+- **Root Cause:** Missing frontend polling loop bound to a definitive backend healthcheck endpoint.
+- **Suggested Solution:**
+  1. Standardize the `/health` backend endpoint to verify slskd API connectivity, Beets API status, and SQLite database read/write availability.
+  2. Implement a lightweight global Zustand store or React Query hook to poll `/health` every 30-60 seconds.
+  3. Map the widget UI to gracefully degrade (e.g., Green = All Systems Nominal, Yellow = Degraded/Slskd Offline, Red = Backend Unreachable).
+- **Implementation Notes:** Needs to be lightweight to avoid unnecessary network noise.
+- **Estimated Effort:** 4 Hours
+
+---
+
+### Gap 14: Dynamic Explore View Data Integration
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-25
+- **Date Last Updated:** 2026-07-25
+- **Owner:** Jules
+- **Description:** The Explore tab currently renders static mock data for Trending Albums, Similar Artists, and Global Additions.
+- **Root Cause:** Architectural decision to prioritize core downloading over discoverability; no backend scrapers or database aggregators currently exist.
+- **Suggested Solution:**
+  - *Option A (V1 Scope):* Replace mock data with dynamic local stats (e.g., "Recently Downloaded by You", "Top Searched Artists in local DB").
+  - *Option B (V2 Scope):* Integrate an external API (like Last.fm or Spotify API) via backend proxies to fetch real global trending lists, and map clicks directly into slskd progressive searches.
+- **Implementation Notes:** Requires product decision on whether to pursue Option A or B for the current release candidate.
+- **Estimated Effort:** 2-3 Days
+
+---
+
+### Gap 15: Command Palette Macro Execution
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-25
+- **Date Last Updated:** 2026-07-25
+- **Owner:** Jules
+- **Description:** The global command palette (⌘K) successfully navigates the app, but action commands (Pause All, Clear Completed) do not execute real backend tasks.
+- **Root Cause:** Actions are wired to empty functions or mock Zustand state mutations.
+- **Suggested Solution:**
+  1. Map "Clear Completed" to an aggregate API call deleting finished transfer entries.
+  2. Map admin macros (e.g., "Force Refresh MusicBrainz Cache", "Restart Backend") to secure administrative API endpoints.
+- **Implementation Notes:** Ensure hotkeys are debounced and disabled when input fields (like the main search bar) are focused.
+- **Estimated Effort:** 1 Day
+
+---
+
+### Gap 16: Bitrate Comparison Logic
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-25
+- **Date Last Updated:** 2026-07-25
+- **Owner:** Jules
+- **Description:** The "Compare Bitrates" action in the bulk selection bar only fires a static toast notification.
+- **Root Cause:** Feature stubbed during initial UI design phase.
+- **Suggested Solution:**
+  1. Build a client-side utility function that evaluates selected rows in `SearchResultsView`.
+  2. Auto-select the highest bitrate/quality file among duplicates, and deselect the inferior versions.
+  3. Alternatively, trigger a modal showing a side-by-side technical comparison (Bitrate, Sample Rate, Format, Size) for power users.
+- **Implementation Notes:** Rely on existing metadata parsed during the search phase.
+- **Estimated Effort:** 4 Hours
+
+---
+
+### Gap 17: Single-File Pause/Resume Architectural Paradox
+- **Status:** COMPLETED
+- **Date Created:** 2026-07-25
+- **Date Last Updated:** 2026-07-25
+- **Owner:** Jules
+- **Description:** The Downloads tab features Pause/Resume buttons for individual files, but slskd daemon does not natively support pausing single files (only aborting or pausing entirely at the user/queue level). Currently, the UI fakes this state locally.
+- **Root Cause:** Misalignment between UI design expectations and actual slskd core capabilities.
+- **Suggested Solution:**
+  - *Option A (UI Adjustment):* Remove the Pause/Resume buttons for individual files entirely. Only allow "Cancel/Abort" to reflect reality. Provide a global "Pause All Transfers" toggle instead.
+  - *Option B (Proxy Queue System):* Build a custom queue manager in the FastAPI backend that holds files in a "pending" state database, only dispatching them to slskd when "Resumed".
+  - *Recommendation:* Proceed with **Option A** to avoid over-engineering a complex proxy queue that battles against slskd's native download manager.
+- **Implementation Notes:** Officially proceeded with Option A. Removed individual pause/resume buttons inside DownloadsView.tsx layout rendering entirely, exposing only Cancel per file.
+- **Estimated Effort:** 2 Hours (Completed)
+
+---
+
+### Gap 18: Streaming Response Error Handling
+- **Status:** COMPLETED
+- **Date Created:** 2026-07-25
+- **Date Last Updated:** 2026-07-25
+- **Owner:** Jules
+- **Description:** The Incremental Search Streaming gracefully parses incoming JSON chunks, but lacks robust handling for abrupt stream disconnections, slskd daemon crashes during a search, or network timeouts.
+- **Root Cause:** The `ReadableStream` decoder loop in `HomeView.tsx` assumes a clean stream termination (EOF).
+- **Suggested Solution:**
+  1. Implement a `try/catch` block around the stream reader to catch `TypeError` (network failure) or unexpected chunk formats.
+  2. Dispatch an error state to the UI to notify the user ("Search interrupted. Displaying partial results.").
+  3. Ensure the backend FastAPI `StreamingResponse` yields a specific error JSON chunk before closing if an internal slskd exception is caught.
+- **Implementation Notes:** Fully implemented. Reader loops wrapped inside try-catch. Failure states set isSearching(false) and dispatch toast errors to UI safely.
+- **Estimated Effort:** 4 Hours (Completed)
+
+---
+
+### Gap 19: MusicBrainz Local Cache TTL Maintenance
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-25
+- **Date Last Updated:** 2026-07-25
+- **Owner:** Jules
+- **Description:** The MusicBrainz-First Architecture caches artist catalogs in SQLite with a 30-day TTL, but no mechanism exists to purge expired data, leading to unbounded database growth over time.
+- **Root Cause:** Implementation of caching logic focused on the writing/reading phase, omitting the background cleanup phase.
+- **Suggested Solution:**
+  1. Implement a FastAPI background task (e.g., via `APScheduler` or a simple async loop running daily) to execute `DELETE FROM musicbrainz_cache WHERE created_at < NOW() - 30 DAYS`.
+  2. Alternatively, implement a lazy-delete check: when an artist is queried, check if `created_at` is older than 30 days; if so, delete the record and trigger a fresh external API fetch before returning.
+- **Implementation Notes:** Lazy-delete (Option 2) is easier to implement without extra scheduling dependencies, though it adds a slight delay to the specific search that triggers the refresh.
+- **Estimated Effort:** 3 Hours
+
+---
+
+## 5. Prioritized Project Roadmap
 
 The following defines the prioritized development roadmap to systematically resolve all implementation gaps.
 
@@ -446,13 +554,15 @@ The following defines the prioritized development roadmap to systematically reso
 6. **Canonical Album Grouping (Gap 10):** Restructure results groupings based on normalized MusicBrainz releases and source folders. (**COMPLETED**)
 7. **MusicBrainz-First Grouping Architecture (Gap 11):** Transition from candidate-first lookups to pre-cached artist release catalogs with local fuzzy matching. (**COMPLETED**)
 8. **Real-Time Incremental Search Results Streaming (Gap 12):** Stream sequential progressive queries incrementally to the grid. (**COMPLETED**)
+9. **Streaming Response Error Handling (Gap 18):** Capture stream failures cleanly and render graceful error toast diagnostics. (**COMPLETED**)
 
 ### Phase 2: Metadata & Diagnostics (P1) - *High Value*
 1. **Expose Scoring Explanations:** Display detailed positive/negative scoring contributions in a tooltip or custom badge in the results grid. (**COMPLETED**)
-2. **Ranking Noise Reduction (Gap 7):** Implement the Hard Rejection and Negative Penalty scoring pipeline stages to filter unwanted content.
-3. **Real Connection Metrics:** Replace static "slskd connected" and "Last.fm" labels with a real healthcheck polling status.
-4. **Beets Integration Validation (Gap 8):** Populate Beets library via folder sync tasks and enable the Beets query search matching scoring boosts.
-5. **Database Configuration Persistence (Gap 4):** Connect the Settings Panel to a persistent SQLite configurations database.
+2. **Single-File Pause/Resume Architectural Paradox (Gap 17):** Align Downloads view rendering to omit individual pause/resume buttons per file. (**COMPLETED**)
+3. **Ranking Noise Reduction (Gap 7):** Implement the Hard Rejection and Negative Penalty scoring pipeline stages to filter unwanted content.
+4. **Real Connection Metrics:** Replace static "slskd connected" and "Last.fm" labels with a real healthcheck polling status.
+5. **Beets Integration Validation (Gap 8):** Populate Beets library via folder sync tasks and enable the Beets query search matching scoring boosts.
+6. **Database Configuration Persistence (Gap 4):** Connect the Settings Panel to a persistent SQLite configurations database.
 
 ### Phase 3: Secondary Features & Polishing (P2) - *Nice to Have*
 1. **Explore View:** Construct a backend background worker to compile actual local search histories or catalog statistics to populate trending cards.
@@ -542,6 +652,8 @@ This section serves as a history log of completed roadmap tasks.
 | 2026-07-24 | MusicBrainz-First Grouping Architecture (Gap 11) | Pre-cached artist release catalogs for 30 days and implemented local SequenceMatcher matching. | COMPLETED |
 | 2026-07-24 | Expose Scoring Explanations (Phase 2) | Enabled floating hover tooltips for flat grid and nested table Score indicators. | COMPLETED |
 | 2026-07-24 | Real-Time Incremental Search Results Streaming (Gap 12) | Implemented JSON StreamingResponse and Next.js ReadableStream buffer parser. | COMPLETED |
+| 2026-07-25 | Single-File Pause/Resume Paradox (Gap 17) | Removed Pause/Resume individual buttons per file inside DownloadsView.tsx layout. | COMPLETED |
+| 2026-07-25 | Streaming Response Error Handling (Gap 18) | Wrapped ReadableStream decoder loop in a try-catch block and managed error state toast delivery. | COMPLETED |
 
 ---
 
@@ -562,3 +674,10 @@ This section tracks incremental updates to this audit document.
 - Fully implemented **Gap 11: MusicBrainz-First Grouping Architecture** in code with 30-day pre-cached SQLite catalogs and sub-millisecond local difflib SequenceMatcher fuzzy matching, resolving timeout and API rate limit storms completely.
 - Implemented **Phase 2: Expose Scoring Explanations** by binding multiline log contributions and rendering tooltip hovers on flat grid and nested folders Score indicators.
 - Built and integrated **Gap 12: Real-Time Incremental Search Results Streaming** using backend FastAPI newline-terminated StreamingResponse and frontend ReadableStream text line buffer stream reader, displaying results instantly within 3-5 seconds.
+
+## 2026-07-25
+
+- Appended newly defined **Gap 13 through Gap 19** to Section 3.
+- Re-evaluated and updated **Gap 6: Results Grid Scalability** suggested solution and implementation notes block with Client-side Pagination (getPaginationRowModel, pageSize 50) and discarded virtualization.
+- Resolved **Gap 17: Single-File Pause/Resume Architectural Paradox** (Option A) by completely removing Pause/Resume layout buttons inside DownloadsView.tsx, exposing only "Cancel/Abort" per active file.
+- Resolved **Gap 18: Streaming Response Error Handling** by wrapping the TextDecoder stream reader inside HomeView.tsx within a robust try/catch block and dispatching state triggers to notify users via popup toasts.

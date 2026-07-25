@@ -132,7 +132,7 @@ async def _handle_stalled_download(download: DownloadHistory, db: Session):
                     bitrate=bitrate
                 )
                 query_model = SearchQuery(artist=download.artist, track=download.track)
-                diag = SearchRankingService.score_result(res_model, query_model)
+                diag = SearchRankingService().score_result(res_model, query_model)
                 candidates.append((diag["final_score"], username, filename, size, ext, bitrate))
 
         # Sort based on ranking quality score

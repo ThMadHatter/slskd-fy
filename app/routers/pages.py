@@ -3,7 +3,10 @@ import logging
 import asyncio
 from typing import Optional, List, Dict, Any, Union
 from fastapi import APIRouter, Depends, Request, HTTPException, status, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+import json
+from app.services.filename_parser import parse_filename
+from app.services.search_ranking_service import SearchRankingService
 from pydantic import BaseModel
 
 from app.config import settings
@@ -93,7 +96,7 @@ async def get_spa(request: Request):
     from app.main import templates
     return templates.TemplateResponse(request=request, name="index.html", context={})
 
-@router.post("/api/search", response_class=JSONResponse)
+@router.post("/api/search")
 async def api_search(
     payload: SearchRequest,
     search_executor: SearchExecutorContract = Depends(get_search_executor),
@@ -101,8 +104,7 @@ async def api_search(
 ):
     """
     Triggers progressive fallback query generation, executes on slskd,
-    merges & deduplicates results, parses filenames, enriches with Beets,
-    ranks, and returns the sorted candidates.
+    and returns an incremental JSON StreamingResponse to update results as soon as they are found.
     """
     artist = (payload.artist or "").strip()
     track_or_album = (payload.track_or_album or "").strip()
@@ -111,49 +113,118 @@ async def api_search(
         raise HTTPException(status_code=400, detail="Artist or Track/Album must be provided")
 
     query_obj = SearchQuery(artist=artist, track=track_or_album, mode=payload.mode or "A")
-    results = await search_executor.execute_search(query_obj)
 
-    # 1. Resolve / Fetch complete Artist Catalog with strict 30-day pre-caching [RSL-001]
-    artist_mbid = payload.artist_mbid
-    catalog = []
+    async def event_generator():
+        seen_keys = set()
 
-    if not artist_mbid and artist:
-        try:
-            artists = await MusicBrainzService.search_artists(artist, db)
-            if artists:
-                artist_mbid = artists[0].get("id")
-        except Exception as e:
-            logger.error(f"Error resolving artist MBID dynamically: {e}")
+        # 1. Resolve / Fetch complete Artist Catalog with strict 30-day pre-caching [RSL-001]
+        artist_mbid = payload.artist_mbid
+        catalog = []
 
-    if artist_mbid:
-        try:
-            catalog = await MusicBrainzService.fetch_artist_releases(artist_mbid, db)
-        except Exception as e:
-            logger.error(f"Error pre-fetching artist releases catalog: {e}")
+        if not artist_mbid and artist:
+            try:
+                artists = await MusicBrainzService.search_artists(artist, db)
+                if artists:
+                    artist_mbid = artists[0].get("id")
+            except Exception as e:
+                logger.error(f"Error resolving artist MBID dynamically: {e}")
 
-    # 2. Local Fuzzy Matching Stage (ZERO outbound lookup calls during grouping)
-    for r in results:
-        match = None
-        if r.parsed_album:
-            cleaned = clean_album_name(r.parsed_album)
-            if cleaned:
-                match = match_catalog_release(cleaned, catalog)
+        if artist_mbid:
+            try:
+                catalog = await MusicBrainzService.fetch_artist_releases(artist_mbid, db)
+            except Exception as e:
+                logger.error(f"Error pre-fetching artist releases catalog: {e}")
 
-        if match:
-            r.canonical_album = match["release_name"]
-            r.canonical_year = match["release_year"]
-            r.canonical_mbid = match["release_mbid"]
-            r.canonical_confidence = match["confidence_score"]
-            r.canonical_verified = True
-        else:
-            r.canonical_album = r.parsed_album
-            r.canonical_year = r.parsed_year
-            r.canonical_verified = False
+        # 2. Sequential fallback search loop matching & yielding chunks incrementally
+        query_strings = search_executor.generate_progressive_queries(artist, track_or_album)
+        for idx, q_str in enumerate(query_strings):
+            responses = []
+            search_id = None
+            try:
+                logger.info(f"Incremental Search - Executing query: '{q_str}'")
+                search_obj = await search_executor.slskd_client.search(q_str)
+                search_id = search_obj.get("id")
+                if search_id:
+                    for _ in range(5):
+                        await asyncio.sleep(1.0)
+                        responses = await search_executor.slskd_client.get_search_responses(search_id)
+                        if len(responses) >= 8:
+                            break
+            except Exception as e:
+                logger.error(f"Error executing sequential query '{q_str}': {e}")
 
-    # Serialize results list of SlskdResult Pydantic models
-    serialized_results = [r.model_dump() for r in results]
+            chunk_results = []
+            for resp in responses:
+                username = resp.get("username", "")
+                queue_length = resp.get("queueLength", 0) or resp.get("queue_length", 0) or 0
+                files = resp.get("files", [])
+                for f in files:
+                    filename = f.get("filename", "")
+                    ext = os.path.splitext(filename)[1].lstrip(".").lower()
+                    size = f.get("size", 0)
+                    bitrate = f.get("bitRate", 0) or f.get("bitrate", 0) or 0
+                    sample_rate = f.get("sampleRate", 0) or f.get("sample_rate", 0) or 0
 
-    return JSONResponse(content={"results": serialized_results})
+                    if SearchRankingService.should_reject_result(filename, ext):
+                        continue
+
+                    key = (username, filename)
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+
+                        parsed = parse_filename(filename)
+                        res_model = SlskdResult(
+                            filename=filename,
+                            size=size,
+                            username=username,
+                            format=ext,
+                            bitrate=bitrate,
+                            sample_rate=sample_rate,
+                            queue_length=queue_length,
+                            parsed_artist=parsed.get("artist") or artist or "Unknown",
+                            parsed_track=parsed.get("track") or track_or_album or "Unknown",
+                            parsed_album=parsed.get("album") or "",
+                            parsed_year=parsed.get("year") or None
+                        )
+
+                        # Local Fuzzy Matching
+                        match = None
+                        if res_model.parsed_album:
+                            cleaned = clean_album_name(res_model.parsed_album)
+                            if cleaned:
+                                match = match_catalog_release(cleaned, catalog)
+                        if match:
+                            res_model.canonical_album = match["release_name"]
+                            res_model.canonical_year = match["release_year"]
+                            res_model.canonical_mbid = match["release_mbid"]
+                            res_model.canonical_confidence = match["confidence_score"]
+                            res_model.canonical_verified = True
+                        else:
+                            res_model.canonical_album = res_model.parsed_album
+                            res_model.canonical_year = res_model.parsed_year
+                            res_model.canonical_verified = False
+
+                        # Final Ranking
+                        scores = SearchRankingService.score_candidate(res_model, query_obj, beets_confidence=False)
+                        res_model.score = scores["final_score"]
+                        res_model.score_reasons = scores.get("score_reasons")
+                        chunk_results.append(res_model.model_dump())
+
+            # Clean up slskd search
+            if search_id:
+                try:
+                    await search_executor.slskd_client.delete_search(search_id)
+                except Exception as e:
+                    logger.warning(f"Failed to delete search {search_id}: {e}")
+
+            if chunk_results:
+                yield json.dumps({"results": chunk_results}) + "\n"
+
+            # If we already have plenty of results, stop early to optimize performance
+            if len(seen_keys) >= 25:
+                break
+
+    return StreamingResponse(event_generator(), media_type="application/x-json-stream")
 
 @router.post("/api/download", response_class=JSONResponse)
 async def api_download(

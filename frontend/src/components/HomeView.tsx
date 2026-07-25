@@ -94,8 +94,43 @@ export default function HomeView() {
       });
 
       if (!response.ok) throw new Error('Search failed');
-      const data = await response.json();
-      setResults(data.results || []);
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Streaming response body not readable');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const data = JSON.parse(line);
+              if (data.results && data.results.length > 0) {
+                const currentResults = useSearchStore.getState().results;
+                const merged = [...currentResults];
+                data.results.forEach((item: any) => {
+                  if (!merged.some(m => m.username === item.username && m.filename === item.filename)) {
+                    merged.push(item);
+                  }
+                });
+                setResults(merged);
+              }
+            } catch (jsonErr) {
+              console.error('Error parsing streamed JSON chunk:', jsonErr);
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error(error);
     } finally {

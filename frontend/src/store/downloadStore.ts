@@ -5,6 +5,8 @@ interface DownloadState {
   queue: DownloadItem[];
   activeCount: number;
   totalSpeed: number;
+  pollInterval: number;
+  cancelledIds: string[];
 
   setQueue: (queue: DownloadItem[]) => void;
   fetchQueue: () => Promise<void>;
@@ -18,86 +20,22 @@ interface DownloadState {
   clearCompleted: () => void;
 }
 
-const mockDownloads: DownloadItem[] = [
-  {
-    id: 'dl-1',
-    filename: 'Aphex Twin - Selected Ambient Works 85-92 [FLAC].zip',
-    username: 'user_analog',
-    status: 'downloading',
-    size: 412 * 1024 * 1024,
-    bytesTransferred: 412 * 1024 * 1024 * 0.68,
-    speed: 2.4 * 1024 * 1024,
-    eta: 134,
-    progress: 68,
-  },
-  {
-    id: 'dl-2',
-    filename: 'Burial - Untrue (2007) [320kbps].rar',
-    username: 'ambient_drone',
-    status: 'downloading',
-    size: 104 * 1024 * 1024,
-    bytesTransferred: 104 * 1024 * 1024 * 0.12,
-    speed: 1.1 * 1024 * 1024,
-    eta: 285,
-    progress: 12,
-  },
-  {
-    id: 'dl-3',
-    filename: 'Boards of Canada - Geogaddi.zip',
-    username: 'fast_leecher',
-    status: 'queued',
-    size: 250 * 1024 * 1024,
-    bytesTransferred: 0,
-    speed: 0,
-    eta: 0,
-    progress: 0,
-  },
-  {
-    id: 'dl-4',
-    filename: 'Autechre - Tri Repetae.rar',
-    username: 'archive_bot',
-    status: 'queued',
-    size: 180 * 1024 * 1024,
-    bytesTransferred: 0,
-    speed: 0,
-    eta: 0,
-    progress: 0,
-  },
-  {
-    id: 'dl-5',
-    filename: 'Massive Attack - Mezzanine (FLAC).zip',
-    username: 'user_analog',
-    status: 'completed',
-    size: 385 * 1024 * 1024,
-    bytesTransferred: 385 * 1024 * 1024,
-    speed: 0,
-    eta: 0,
-    progress: 100,
-  },
-  {
-    id: 'dl-6',
-    filename: 'Various Artists - 90s Jungle Classics.rar',
-    username: 'ambient_drone',
-    status: 'failed',
-    size: 450 * 1024 * 1024,
-    bytesTransferred: 45 * 1024 * 1024,
-    speed: 0,
-    eta: 0,
-    progress: 10,
-  }
-];
-
-export const useDownloadStore = create<DownloadState>((set) => ({
-  queue: mockDownloads,
-  activeCount: 4,
-  totalSpeed: 3.5 * 1024 * 1024,
+export const useDownloadStore = create<DownloadState>((set, get) => ({
+  queue: [],
+  activeCount: 0,
+  totalSpeed: 0,
+  pollInterval: 3000,
+  cancelledIds: [],
 
   setQueue: (queue) => set({ queue }),
 
   fetchQueue: async () => {
     try {
       const response = await fetch('/api/transfers');
-      if (!response.ok) throw new Error('Failed to fetch transfers');
+      if (!response.ok) {
+        throw new Error(`Server returned status ${response.status}`);
+      }
+
       const data = await response.json();
 
       const mappedQueue: DownloadItem[] = data.flatMap((userDl: any) => {
@@ -132,13 +70,22 @@ export const useDownloadStore = create<DownloadState>((set) => ({
         return [...dirFiles, ...flatFiles];
       });
 
+      // Filter out any recently cancelled IDs to ensure optimistic update integrity
+      const { cancelledIds } = get();
+      const filteredMapped = mappedQueue.filter(item => !cancelledIds.includes(item.id));
+
       set({
-        queue: mappedQueue.length > 0 ? mappedQueue : mockDownloads,
-        activeCount: mappedQueue.filter(item => item.status === 'downloading').length || mockDownloads.filter(item => item.status === 'downloading').length,
-        totalSpeed: mappedQueue.reduce((acc, item) => acc + item.speed, 0) || 3.5 * 1024 * 1024,
+        queue: filteredMapped,
+        activeCount: filteredMapped.filter(item => item.status === 'downloading').length,
+        totalSpeed: filteredMapped.reduce((acc, item) => acc + item.speed, 0),
+        pollInterval: 3000, // Reset backoff on success
       });
     } catch (err) {
-      console.error(err);
+      console.error('Fetch transfers failed. Applying network backoff...', err);
+      // Double the interval up to 30 seconds
+      set((state) => ({
+        pollInterval: Math.min(state.pollInterval * 2, 30000)
+      }));
     }
   },
 
@@ -163,17 +110,21 @@ export const useDownloadStore = create<DownloadState>((set) => ({
   })),
 
   cancelDownload: async (id: string, username?: string) => {
+    // 1. Instantly perform optimistic update & register cancelled ID to prevent poll race conditions
+    set((state) => ({
+      queue: state.queue.filter((dl) => dl.id !== id),
+      cancelledIds: [...state.cancelledIds, id]
+    }));
+
+    // 2. Perform background delete request
     try {
       if (username) {
         await fetch(`/api/transfers/${encodeURIComponent(username)}/${encodeURIComponent(id)}`, {
           method: 'DELETE',
         });
       }
-      set((state) => ({
-        queue: state.queue.filter((dl) => dl.id !== id)
-      }));
     } catch (err) {
-      console.error(err);
+      console.error('Failed to cancel download on backend:', err);
     }
   },
 

@@ -11,8 +11,7 @@ export default function DownloadsView() {
   const {
     queue,
     fetchQueue,
-    pauseDownload,
-    resumeDownload,
+    pollInterval,
     cancelDownload,
     retryDownload,
     pauseAll,
@@ -23,10 +22,22 @@ export default function DownloadsView() {
   const [filterQuery, setFilterQuery] = useState('');
 
   useEffect(() => {
-    fetchQueue();
-    const interval = setInterval(fetchQueue, 3000);
-    return () => clearInterval(interval);
-  }, []);
+    let timeoutId: any;
+
+    const poll = async () => {
+      await fetchQueue();
+      const currentInterval = useDownloadStore.getState().pollInterval;
+      timeoutId = setTimeout(poll, currentInterval);
+    };
+
+    poll();
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [fetchQueue]);
 
   const formatBytes = (bytes: number) => {
     if (!bytes || bytes === 0) return '0 B';

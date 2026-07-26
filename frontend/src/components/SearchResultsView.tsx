@@ -321,6 +321,7 @@ export default function SearchResultsView() {
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getRowId: (row) => `${row.username}-${row.filename}-${row.size}`,
     initialState: {
       pagination: {
         pageSize: 50,
@@ -500,7 +501,7 @@ export default function SearchResultsView() {
                                     </thead>
                                     <tbody className="divide-y divide-[#27272a]/40 font-body-md text-sm text-[#bbcabf]">
                                       {folder.tracks.map((track) => (
-                                        <tr key={track.filename} className="hover:bg-[#1c1b1c]/70 group border-b border-[#27272a]/30">
+                                        <tr key={`${track.username}-${track.filename}-${track.size}`} className="hover:bg-[#1c1b1c]/70 group border-b border-[#27272a]/30">
                                           <td className="p-2 relative group/scorecell">
                                             <span className="font-data-mono text-data-mono text-[#10b981] font-bold cursor-help">{track.score}</span>
                                             {track.score_reasons && (

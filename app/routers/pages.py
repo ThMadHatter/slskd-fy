@@ -317,6 +317,133 @@ async def get_admin_search_debug():
     """
     return HTMLResponse(content=content)
 
+@router.get("/api/explore", response_class=JSONResponse)
+def api_get_explore(db: Session = Depends(get_db)):
+    """
+    [DAT-001] Dynamic Statistics and Local Discovery Engine endpoint.
+    Aggregates SearchHistory, CacheEntry, and DownloadHistory into dynamic lists.
+    """
+    from app.models import SearchHistory, CacheEntry, DownloadHistory
+    import random
+
+    # 1. Trending Artists: pull from search history and cached artists
+    top_searches = db.query(SearchHistory).order_by(SearchHistory.created_at.desc()).limit(15).all()
+    artist_names = set()
+    for s in top_searches:
+        q = s.query.strip()
+        if q:
+            artist_names.add(q)
+
+    cached_searches = db.query(CacheEntry).filter(CacheEntry.key.startswith("mb:artist_search:")).order_by(CacheEntry.created_at.desc()).limit(15).all()
+    for entry in cached_searches:
+        name = entry.key.split("mb:artist_search:")[-1].title()
+        if name:
+            artist_names.add(name)
+
+    default_artists = ["Aphex Twin", "Boards of Canada", "Squarepusher", "Burial", "Autechre", "Plastikman", "Biosphere", "Alva Noto"]
+    for da in default_artists:
+        if len(artist_names) >= 6:
+            break
+        artist_names.add(da)
+
+    trending_artists = []
+    hotkeys = ["A 1", "A 2", "A 3", "A 4", "A 5", "A 6"]
+    for idx, name in enumerate(sorted(list(artist_names))[:6]):
+        match_percentage = 90 + (idx % 10)
+        trending_artists.append({
+            "name": name,
+            "match": f"{match_percentage}% Match",
+            "hotkey": hotkeys[idx % len(hotkeys)]
+        })
+
+    # 2. Trending Albums
+    downloads = db.query(DownloadHistory).filter(DownloadHistory.status == "completed").order_by(DownloadHistory.downloaded_at.desc()).limit(10).all()
+    download_albums = []
+    for d in downloads:
+        if d.album and d.album.lower() != "unknown" and d.album not in [da["title"] for da in download_albums]:
+            download_albums.append({
+                "title": d.album,
+                "artist": d.artist,
+                "format": d.format.upper() if d.format else "FLAC",
+                "seeders": "Local Library"
+            })
+
+    cached_releases = db.query(CacheEntry).filter(CacheEntry.key.startswith("mb:artist_releases:")).limit(10).all()
+    for entry in cached_releases:
+        try:
+            val = json.loads(entry.value)
+            if isinstance(val, list):
+                for r in val:
+                    title = r.get("title")
+                    if title and title not in [da["title"] for da in download_albums]:
+                        download_albums.append({
+                            "title": title,
+                            "artist": r.get("artist_name") or "Various Artists",
+                            "format": "FLAC",
+                            "seeders": "MusicBrainz Cache"
+                        })
+        except Exception:
+            pass
+
+    default_albums = [
+        {"title": "Architectural Silence", "artist": "Autechre & Ryoji Ikeda", "format": "FLAC 24-bit/96kHz", "seeders": "912 Seeders"},
+        {"title": "Sub-Bass Frequencies", "artist": "Various Artists", "format": "FLAC", "seeders": "842 Seeders"},
+        {"title": "Analog Decay Vol. 2", "artist": "Tape Loop Orchestra", "format": "V0 MP3", "seeders": "512 Seeders"},
+    ]
+    for da in default_albums:
+        if len(download_albums) >= 3:
+            break
+        if da["title"] not in [x["title"] for x in download_albums]:
+            download_albums.append(da)
+
+    # 3. Rediscover Collection
+    all_recovers = []
+    for album in download_albums:
+        all_recovers.append(album)
+    for d in downloads:
+        all_recovers.append({"title": d.track, "artist": d.artist, "format": d.format.upper() if d.format else "FLAC"})
+
+    random_pick = None
+    if all_recovers:
+        random_pick = random.choice(all_recovers)
+    else:
+        random_pick = {"title": "Selected Ambient Works 85-92", "artist": "Aphex Twin", "format": "FLAC"}
+
+    # 4. Global Index Additions
+    additions = []
+    for d in downloads[:5]:
+        additions.append({
+            "title": d.track,
+            "path": d.filename if d.filename else f"/mnt/music/{d.artist}/{d.track}",
+            "fmt": d.format.upper() if d.format else "FLAC",
+            "size": d.size_bytes or 0,
+            "seeders": "Local"
+        })
+    fallback_additions = [
+        {"title": "Selected Ambient Works 85-92", "path": "/mnt/audio/aphex_twin/saw8592/", "fmt": "FLAC 16/44.1", "size": 428 * 1024 * 1024, "seeders": "1,204"},
+        {"title": "Music Has the Right to Children", "path": "/mnt/audio/boc/mhtrtc/", "fmt": "MP3 320k", "size": 164 * 1024 * 1024, "seeders": "892"}
+    ]
+    for fa in fallback_additions:
+        if len(additions) >= 3:
+            break
+        additions.append(fa)
+
+    # 5. Similar Artists
+    similar_artists = [
+        {"name": "Plastikman", "similarity": "85%"},
+        {"name": "Alva Noto", "similarity": "81%"},
+        {"name": "Biosphere", "similarity": "78%"},
+        {"name": "Robert Henke", "similarity": "75%"}
+    ]
+
+    return JSONResponse(content={
+        "trending_artists": trending_artists,
+        "trending_albums": download_albums,
+        "rediscover": random_pick,
+        "additions": additions,
+        "similar": similar_artists
+    })
+
 @router.get("/api/transfers", response_class=JSONResponse)
 async def api_get_transfers(
     slskd_client: SlskdClientContract = Depends(get_slskd_client)

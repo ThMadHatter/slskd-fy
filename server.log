@@ -1,0 +1,80 @@
+INFO:     Started server process [2285207]
+INFO:     Waiting for application startup.
+2026-07-26 11:52:15,444 [INFO] track_portal: Startup step 1 complete
+2026-07-26 11:52:15,444 [INFO] track_portal: Startup step 2: Running database migrations...
+2026-07-26 11:52:15,444 [INFO] track_portal: Running database migrations via Alembic...
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 3e040caa7073, Initial schema
+2026-07-26 11:52:15,458 [ERROR] track_portal: Error running database migrations: (sqlite3.OperationalError) table download_history already exists
+[SQL:
+CREATE TABLE download_history (
+	id INTEGER NOT NULL,
+	search_query VARCHAR NOT NULL,
+	artist VARCHAR NOT NULL,
+	track VARCHAR NOT NULL,
+	album VARCHAR NOT NULL,
+	filename VARCHAR NOT NULL,
+	download_id VARCHAR,
+	source_user VARCHAR NOT NULL,
+	format VARCHAR NOT NULL,
+	bitrate INTEGER,
+	sample_rate INTEGER,
+	size_bytes INTEGER,
+	status VARCHAR NOT NULL,
+	downloaded_at DATETIME,
+	imported_at DATETIME,
+	PRIMARY KEY (id)
+)
+
+]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-07-26 11:52:15,458 [INFO] track_portal: Startup step 2 complete
+2026-07-26 11:52:15,458 [INFO] track_portal: Startup step 3: Initializing admin user if none exists...
+2026-07-26 11:52:15,458 [INFO] track_portal.auth: Startup step 3a: Querying User count in database...
+2026-07-26 11:52:15,470 [INFO] track_portal.auth: Startup step 3b: User count is 1
+2026-07-26 11:52:15,471 [INFO] track_portal: Startup step 3 complete
+2026-07-26 11:52:15,471 [INFO] track_portal: Startup step 4: Starting background downloads poller...
+2026-07-26 11:52:15,471 [INFO] track_portal.poller: Startup step 4a: Getting event loop...
+2026-07-26 11:52:15,471 [INFO] track_portal.poller: Startup step 4b: Creating task for poll_downloads...
+2026-07-26 11:52:15,471 [INFO] track_portal.poller: Startup step 4c: Background download poller started successfully.
+2026-07-26 11:52:15,471 [INFO] track_portal: Startup step 4 complete
+2026-07-26 11:52:15,471 [INFO] track_portal: Startup step 5: Lifespan startup fully complete!
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+INFO:     127.0.0.1:39776 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39776 - "GET /_next/static/css/8b8fe674d5ca659d.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39792 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39800 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39804 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39818 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39830 - "GET /_next/static/chunks/21-aa283adb86ca7f37.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39776 - "GET /_next/static/chunks/app/layout-9aee89a7d03fb9c8.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39792 - "GET /_next/static/chunks/23-11c51b1d00c91989.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39830 - "GET /_next/static/chunks/app/page-0d944f34fe7209a9.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39776 - "GET /_next/static/chunks/36-bd3129a9e3120903.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39830 - "GET /api/version HTTP/1.1" 200 OK
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+INFO:     127.0.0.1:39830 - "GET /api/explore HTTP/1.1" 200 OK
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-07-26 11:55:05,937 [INFO] track_portal: Shutting down Track Portal...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2285207]

@@ -1,17 +1,45 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchStore } from '../store/searchStore';
 import { useNavigationStore } from '../store/navigationStore';
 import { useDownloadStore } from '../store/downloadStore';
-import { Disc, Users, GitFork, CheckSquare, Sparkles, FolderSync, Search, Download } from 'lucide-react';
+import { Disc, Users, GitFork, Sparkles, FolderSync, Search, Download, Loader2 } from 'lucide-react';
 import Card from './ui/Card';
 import Button from './ui/Button';
+
+interface ExploreData {
+  trending_artists: Array<{ name: string; match: string; hotkey: string }>;
+  trending_albums: Array<{ title: string; artist: string; format: string; seeders: string }>;
+  rediscover: { title: string; artist: string; format: string };
+  additions: Array<{ title: string; path: string; fmt: string; size: number; seeders: string }>;
+  similar: Array<{ name: string; similarity: string }>;
+}
 
 export default function ExploreView() {
   const { setArtist, setTrack, setIsSearching, setResults } = useSearchStore();
   const { setActiveTab } = useNavigationStore();
   const { addDownload } = useDownloadStore();
+
+  const [exploreData, setExploreData] = useState<ExploreData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchExplore = async () => {
+      try {
+        const response = await fetch('/api/explore');
+        if (response.ok) {
+          const data = await response.json();
+          setExploreData(data);
+        }
+      } catch (err) {
+        console.error('Failed to load explore metrics:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchExplore();
+  }, []);
 
   const handleQuickSearch = async (artistName: string, trackName: string) => {
     setArtist(artistName);
@@ -46,6 +74,24 @@ export default function ExploreView() {
     });
   };
 
+  if (loading || !exploreData) {
+    return (
+      <div className="w-full h-[60vh] flex flex-col items-center justify-center gap-4 text-[#bbcabf] select-none">
+        <Loader2 className="animate-spin text-[#10b981]" size={36} />
+        <span className="font-data-mono text-data-mono text-sm">Loading dynamic local statistics & recommendations...</span>
+      </div>
+    );
+  }
+
+  const featuredAlbum = exploreData.trending_albums[0] || {
+    title: "Architectural Silence",
+    artist: "Autechre & Ryoji Ikeda",
+    format: "FLAC 24-bit/96kHz",
+    seeders: "912 Seeders"
+  };
+
+  const secondaryAlbums = exploreData.trending_albums.slice(1, 3);
+
   return (
     <div className="w-full max-w-5xl mx-auto flex flex-col gap-12 pb-32 animate-fade-in-up mt-4 select-none">
 
@@ -55,7 +101,7 @@ export default function ExploreView() {
           <div className="flex items-center gap-2">
             <Disc className="text-[#10b981]" size={20} />
             <h2 className="font-headline-md text-headline-md font-bold text-[#e5e2e3] tracking-tight">
-              Trending Albums
+              Trending Albums & Catalogs
             </h2>
           </div>
         </div>
@@ -70,25 +116,24 @@ export default function ExploreView() {
             <div className="relative z-20 mt-auto p-6 flex flex-col gap-2">
               <div className="flex items-center gap-2 mb-2">
                 <span className="bg-[#10b981] text-[#003824] font-label-caps text-label-caps px-2 py-0.5 font-bold">
-                  Highest Seeders
+                  Top Release
                 </span>
                 <span className="bg-[#1c1b1c] text-[#10b981] font-data-mono text-data-mono border border-[#27272a] px-1.5 py-0.5">
-                  FLAC 24-bit/96kHz
+                  {featuredAlbum.format}
                 </span>
               </div>
               <h3 className="font-headline-lg text-headline-lg text-[#e5e2e3] font-bold leading-none">
-                Architectural Silence
+                {featuredAlbum.title}
               </h3>
               <p className="font-body-lg text-body-lg text-[#bbcabf]">
-                Autechre & Ryoji Ikeda
+                {featuredAlbum.artist}
               </p>
               <div className="flex gap-2 mt-2">
-                <span className="font-data-mono text-data-mono text-[#bbcabf]/60 border border-[#27272a] px-1.5 py-0.5">2024</span>
-                <span className="font-data-mono text-data-mono text-[#bbcabf]/60 border border-[#27272a] px-1.5 py-0.5">IDM</span>
-                <span className="font-data-mono text-data-mono text-[#bbcabf]/60 border border-[#27272a] px-1.5 py-0.5">1.2 GB</span>
+                <span className="font-data-mono text-data-mono text-[#bbcabf]/60 border border-[#27272a] px-1.5 py-0.5">Dynamic</span>
+                <span className="font-data-mono text-data-mono text-[#bbcabf]/60 border border-[#27272a] px-1.5 py-0.5">{featuredAlbum.seeders}</span>
               </div>
               <Button
-                onClick={() => handleQuickSearch('Autechre', 'Architectural Silence')}
+                onClick={() => handleQuickSearch(featuredAlbum.artist, featuredAlbum.title)}
                 variant="primary"
                 className="mt-6 w-max font-bold"
               >
@@ -99,53 +144,31 @@ export default function ExploreView() {
             </div>
           </div>
 
-          {/* Standard Album Card 1 */}
-          <div className="border border-[#27272a] bg-[#1c1b1c] rounded-none p-4 flex flex-col justify-between hover:border-[#10b981] transition-colors group relative">
-            <div className="relative w-full aspect-square bg-[#131314] overflow-hidden flex items-center justify-center">
-              <span className="font-data-mono text-data-mono text-[#bbcabf]/10 uppercase text-3xl font-bold">BASS</span>
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                <Button
-                  onClick={() => handleQuickSearch('Various Artists', 'Sub-Bass Frequencies')}
-                  variant="secondary"
-                  className="font-bold border-[#27272a]"
-                >
-                  <Search size={14} /> Explore
-                </Button>
+          {/* Secondary Albums list mapping */}
+          {secondaryAlbums.map((album, idx) => (
+            <div key={idx} className="border border-[#27272a] bg-[#1c1b1c] rounded-none p-4 flex flex-col justify-between hover:border-[#10b981] transition-colors group relative">
+              <div className="relative w-full aspect-square bg-[#131314] overflow-hidden flex items-center justify-center">
+                <span className="font-data-mono text-data-mono text-[#bbcabf]/10 uppercase text-3xl font-bold">ALBUM</span>
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <Button
+                    onClick={() => handleQuickSearch(album.artist, album.title)}
+                    variant="secondary"
+                    className="font-bold border-[#27272a]"
+                  >
+                    <Search size={14} /> Explore
+                  </Button>
+                </div>
+              </div>
+              <div className="flex flex-col mt-4">
+                <h4 className="font-body-lg text-body-lg font-semibold text-[#e5e2e3] truncate">{album.title}</h4>
+                <p className="font-body-md text-body-md text-[#bbcabf]/75 truncate">{album.artist}</p>
+                <div className="flex items-center justify-between mt-3 border-t border-[#27272a] pt-2 select-none">
+                  <span className="font-data-mono text-data-mono text-[#e5e2e3] font-bold">{album.format}</span>
+                  <span className="font-data-mono text-data-mono text-[#10b981] font-bold">{album.seeders}</span>
+                </div>
               </div>
             </div>
-            <div className="flex flex-col mt-4">
-              <h4 className="font-body-lg text-body-lg font-semibold text-[#e5e2e3] truncate">Sub-Bass Frequencies</h4>
-              <p className="font-body-md text-body-md text-[#bbcabf]/75 truncate">Various Artists</p>
-              <div className="flex items-center justify-between mt-3 border-t border-[#27272a] pt-2 select-none">
-                <span className="font-data-mono text-data-mono text-[#e5e2e3] font-bold">FLAC</span>
-                <span className="font-data-mono text-data-mono text-[#10b981] font-bold">842 Seeders</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Standard Album Card 2 */}
-          <div className="border border-[#27272a] bg-[#1c1b1c] rounded-none p-4 flex flex-col justify-between hover:border-[#10b981] transition-colors group relative">
-            <div className="relative w-full aspect-square bg-[#131314] overflow-hidden flex items-center justify-center">
-              <span className="font-data-mono text-data-mono text-[#bbcabf]/10 uppercase text-3xl font-bold">DECAY</span>
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                <Button
-                  onClick={() => handleQuickSearch('Tape Loop Orchestra', 'Analog Decay Vol. 2')}
-                  variant="secondary"
-                  className="font-bold border-[#27272a]"
-                >
-                  <Search size={14} /> Explore
-                </Button>
-              </div>
-            </div>
-            <div className="flex flex-col mt-4">
-              <h4 className="font-body-lg text-body-lg font-semibold text-[#e5e2e3] truncate">Analog Decay Vol. 2</h4>
-              <p className="font-body-md text-body-md text-[#bbcabf]/75 truncate">Tape Loop Orchestra</p>
-              <div className="flex items-center justify-between mt-3 border-t border-[#27272a] pt-2 select-none">
-                <span className="font-data-mono text-data-mono text-[#e5e2e3] font-bold">V0 MP3</span>
-                <span className="font-data-mono text-data-mono text-[#10b981] font-bold">512 Seeders</span>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
       </section>
 
@@ -160,11 +183,7 @@ export default function ExploreView() {
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {[
-            { name: 'Aphex Twin', match: '98% Match', hotkey: 'A 1' },
-            { name: 'Boards of Canada', match: '92% Match', hotkey: 'A 2' },
-            { name: 'Squarepusher', match: '89% Match', hotkey: 'A 3' },
-          ].map((art) => (
+          {exploreData.trending_artists.map((art) => (
             <Card key={art.name} onClick={() => handleQuickSearch(art.name, '')} className="flex flex-col gap-4">
               <div className="flex justify-between items-start">
                 <div className="w-12 h-12 bg-[#201f20] border border-[#27272a] flex items-center justify-center font-bold font-data-mono text-md text-[#bbcabf]">
@@ -199,12 +218,7 @@ export default function ExploreView() {
           </div>
         </div>
         <div className="flex flex-wrap gap-4 select-none">
-          {[
-            { name: 'Plastikman', similarity: '85%' },
-            { name: 'Alva Noto', similarity: '81%' },
-            { name: 'Biosphere', similarity: '78%' },
-            { name: 'Robert Henke', similarity: '75%' },
-          ].map((node) => (
+          {exploreData.similar.map((node) => (
             <Card
               key={node.name}
               onClick={() => handleQuickSearch(node.name, '')}
@@ -235,15 +249,19 @@ export default function ExploreView() {
         </div>
         <Card className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-6">
-            <div className="w-16 h-14 bg-[#201f20] border border-[#27272a] flex items-center justify-center font-bold text-[#e5e2e3]">SAW</div>
+            <div className="w-16 h-14 bg-[#201f20] border border-[#27272a] flex items-center justify-center font-bold text-[#e5e2e3] uppercase">
+              {exploreData.rediscover.artist.substr(0, 3)}
+            </div>
             <div className="flex flex-col">
-              <span className="font-label-caps text-label-caps text-[#10b981] font-bold mb-1">RANDOM PICK FROM LIBRARY</span>
-              <h3 className="font-headline-sm text-headline-sm text-[#e5e2e3] font-bold leading-tight">Selected Ambient Works 85-92</h3>
-              <p className="font-body-md text-[#bbcabf] mt-1">Aphex Twin</p>
+              <span className="font-label-caps text-label-caps text-[#10b981] font-bold mb-1">RANDOM PICK FROM LOCAL LIBRARY</span>
+              <h3 className="font-headline-sm text-headline-sm text-[#e5e2e3] font-bold leading-tight">
+                {exploreData.rediscover.title}
+              </h3>
+              <p className="font-body-md text-[#bbcabf] mt-1">{exploreData.rediscover.artist}</p>
             </div>
           </div>
           <Button
-            onClick={() => handleQuickSearch('Aphex Twin', 'Selected Ambient Works 85-92')}
+            onClick={() => handleQuickSearch(exploreData.rediscover.artist, exploreData.rediscover.title)}
             variant="secondary"
             className="font-bold border-[#27272a]"
           >
@@ -258,7 +276,7 @@ export default function ExploreView() {
           <div className="flex items-center gap-2">
             <FolderSync className="text-[#10b981]" size={20} />
             <h2 className="font-headline-md text-headline-md font-bold text-[#e5e2e3] tracking-tight">
-              Global Index Additions
+              Recent Index Additions & Scans
             </h2>
           </div>
         </div>
@@ -271,22 +289,7 @@ export default function ExploreView() {
             <div className="w-24 text-right pr-4">Actions</div>
           </div>
 
-          {[
-            {
-              path: '/mnt/audio/aphex_twin/saw8592/',
-              title: 'Selected Ambient Works 85-92',
-              fmt: 'FLAC 16/44.1',
-              size: 428 * 1024 * 1024,
-              seeders: '1,204',
-            },
-            {
-              path: '/mnt/audio/boc/mhtrtc/',
-              title: 'Music Has the Right to Children',
-              fmt: 'MP3 320k',
-              size: 164 * 1024 * 1024,
-              seeders: '892',
-            },
-          ].map((item, idx) => (
+          {exploreData.additions.map((item, idx) => (
             <div
               key={idx}
               className={`flex items-center p-3 border-b border-[#27272a]/40 last:border-0 hover:bg-[#1c1b1c] transition-colors group ${
@@ -298,7 +301,9 @@ export default function ExploreView() {
                 <span className="text-xs opacity-60 text-[#bbcabf] font-light mt-0.5">{item.path}</span>
               </div>
               <div className="w-32 px-3 hidden md:block font-bold text-[#10b981]">{item.fmt}</div>
-              <div className="w-24 px-3 text-right hidden lg:block text-[#e5e2e3]">{formatBytes(item.size)}</div>
+              <div className="w-24 px-3 text-right hidden lg:block text-[#e5e2e3]">
+                {item.size > 0 ? formatBytes(item.size) : 'Dynamic'}
+              </div>
               <div className="w-24 px-3 text-right font-bold text-[#10b981]">{item.seeders}</div>
               <div className="w-24 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity pr-4">
                 <button
@@ -309,7 +314,7 @@ export default function ExploreView() {
                   <Search size={16} />
                 </button>
                 <button
-                  onClick={() => handleQuickDownload(`${item.title}.zip`, 'peer_server', item.size)}
+                  onClick={() => handleQuickDownload(`${item.title}.zip`, 'peer_server', item.size || 1000000)}
                   className="p-1 hover:text-[#10b981] cursor-pointer"
                   title="Download"
                 >

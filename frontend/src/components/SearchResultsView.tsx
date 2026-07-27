@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { useSearchStore } from '../store/searchStore';
 import { useDownloadStore } from '../store/downloadStore';
 import { SlskdResult } from '../types';
-import { useReactTable, getCoreRowModel, getPaginationRowModel, flexRender, createColumnHelper } from '@tanstack/react-table';
+import { useReactTable, getCoreRowModel, getPaginationRowModel, getSortedRowModel, flexRender, createColumnHelper, SortingState } from '@tanstack/react-table';
 import { Search, Filter, Sliders, CheckSquare, Square, Download, ChevronDown, ChevronRight, HelpCircle, ArrowUpDown } from 'lucide-react';
 import Button from './ui/Button';
 import Card from './ui/Card';
@@ -19,6 +19,9 @@ export default function SearchResultsView() {
   const [isAccordionMode, setIsAccordionMode] = useState(false);
   const [expandedAlbums, setExpandedAlbums] = useState<Record<string, boolean>>({});
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [albumVerifiedOnly, setAlbumVerifiedOnly] = useState(false);
+  const [albumSortBy, setAlbumSortBy] = useState<'score' | 'year' | 'tracks'>('score');
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToastMessage(message);
@@ -219,6 +222,31 @@ export default function SearchResultsView() {
     });
   }, [filteredResults]);
 
+  const processedGroupedResults = useMemo(() => {
+    let list = canonicalGroupedResults;
+
+    if (albumVerifiedOnly) {
+      list = list.filter(rel => rel.verified);
+    }
+
+    list = [...list].sort((a, b) => {
+      if (albumSortBy === 'score') {
+        return b.avgScore - a.avgScore;
+      }
+      if (albumSortBy === 'year') {
+        const yearA = a.year || 0;
+        const yearB = b.year || 0;
+        return yearB - yearA;
+      }
+      if (albumSortBy === 'tracks') {
+        return b.tracksCount - a.tracksCount;
+      }
+      return 0;
+    });
+
+    return list;
+  }, [canonicalGroupedResults, albumVerifiedOnly, albumSortBy]);
+
   const columnHelper = createColumnHelper<SlskdResult>();
   const columns = useMemo(() => [
     columnHelper.display({
@@ -317,10 +345,12 @@ export default function SearchResultsView() {
   const table = useReactTable({
     data: filteredResults,
     columns,
-    state: { rowSelection },
+    state: { rowSelection, sorting },
     onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     getRowId: (row) => `${row.username}-${row.filename}-${row.size}`,
     initialState: {
       pagination: {
@@ -414,7 +444,7 @@ export default function SearchResultsView() {
           ) : isAccordionMode ? (
             /* SECTION: ACCORDION ALBUM GROUPINGS */
             <div className="divide-y divide-[#27272a] border-b border-[#27272a]">
-              {canonicalGroupedResults.map((rel) => {
+              {processedGroupedResults.map((rel) => {
                 const isExpanded = !!expandedAlbums[rel.key];
                 return (
                   <div key={rel.key} className="bg-[#0e0e0f]">
@@ -550,15 +580,23 @@ export default function SearchResultsView() {
                         {headerGroup.headers.map(header => (
                           <th
                             key={header.id}
-                            className="p-3 border-r border-[#27272a] text-left select-none text-[11px]"
+                            className="p-3 border-r border-[#27272a] text-left select-none text-[11px] cursor-pointer hover:bg-[#201f20]"
                             style={{ width: (header.column.columnDef.meta as any)?.width }}
+                            onClick={header.column.getToggleSortingHandler()}
                           >
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext()
-                                )}
+                            <div className="flex items-center gap-1">
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext()
+                                  )}
+                              {header.column.getCanSort() && (
+                                <span className="opacity-60">
+                                  {header.column.getIsSorted() === 'asc' ? ' ▲' : header.column.getIsSorted() === 'desc' ? ' ▼' : ' ⇅'}
+                                </span>
+                              )}
+                            </div>
                           </th>
                         ))}
                       </tr>
@@ -633,6 +671,53 @@ export default function SearchResultsView() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {/* Filter: Album Optimizations (only in Accordion/Album mode) */}
+          {isAccordionMode && (
+            <div className="border border-[#10b981]/30 p-3 bg-[#131314] space-y-4">
+              <h4 className="font-label-caps text-label-caps text-[#10b981] uppercase tracking-widest border-b border-[#27272a] pb-1.5 font-bold">
+                Album Optimizations
+              </h4>
+
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={albumVerifiedOnly}
+                  onChange={(e) => setAlbumVerifiedOnly(e.target.checked)}
+                  className="rounded-none bg-[#0a0a0b] border-[#27272a] text-[#10b981] focus:ring-0 h-3 w-3 transition-colors cursor-pointer"
+                />
+                <span className="font-body-md text-body-md text-[#e5e2e3] group-hover:text-[#10b981] font-bold">
+                  Verified Only
+                </span>
+              </label>
+
+              <div>
+                <span className="font-label-caps text-[10px] text-[#bbcabf]/70 uppercase block mb-1.5">Sort Albums By:</span>
+                <div className="flex flex-col gap-1.5">
+                  {[
+                    { id: 'score', label: 'Average Score' },
+                    { id: 'year', label: 'Release Year' },
+                    { id: 'tracks', label: 'Track Count' },
+                  ].map((opt) => (
+                    <label key={opt.id} className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="radio"
+                        name="albumSortBy"
+                        checked={albumSortBy === opt.id}
+                        onChange={() => setAlbumSortBy(opt.id as any)}
+                        className="bg-[#0a0a0b] border-[#27272a] text-[#10b981] focus:ring-0 h-3 w-3 cursor-pointer"
+                      />
+                      <span className={`font-body-md text-xs ${
+                        albumSortBy === opt.id ? 'text-[#10b981] font-bold' : 'text-[#bbcabf]'
+                      } group-hover:text-[#10b981]`}>
+                        {opt.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Filter: Format */}
           <div>
             <h4 className="font-label-caps text-label-caps text-[#bbcabf] uppercase tracking-widest mb-3 border-b border-[#27272a] pb-1.5">

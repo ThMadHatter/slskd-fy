@@ -172,3 +172,25 @@ def verify_csrf_token(request: Request):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF verification failed"
         )
+
+TRUST_COOKIE_NAME = "track_portal_trust_device"
+
+def create_trust_token(username: str, ip: str) -> str:
+    """Creates a 30-day signed trusted device token."""
+    expire = datetime.datetime.utcnow() + datetime.timedelta(days=30)
+    to_encode = {
+        "sub": username,
+        "ip": ip,
+        "exp": expire
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
+
+def verify_trust_token(token: str, username: str, ip: str) -> bool:
+    """Verifies if the trust token is valid, matches the user and client IP."""
+    if not token:
+        return False
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        return payload.get("sub") == username and payload.get("ip") == ip
+    except jwt.PyJWTError:
+        return False

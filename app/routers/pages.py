@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import datetime
 from typing import Optional, List, Dict, Any, Union
 from fastapi import APIRouter, Depends, Request, HTTPException, status, Form
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
@@ -14,6 +15,20 @@ from app.contracts.schemas import SearchQuery, SlskdResult
 from app.contracts.services import SlskdClientContract, SearchExecutorContract
 from app.dependencies import get_slskd_client, get_search_executor
 from app.database import get_db
+from app.auth import (
+    get_current_user,
+    COOKIE_NAME,
+    create_access_token,
+    decode_access_token,
+    hash_password,
+    verify_password,
+    create_trust_token,
+    verify_trust_token,
+    TRUST_COOKIE_NAME,
+    log_audit_action
+)
+from app.otp import verify_totp, generate_totp_secret
+from app.models import User
 from app.services.artist_service import ArtistService
 from app.services.track_service import TrackService
 from app.services.musicbrainz_service import MusicBrainzService, clean_album_name
@@ -35,6 +50,27 @@ class SearchRequest(BaseModel):
     track_or_album: Optional[str] = ""
     mode: Optional[str] = "A"
     artist_mbid: Optional[str] = ""
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class TwoFactorVerifyRequest(BaseModel):
+    temp_token: str
+    code: str
+    trust_device: Optional[bool] = False
+
+class ChangePasswordRequest(BaseModel):
+    new_password: str
+
+class CreateUserRequest(BaseModel):
+    username: str
+    password: str
+    is_admin: Optional[bool] = True
+
+class TwoFactorEnableRequest(BaseModel):
+    secret: str
+    code: str
 
 def match_catalog_release(cleaned_album: str, catalog: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """
@@ -316,6 +352,266 @@ async def get_admin_search_debug():
     </html>
     """
     return HTMLResponse(content=content)
+
+@router.get("/api/auth/me", response_class=JSONResponse)
+def api_auth_me(user: Optional[User] = Depends(get_current_user)):
+    """
+    Returns the currently logged-in user profile, if authenticated.
+    """
+    return {
+        "username": user.username,
+        "is_admin": user.is_admin,
+        "two_factor_enabled": user.two_factor_enabled
+    }
+
+@router.post("/api/auth/login", response_class=JSONResponse)
+def api_auth_login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    """
+    Handles step-1 credential authentication.
+    If 2FA is enabled and the device is NOT trusted, returns a 2FA requirement and temporary token.
+    """
+    username = payload.username.strip()
+    password = payload.password
+
+    client_ip = request.client.host if request.client else "unknown"
+    from app.auth import check_login_rate_limit
+    if check_login_rate_limit(client_ip):
+        raise HTTPException(status_code=429, detail="Too many login attempts. Please try again later.")
+
+    user = db.query(User).filter(User.username == username).first()
+    if not user or not verify_password(password, user.password_hash):
+        log_audit_action(db, "LOGIN_FAILED", f"Failed login attempt for user '{username}'", client_ip)
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    # Check if 2FA is enabled
+    if user.two_factor_enabled:
+        trust_cookie = request.cookies.get(TRUST_COOKIE_NAME)
+        if verify_trust_token(trust_cookie, user.username, client_ip):
+            logger.info(f"User '{user.username}' successfully bypassed 2FA via trusted device cookie.")
+            token = create_access_token({"sub": user.username})
+            response = JSONResponse(content={
+                "two_factor_required": False,
+                "username": user.username,
+                "is_admin": user.is_admin
+            })
+            response.set_cookie(
+                key=COOKIE_NAME,
+                value=token,
+                httponly=True,
+                samesite="lax",
+                secure=False,
+                max_age=12 * 3600
+            )
+            log_audit_action(db, "LOGIN_SUCCESS", f"User '{username}' logged in successfully (bypassed 2FA via trust).", client_ip)
+            return response
+
+        temp_token = create_access_token({"sub": user.username, "temp": True}, expires_delta=datetime.timedelta(minutes=5))
+        return {
+            "two_factor_required": True,
+            "temp_token": temp_token
+        }
+
+    token = create_access_token({"sub": user.username})
+    response = JSONResponse(content={
+        "two_factor_required": False,
+        "username": user.username,
+        "is_admin": user.is_admin
+    })
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        max_age=12 * 3600
+    )
+    log_audit_action(db, "LOGIN_SUCCESS", f"User '{username}' logged in successfully (no 2FA).", client_ip)
+    return response
+
+@router.post("/api/auth/2fa/verify", response_class=JSONResponse)
+def api_auth_2fa_verify(payload: TwoFactorVerifyRequest, request: Request, db: Session = Depends(get_db)):
+    """
+    Verifies the TOTP code against the temporary JWT token payload.
+    """
+    temp_payload = decode_access_token(payload.temp_token)
+    if not temp_payload or not temp_payload.get("temp") or "sub" not in temp_payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired temporary login token")
+
+    username = temp_payload["sub"]
+    user = db.query(User).filter(User.username == username).first()
+    if not user or not user.two_factor_secret:
+        raise HTTPException(status_code=400, detail="2FA is not set up for this user")
+
+    client_ip = request.client.host if request.client else "unknown"
+
+    if not verify_totp(user.two_factor_secret, payload.code):
+        log_audit_action(db, "2FA_FAILED", f"2FA verification failed for user '{username}'", client_ip)
+        raise HTTPException(status_code=401, detail="Invalid 2FA code")
+
+    token = create_access_token({"sub": user.username})
+    response = JSONResponse(content={
+        "two_factor_required": False,
+        "username": user.username,
+        "is_admin": user.is_admin
+    })
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        max_age=12 * 3600
+    )
+
+    if payload.trust_device:
+        trust_token = create_trust_token(user.username, client_ip)
+        response.set_cookie(
+            key=TRUST_COOKIE_NAME,
+            value=trust_token,
+            httponly=True,
+            samesite="lax",
+            secure=False,
+            max_age=30 * 24 * 3600
+        )
+        logger.info(f"Issued 30-day trusted device cookie for user '{user.username}' on IP '{client_ip}'")
+
+    log_audit_action(db, "LOGIN_SUCCESS", f"User '{username}' logged in successfully via 2FA.", client_ip)
+    return response
+
+@router.post("/api/auth/logout", response_class=JSONResponse)
+def api_auth_logout():
+    """
+    Logs out the user and clears the session cookie.
+    """
+    response = JSONResponse(content={"status": "success", "message": "Logged out successfully"})
+    response.delete_cookie(COOKIE_NAME)
+    return response
+
+@router.post("/api/auth/2fa/setup", response_class=JSONResponse)
+def api_auth_2fa_setup(user: User = Depends(get_current_user)):
+    """
+    Generates a new TOTP secret for the currently logged-in user.
+    """
+    if user.two_factor_enabled:
+         raise HTTPException(status_code=400, detail="2FA is already enabled. Please disable it first if you wish to reset.")
+    secret = generate_totp_secret()
+    otpauth_url = f"otpauth://totp/TrackPortal:{user.username}?secret={secret}&issuer=TrackPortal"
+    return {
+        "secret": secret,
+        "otpauth_url": otpauth_url
+    }
+
+@router.post("/api/auth/2fa/enable", response_class=JSONResponse)
+def api_auth_2fa_enable(payload: TwoFactorEnableRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Verifies the TOTP code against the generated secret and permanently enables 2FA for the user.
+    """
+    if user.two_factor_enabled:
+         raise HTTPException(status_code=400, detail="2FA is already enabled.")
+
+    if not verify_totp(payload.secret, payload.code):
+        raise HTTPException(status_code=400, detail="Verification failed. Invalid code.")
+
+    user.two_factor_secret = payload.secret
+    user.two_factor_enabled = True
+    db.commit()
+    log_audit_action(db, "2FA_ENABLE", f"Enabled 2FA for user '{user.username}'.")
+    return {"status": "success"}
+
+@router.post("/api/auth/2fa/disable", response_class=JSONResponse)
+def api_auth_2fa_disable(payload: Dict[str, str], user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Disables 2FA (requires verifying a current 2FA code).
+    """
+    code = payload.get("code")
+    if not code:
+        raise HTTPException(status_code=400, detail="2FA verification code required")
+
+    if not user.two_factor_enabled or not user.two_factor_secret:
+         raise HTTPException(status_code=400, detail="2FA is not enabled.")
+
+    if not verify_totp(user.two_factor_secret, code):
+        raise HTTPException(status_code=400, detail="Verification failed. Invalid code.")
+
+    user.two_factor_secret = None
+    user.two_factor_enabled = False
+    db.commit()
+    log_audit_action(db, "2FA_DISABLE", f"Disabled 2FA for user '{user.username}'.")
+    return {"status": "success"}
+
+@router.get("/api/users", response_class=JSONResponse)
+def api_list_users(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    [ADMIN ONLY] Lists all registered users and their 2FA/Admin status.
+    """
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin permissions required")
+    users = db.query(User).all()
+    return [{"username": u.username, "two_factor_enabled": u.two_factor_enabled, "is_admin": u.is_admin} for u in users]
+
+@router.post("/api/users", response_class=JSONResponse)
+def api_create_user(payload: CreateUserRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    [ADMIN ONLY] Creates a new user. Enforces a maximum limit of 2 users total.
+    """
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin permissions required")
+
+    user_count = db.query(User).count()
+    if user_count >= 2:
+        raise HTTPException(status_code=400, detail="Max user limit of 2 reached. Cannot create more users.")
+
+    existing = db.query(User).filter(User.username == payload.username.strip()).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    hashed = hash_password(payload.password)
+    new_user = User(
+        username=payload.username.strip(),
+        password_hash=hashed,
+        is_admin=payload.is_admin,
+        created_at=datetime.datetime.utcnow()
+    )
+    db.add(new_user)
+    db.commit()
+    log_audit_action(db, "USER_CREATE", f"Admin created user '{payload.username.strip()}'.")
+    return {"status": "success"}
+
+@router.delete("/api/users/{target_username}", response_class=JSONResponse)
+def api_delete_user(target_username: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    [ADMIN ONLY] Deletes a user. Cannot delete self.
+    """
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin permissions required")
+    if target_username == user.username:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
+    target = db.query(User).filter(User.username == target_username).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    db.delete(target)
+    db.commit()
+    log_audit_action(db, "USER_DELETE", f"Admin deleted user '{target_username}'.")
+    return {"status": "success"}
+
+@router.post("/api/users/{target_username}/password", response_class=JSONResponse)
+def api_change_password(target_username: str, payload: ChangePasswordRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Changes a user's password. Admin can change anyone's, non-admin can only change self.
+    """
+    if not user.is_admin and target_username != user.username:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    target = db.query(User).filter(User.username == target_username).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    target.password_hash = hash_password(payload.new_password)
+    db.commit()
+    log_audit_action(db, "PASSWORD_CHANGE", f"Password changed for user '{target_username}'.")
+    return {"status": "success"}
 
 @router.get("/api/explore", response_class=JSONResponse)
 def api_get_explore(db: Session = Depends(get_db)):

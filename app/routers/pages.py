@@ -552,14 +552,10 @@ def api_list_users(user: User = Depends(get_current_user), db: Session = Depends
 @router.post("/api/users", response_class=JSONResponse)
 def api_create_user(payload: CreateUserRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """
-    [ADMIN ONLY] Creates a new user. Enforces a maximum limit of 2 users total.
+    [ADMIN ONLY] Creates a new user.
     """
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Admin permissions required")
-
-    user_count = db.query(User).count()
-    if user_count >= 2:
-        raise HTTPException(status_code=400, detail="Max user limit of 2 reached. Cannot create more users.")
 
     existing = db.query(User).filter(User.username == payload.username.strip()).first()
     if existing:

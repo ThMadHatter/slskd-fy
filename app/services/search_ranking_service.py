@@ -288,7 +288,8 @@ class SearchRankingService(SearchProviderContract):
             "dj_edit_penalty": dj_edit_penalty,
             "acapella_penalty": acapella_penalty,
             "instrumental_penalty": instrumental_penalty,
-            "final_score": final_score
+            "final_score": final_score,
+            "score_reasons": log_str
         }
 
     # Contract implementation methods

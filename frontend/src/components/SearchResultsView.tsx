@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { useSearchStore } from '../store/searchStore';
 import { useDownloadStore } from '../store/downloadStore';
 import { SlskdResult } from '../types';
-import { useReactTable, getCoreRowModel, flexRender, createColumnHelper } from '@tanstack/react-table';
+import { useReactTable, getCoreRowModel, getPaginationRowModel, getSortedRowModel, flexRender, createColumnHelper, SortingState } from '@tanstack/react-table';
 import { Search, Filter, Sliders, CheckSquare, Square, Download, ChevronDown, ChevronRight, HelpCircle, ArrowUpDown } from 'lucide-react';
 import Button from './ui/Button';
 import Card from './ui/Card';
@@ -19,6 +19,9 @@ export default function SearchResultsView() {
   const [isAccordionMode, setIsAccordionMode] = useState(false);
   const [expandedAlbums, setExpandedAlbums] = useState<Record<string, boolean>>({});
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [albumVerifiedOnly, setAlbumVerifiedOnly] = useState(false);
+  const [albumSortBy, setAlbumSortBy] = useState<'score' | 'year' | 'tracks'>('score');
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToastMessage(message);
@@ -127,17 +130,122 @@ export default function SearchResultsView() {
     });
   }, [results, filters]);
 
-  const groupedResults = useMemo(() => {
-    const groups: Record<string, SlskdResult[]> = {};
+  const getParentFolder = (filepath: string) => {
+    if (!filepath) return "Root";
+    const parts = filepath.split(/[\\/]/);
+    if (parts.length > 1) {
+      return parts[parts.length - 2];
+    }
+    return "Root";
+  };
+
+  const canonicalGroupedResults = useMemo(() => {
+    const releases: Record<string, {
+      name: string;
+      year?: number;
+      mbid?: string;
+      confidence: number;
+      verified: boolean;
+      tracksCount: number;
+      unresolvedCount: number;
+      avgScore: number;
+      sourceCount: number;
+      folders: Record<string, {
+        folderName: string;
+        avgScore: number;
+        tracks: SlskdResult[];
+      }>;
+    }> = {};
+
     filteredResults.forEach((item) => {
-      const albumKey = item.parsed_album || 'Single/Unclassified';
-      if (!groups[albumKey]) {
-        groups[albumKey] = [];
+      const releaseName = item.canonical_album || item.parsed_album || 'Single/Unclassified';
+      const isVerified = !!item.canonical_verified;
+
+      const key = isVerified ? `${releaseName}::${item.canonical_year || ''}` : `Unresolved::${releaseName}`;
+
+      if (!releases[key]) {
+        releases[key] = {
+          name: releaseName,
+          year: item.canonical_year || item.parsed_year || undefined,
+          mbid: item.canonical_mbid || undefined,
+          confidence: item.canonical_confidence || 0,
+          verified: isVerified,
+          tracksCount: 0,
+          unresolvedCount: 0,
+          avgScore: 0,
+          sourceCount: 0,
+          folders: {}
+        };
       }
-      groups[albumKey].push(item);
+
+      const release = releases[key];
+      release.tracksCount++;
+      if (!isVerified) {
+        release.unresolvedCount++;
+      }
+
+      const parentFolder = getParentFolder(item.filename);
+      if (!release.folders[parentFolder]) {
+        release.folders[parentFolder] = {
+          folderName: parentFolder,
+          avgScore: 0,
+          tracks: []
+        };
+      }
+
+      release.folders[parentFolder].tracks.push(item);
     });
-    return groups;
+
+    return Object.entries(releases).map(([key, rel]) => {
+      const foldersList = Object.values(rel.folders).map(folder => {
+        const sum = folder.tracks.reduce((acc, t) => acc + (t.score || 0), 0);
+        folder.avgScore = Math.round(sum / folder.tracks.length);
+        return folder;
+      });
+
+      foldersList.sort((a, b) => {
+        if (b.tracks.length !== a.tracks.length) {
+          return b.tracks.length - a.tracks.length;
+        }
+        return b.avgScore - a.avgScore;
+      });
+
+      const totalScoreSum = foldersList.reduce((acc, f) => acc + f.avgScore, 0);
+      rel.avgScore = foldersList.length > 0 ? Math.round(totalScoreSum / foldersList.length) : 0;
+      rel.sourceCount = foldersList.length;
+
+      return {
+        ...rel,
+        key,
+        foldersList
+      };
+    });
   }, [filteredResults]);
+
+  const processedGroupedResults = useMemo(() => {
+    let list = canonicalGroupedResults;
+
+    if (albumVerifiedOnly) {
+      list = list.filter(rel => rel.verified);
+    }
+
+    list = [...list].sort((a, b) => {
+      if (albumSortBy === 'score') {
+        return b.avgScore - a.avgScore;
+      }
+      if (albumSortBy === 'year') {
+        const yearA = a.year || 0;
+        const yearB = b.year || 0;
+        return yearB - yearA;
+      }
+      if (albumSortBy === 'tracks') {
+        return b.tracksCount - a.tracksCount;
+      }
+      return 0;
+    });
+
+    return list;
+  }, [canonicalGroupedResults, albumVerifiedOnly, albumSortBy]);
 
   const columnHelper = createColumnHelper<SlskdResult>();
   const columns = useMemo(() => [
@@ -163,7 +271,20 @@ export default function SearchResultsView() {
     }),
     columnHelper.accessor('score', {
       header: 'Score',
-      cell: (info) => <ScoreBadge score={info.getValue() || 0} />,
+      cell: (info) => {
+        const score = info.getValue() || 0;
+        const reasons = info.row.original.score_reasons || '';
+        return (
+          <div className="relative group/score inline-block">
+            <ScoreBadge score={score} />
+            {reasons && (
+              <div className="absolute left-12 top-0 scale-0 group-hover/score:scale-100 transition-all duration-150 bg-[#131314] border border-[#27272a] p-3 text-left font-data-mono text-[10px] text-[#bbcabf] whitespace-pre z-50 shadow-2xl rounded-none w-max max-w-xs pointer-events-none select-none">
+                {reasons}
+              </div>
+            )}
+          </div>
+        );
+      },
       meta: { width: 'w-16' }
     }),
     columnHelper.accessor('parsed_track', {
@@ -224,9 +345,18 @@ export default function SearchResultsView() {
   const table = useReactTable({
     data: filteredResults,
     columns,
-    state: { rowSelection },
+    state: { rowSelection, sorting },
     onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getRowId: (row) => `${row.username}-${row.filename}-${row.size}`,
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
+    },
   });
 
   const selectedCount = Object.keys(rowSelection).length;
@@ -269,7 +399,7 @@ export default function SearchResultsView() {
                 isAccordionMode ? 'bg-[#1c1b1c] text-[#10b981]' : 'bg-transparent text-[#bbcabf]'
               }`}
             >
-              {isAccordionMode ? 'Flat Grid View' : 'Group by Albums'}
+              {isAccordionMode ? 'Flat Grid View' : 'Canonical Album Grouping'}
             </button>
           </div>
         </div>
@@ -314,66 +444,125 @@ export default function SearchResultsView() {
           ) : isAccordionMode ? (
             /* SECTION: ACCORDION ALBUM GROUPINGS */
             <div className="divide-y divide-[#27272a] border-b border-[#27272a]">
-              {Object.entries(groupedResults).map(([album, albumTracks]) => {
-                const isExpanded = !!expandedAlbums[album];
+              {processedGroupedResults.map((rel) => {
+                const isExpanded = !!expandedAlbums[rel.key];
                 return (
-                  <div key={album} className="bg-[#0e0e0f]">
+                  <div key={rel.key} className="bg-[#0e0e0f]">
                     <button
-                      onClick={() => toggleAlbumExpand(album)}
+                      onClick={() => toggleAlbumExpand(rel.key)}
                       className="w-full flex items-center justify-between px-8 py-4 text-left hover:bg-[#1c1b1c] border-l-2 border-[#10b981] transition-colors cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         {isExpanded ? <ChevronDown size={18} className="text-[#10b981]" /> : <ChevronRight size={18} className="text-[#bbcabf]" />}
-                        <span className="font-headline-sm text-headline-sm text-[#e5e2e3] font-bold">{album}</span>
-                        <span className="font-data-mono text-data-mono text-[#bbcabf]/50 border border-[#27272a] px-2 py-0.5 ml-2">
-                          {albumTracks.length} items
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-headline-sm text-headline-sm text-[#e5e2e3] font-bold">
+                            {rel.name} {rel.year ? `(${rel.year})` : ''}
+                          </span>
+
+                          {/* Visual Verified MusicBrainz Badges */}
+                          {rel.verified && (
+                            <span className="bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/30 font-label-caps text-[9px] px-1.5 py-0.5 font-bold uppercase select-none rounded-none tracking-widest flex items-center gap-1">
+                              ✓ Verified MB ({rel.confidence}%)
+                            </span>
+                          )}
+
+                          <span className="font-data-mono text-[10px] text-[#bbcabf]/50 border border-[#27272a] px-1.5 py-0.5">
+                            {rel.tracksCount} tracks
+                          </span>
+                          <span className="font-data-mono text-[10px] text-[#bbcabf]/50 border border-[#27272a] px-1.5 py-0.5">
+                            {rel.sourceCount} sources
+                          </span>
+                          {rel.unresolvedCount > 0 && (
+                            <span className="bg-amber-500/10 text-amber-500 border border-amber-500/30 font-data-mono text-[10px] px-1.5 py-0.5">
+                              {rel.unresolvedCount} unresolved
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <span className="font-data-mono text-data-mono text-[#10b981]">
-                        Avg Score: {Math.round(albumTracks.reduce((acc, t) => acc + (t.score || 0), 0) / albumTracks.length)}%
+                        Avg Score: {rel.avgScore}%
                       </span>
                     </button>
 
-                    {/* Accordion Tracks List */}
+                    {/* Level 2 Accordion Sources List */}
                     {isExpanded && (
-                      <div className="bg-[#0a0a0b] pl-6 border-t border-[#27272a] overflow-x-auto">
-                        <table className="w-full text-left border-collapse table-fixed whitespace-nowrap min-w-[700px]">
-                          <thead className="bg-[#131314] text-xs font-label-caps text-label-caps text-[#bbcabf]/70 uppercase border-b border-[#27272a]">
-                            <tr>
-                              <th className="p-2 w-16">Score</th>
-                              <th className="p-2 w-48">Track</th>
-                              <th className="p-2 w-16">Format</th>
-                              <th className="p-2 w-20">Bitrate</th>
-                              <th className="p-2 w-20">Size</th>
-                              <th className="p-2 w-24">User</th>
-                              <th className="p-2 w-12">Q</th>
-                              <th className="p-2 w-10 text-center"></th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-[#27272a]/40 font-body-md text-sm text-[#bbcabf]">
-                            {albumTracks.map((track) => (
-                              <tr key={track.filename} className="hover:bg-[#1c1b1c]/70 group border-b border-[#27272a]/30">
-                                <td className="p-2">
-                                  <span className="font-data-mono text-data-mono text-[#10b981] font-bold">{track.score}</span>
-                                </td>
-                                <td className="p-2 text-[#e5e2e3] font-medium truncate" title={track.parsed_track}>{track.parsed_track || 'Unknown'}</td>
-                                <td className="p-2 font-data-mono text-data-mono uppercase">{track.format}</td>
-                                <td className="p-2 font-data-mono text-data-mono">{track.bitrate ? `${track.bitrate}k` : 'Lossless'}</td>
-                                <td className="p-2 font-data-mono text-data-mono">{formatBytes(track.size)}</td>
-                                <td className="p-2 font-data-mono text-data-mono text-[#10b981] truncate" title={track.username}>{track.username}</td>
-                                <td className="p-2 font-data-mono text-data-mono">{track.queue_length}</td>
-                                <td className="p-2 text-center">
-                                  <button
-                                    onClick={() => handleDownloadSingle(track)}
-                                    className="p-1 text-[#bbcabf] hover:text-[#10b981] cursor-pointer"
-                                  >
-                                    <Download size={14} />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div className="bg-[#0e0e0f] pl-8 pr-8 pb-4 flex flex-col gap-4 border-t border-[#27272a]/50">
+                        {rel.foldersList.map((folder, folderIdx) => {
+                          const folderKey = `${rel.key}::folder::${folder.folderName}::${folderIdx}`;
+                          const isFolderExpanded = !!expandedAlbums[folderKey];
+
+                          return (
+                            <div key={folderKey} className="border border-[#27272a]/60 bg-[#131314] mt-2">
+                              {/* Level 2: Source Folder Header */}
+                              <button
+                                onClick={() => toggleAlbumExpand(folderKey)}
+                                className="w-full flex items-center justify-between px-6 py-2.5 hover:bg-[#1c1b1c] text-left transition-colors cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2">
+                                  {isFolderExpanded ? <ChevronDown size={14} className="text-[#10b981]" /> : <ChevronRight size={14} className="text-[#bbcabf]" />}
+                                  <span className="font-data-mono text-xs text-[#bbcabf] uppercase tracking-wider">Source Folder:</span>
+                                  <span className="font-semibold text-sm text-[#e5e2e3] font-data-mono truncate" title={folder.folderName}>
+                                    {folder.folderName}
+                                  </span>
+                                  <span className="font-data-mono text-[9px] text-[#bbcabf]/50 border border-[#27272a] px-1 py-0.5">
+                                    {folder.tracks.length} tracks
+                                  </span>
+                                </div>
+                                <span className="font-data-mono text-xs text-[#10b981]">
+                                  Avg Score: {folder.avgScore}%
+                                </span>
+                              </button>
+
+                              {/* Level 3: Files (Tracks Table) */}
+                              {isFolderExpanded && (
+                                <div className="bg-[#0a0a0b] border-t border-[#27272a] overflow-x-auto">
+                                  <table className="w-full text-left border-collapse table-fixed whitespace-nowrap min-w-[700px]">
+                                    <thead className="bg-[#131314] text-xs font-label-caps text-label-caps text-[#bbcabf]/70 uppercase border-b border-[#27272a]">
+                                      <tr>
+                                        <th className="p-2 w-16">Score</th>
+                                        <th className="p-2 w-48">Track</th>
+                                        <th className="p-2 w-16">Format</th>
+                                        <th className="p-2 w-20">Bitrate</th>
+                                        <th className="p-2 w-20">Size</th>
+                                        <th className="p-2 w-24">User</th>
+                                        <th className="p-2 w-12">Q</th>
+                                        <th className="p-2 w-10 text-center"></th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-[#27272a]/40 font-body-md text-sm text-[#bbcabf]">
+                                      {folder.tracks.map((track) => (
+                                        <tr key={`${track.username}-${track.filename}-${track.size}`} className="hover:bg-[#1c1b1c]/70 group border-b border-[#27272a]/30">
+                                          <td className="p-2 relative group/scorecell">
+                                            <span className="font-data-mono text-data-mono text-[#10b981] font-bold cursor-help">{track.score}</span>
+                                            {track.score_reasons && (
+                                              <div className="absolute left-12 top-0 scale-0 group-hover/scorecell:scale-100 transition-all duration-150 bg-[#131314] border border-[#27272a] p-3 text-left font-data-mono text-[10px] text-[#bbcabf] whitespace-pre z-50 shadow-2xl rounded-none w-max max-w-xs pointer-events-none select-none">
+                                                {track.score_reasons}
+                                              </div>
+                                            )}
+                                          </td>
+                                          <td className="p-2 text-[#e5e2e3] font-medium truncate" title={track.parsed_track}>{track.parsed_track || 'Unknown'}</td>
+                                          <td className="p-2 font-data-mono text-data-mono uppercase">{track.format}</td>
+                                          <td className="p-2 font-data-mono text-data-mono">{track.bitrate ? `${track.bitrate}k` : 'Lossless'}</td>
+                                          <td className="p-2 font-data-mono text-data-mono">{formatBytes(track.size)}</td>
+                                          <td className="p-2 font-data-mono text-data-mono text-[#10b981] truncate" title={track.username}>{track.username}</td>
+                                          <td className="p-2 font-data-mono text-data-mono">{track.queue_length}</td>
+                                          <td className="p-2 text-center">
+                                            <button
+                                              onClick={() => handleDownloadSingle(track)}
+                                              className="p-1 text-[#bbcabf] hover:text-[#10b981] cursor-pointer"
+                                            >
+                                              <Download size={14} />
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -382,48 +571,85 @@ export default function SearchResultsView() {
             </div>
           ) : (
             /* SECTION: FLAT GRID VIEW (DEFAULT) */
-            <div className="w-full h-full overflow-x-auto">
-              <table className="w-full text-left border-collapse whitespace-nowrap table-fixed">
-                <thead className="sticky top-0 bg-[#1c1b1c] border-b border-[#27272a] z-10 font-label-caps text-label-caps text-[#bbcabf] uppercase tracking-widest">
-                  {table.getHeaderGroups().map(headerGroup => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map(header => (
-                        <th
-                          key={header.id}
-                          className="p-3 border-r border-[#27272a] text-left select-none text-[11px]"
-                          style={{ width: (header.column.columnDef.meta as any)?.width }}
-                        >
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
+            <div className="w-full h-full overflow-x-auto flex flex-col justify-between">
+              <div className="overflow-auto flex-1">
+                <table className="w-full text-left border-collapse whitespace-nowrap table-fixed">
+                  <thead className="sticky top-0 bg-[#1c1b1c] border-b border-[#27272a] z-10 font-label-caps text-label-caps text-[#bbcabf] uppercase tracking-widest">
+                    {table.getHeaderGroups().map(headerGroup => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map(header => (
+                          <th
+                            key={header.id}
+                            className="p-3 border-r border-[#27272a] text-left select-none text-[11px] cursor-pointer hover:bg-[#201f20]"
+                            style={{ width: (header.column.columnDef.meta as any)?.width }}
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            <div className="flex items-center gap-1">
+                              {header.isPlaceholder
+                                ? null
+                                : flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext()
+                                  )}
+                              {header.column.getCanSort() && (
+                                <span className="opacity-60">
+                                  {header.column.getIsSorted() === 'asc' ? ' ▲' : header.column.getIsSorted() === 'desc' ? ' ▼' : ' ⇅'}
+                                </span>
                               )}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody className="font-body-md text-body-md text-[#bbcabf] divide-y divide-[#27272a]">
-                  {table.getRowModel().rows.map((row, idx) => (
-                    <tr
-                      key={row.id}
-                      className={`hover:bg-[#1c1b1c] transition-colors duration-150 group cursor-pointer border-b border-[#27272a] ${
-                        idx % 2 === 1 ? 'bg-[#0e0e0f]' : 'bg-[#131314]'
-                      }`}
-                    >
-                      {row.getVisibleCells().map(cell => (
-                        <td
-                          key={cell.id}
-                          className="p-3 border-r border-[#27272a] last:border-0 overflow-hidden truncate"
-                        >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody className="font-body-md text-body-md text-[#bbcabf] divide-y divide-[#27272a]">
+                    {table.getRowModel().rows.map((row, idx) => (
+                      <tr
+                        key={row.id}
+                        className={`hover:bg-[#1c1b1c] transition-colors duration-150 group cursor-pointer border-b border-[#27272a] ${
+                          idx % 2 === 1 ? 'bg-[#0e0e0f]' : 'bg-[#131314]'
+                        }`}
+                      >
+                        {row.getVisibleCells().map(cell => (
+                          <td
+                            key={cell.id}
+                            className="p-3 border-r border-[#27272a] last:border-0 overflow-hidden truncate"
+                          >
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              <div className="bg-[#131314] border-t border-[#27272a] px-8 py-3 flex items-center justify-between shrink-0 select-none">
+                <div className="flex items-center gap-2 font-data-mono text-data-mono text-xs text-[#bbcabf]">
+                  <span>Page</span>
+                  <strong className="text-[#e5e2e3]">
+                    {table.getState().pagination.pageIndex + 1} of{' '}
+                    {table.getPageCount() || 1}
+                  </strong>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => table.previousPage()}
+                    disabled={!table.getCanPreviousPage()}
+                    className="border border-[#27272a] px-3 py-1 font-label-caps text-label-caps text-xs hover:border-[#10b981] disabled:opacity-30 disabled:hover:border-[#27272a] cursor-pointer bg-[#1c1b1c] text-[#bbcabf]"
+                  >
+                    PREV
+                  </button>
+                  <button
+                    onClick={() => table.nextPage()}
+                    disabled={!table.getCanNextPage()}
+                    className="border border-[#27272a] px-3 py-1 font-label-caps text-label-caps text-xs hover:border-[#10b981] disabled:opacity-30 disabled:hover:border-[#27272a] cursor-pointer bg-[#1c1b1c] text-[#bbcabf]"
+                  >
+                    NEXT
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -445,6 +671,53 @@ export default function SearchResultsView() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {/* Filter: Album Optimizations (only in Accordion/Album mode) */}
+          {isAccordionMode && (
+            <div className="border border-[#10b981]/30 p-3 bg-[#131314] space-y-4">
+              <h4 className="font-label-caps text-label-caps text-[#10b981] uppercase tracking-widest border-b border-[#27272a] pb-1.5 font-bold">
+                Album Optimizations
+              </h4>
+
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={albumVerifiedOnly}
+                  onChange={(e) => setAlbumVerifiedOnly(e.target.checked)}
+                  className="rounded-none bg-[#0a0a0b] border-[#27272a] text-[#10b981] focus:ring-0 h-3 w-3 transition-colors cursor-pointer"
+                />
+                <span className="font-body-md text-body-md text-[#e5e2e3] group-hover:text-[#10b981] font-bold">
+                  Verified Only
+                </span>
+              </label>
+
+              <div>
+                <span className="font-label-caps text-[10px] text-[#bbcabf]/70 uppercase block mb-1.5">Sort Albums By:</span>
+                <div className="flex flex-col gap-1.5">
+                  {[
+                    { id: 'score', label: 'Average Score' },
+                    { id: 'year', label: 'Release Year' },
+                    { id: 'tracks', label: 'Track Count' },
+                  ].map((opt) => (
+                    <label key={opt.id} className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="radio"
+                        name="albumSortBy"
+                        checked={albumSortBy === opt.id}
+                        onChange={() => setAlbumSortBy(opt.id as any)}
+                        className="bg-[#0a0a0b] border-[#27272a] text-[#10b981] focus:ring-0 h-3 w-3 cursor-pointer"
+                      />
+                      <span className={`font-body-md text-xs ${
+                        albumSortBy === opt.id ? 'text-[#10b981] font-bold' : 'text-[#bbcabf]'
+                      } group-hover:text-[#10b981]`}>
+                        {opt.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Filter: Format */}
           <div>
             <h4 className="font-label-caps text-label-caps text-[#bbcabf] uppercase tracking-widest mb-3 border-b border-[#27272a] pb-1.5">

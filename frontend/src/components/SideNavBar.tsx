@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigationStore, TabType } from '../store/navigationStore';
 import { useDownloadStore } from '../store/downloadStore';
 import { Home, Compass, Search, Download, Settings, User, RefreshCw, Disc } from 'lucide-react';
@@ -10,6 +10,35 @@ export default function SideNavBar() {
   const { queue } = useDownloadStore();
 
   const activeDownloads = queue.filter((dl) => dl.status === 'downloading').length;
+
+  const [buildInfo, setBuildInfo] = useState({
+    version: '0.4.7',
+    git_commit: 'unknown',
+    build_date: 'unknown',
+    api_version: '2.0.0',
+    slskd_version: '0.17.x',
+    beets_version: '1.6.0',
+  });
+  const [showBuildInfo, setShowBuildInfo] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/version')
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error();
+      })
+      .then((data) => {
+        setBuildInfo({
+          version: data.version || '0.4.7',
+          git_commit: data.git_commit || 'unknown',
+          build_date: data.build_date || 'unknown',
+          api_version: data.api_version || '2.0.0',
+          slskd_version: data.slskd_version || '0.17.x',
+          beets_version: data.beets_version || '1.6.0',
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   const navItems = [
     { id: 'home', label: 'Home', icon: Home, hotkey: '⌘1', seq: 'G H' },
@@ -96,7 +125,62 @@ export default function SideNavBar() {
             <span className="font-data-mono text-[10px] text-[#bbcabf]/40">G T</span>
           </button>
         </div>
+
+        <div className="border-t border-[#27272a] pt-4 flex flex-col items-center">
+          <button
+            onClick={() => setShowBuildInfo(true)}
+            className="text-[10px] font-data-mono text-data-mono text-[#bbcabf]/50 hover:text-[#10b981] transition-colors cursor-pointer text-center select-none focus:outline-none"
+          >
+            v{buildInfo.version} ({buildInfo.git_commit})
+          </button>
+        </div>
       </div>
+
+      {showBuildInfo && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowBuildInfo(false)}
+          ></div>
+          <div className="relative w-full max-w-sm bg-[#131314] border border-[#27272a] p-6 shadow-2xl flex flex-col gap-4 text-left">
+            <h3 className="font-label-caps text-label-caps text-[#e5e2e3] font-bold border-b border-[#27272a] pb-2 uppercase tracking-wider">
+              Build Verification Heuristics
+            </h3>
+            <div className="flex flex-col gap-2 font-data-mono text-data-mono text-xs text-[#bbcabf]">
+              <div className="flex justify-between border-b border-[#27272a]/40 pb-1">
+                <span>Application Version</span>
+                <span className="text-[#10b981] font-bold">{buildInfo.version}</span>
+              </div>
+              <div className="flex justify-between border-b border-[#27272a]/40 pb-1">
+                <span>Git Commit</span>
+                <span className="text-[#e5e2e3]">{buildInfo.git_commit}</span>
+              </div>
+              <div className="flex justify-between border-b border-[#27272a]/40 pb-1">
+                <span>Build Timestamp</span>
+                <span className="text-[#e5e2e3] text-right">{buildInfo.build_date}</span>
+              </div>
+              <div className="flex justify-between border-b border-[#27272a]/40 pb-1">
+                <span>Backend API Version</span>
+                <span className="text-[#e5e2e3]">{buildInfo.api_version}</span>
+              </div>
+              <div className="flex justify-between border-b border-[#27272a]/40 pb-1">
+                <span>slskd version</span>
+                <span className="text-[#e5e2e3]">{buildInfo.slskd_version}</span>
+              </div>
+              <div className="flex justify-between border-b border-[#27272a]/40 pb-1">
+                <span>Beets version</span>
+                <span className="text-[#e5e2e3]">{buildInfo.beets_version}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowBuildInfo(false)}
+              className="mt-2 w-full border border-[#27272a] py-2 bg-[#1c1b1c] text-[#bbcabf] hover:text-[#e5e2e3] hover:border-[#10b981] font-label-caps text-label-caps text-xs tracking-widest cursor-pointer text-center transition-colors"
+            >
+              CLOSE VERIFICATION
+            </button>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

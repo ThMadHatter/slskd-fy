@@ -42,4 +42,9 @@ class Settings(BaseSettings):
     # Can be STRICT, BALANCED, or AGGRESSIVE
     SEARCH_STRATEGY: str = "BALANCED"
 
+    # Dynamic build versioning and metadata injected at container build-time
+    APP_VERSION: str = "0.4.7"
+    GIT_COMMIT: str = "unknown"
+    BUILD_DATE: str = "unknown"
+
 settings = Settings()

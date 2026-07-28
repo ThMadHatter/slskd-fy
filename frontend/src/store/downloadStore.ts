@@ -5,93 +5,89 @@ interface DownloadState {
   queue: DownloadItem[];
   activeCount: number;
   totalSpeed: number;
+  pollInterval: number;
+  cancelledIds: string[];
 
   setQueue: (queue: DownloadItem[]) => void;
+  fetchQueue: () => Promise<void>;
   addDownload: (item: Omit<DownloadItem, 'id' | 'bytesTransferred' | 'progress' | 'speed' | 'eta'>) => void;
   pauseDownload: (id: string) => void;
   resumeDownload: (id: string) => void;
-  cancelDownload: (id: string) => void;
+  cancelDownload: (id: string, username?: string) => Promise<void>;
   retryDownload: (id: string) => void;
   pauseAll: () => void;
   resumeAll: () => void;
   clearCompleted: () => void;
 }
 
-const mockDownloads: DownloadItem[] = [
-  {
-    id: 'dl-1',
-    filename: 'Aphex Twin - Selected Ambient Works 85-92 [FLAC].zip',
-    username: 'user_analog',
-    status: 'downloading',
-    size: 412 * 1024 * 1024,
-    bytesTransferred: 412 * 1024 * 1024 * 0.68,
-    speed: 2.4 * 1024 * 1024,
-    eta: 134,
-    progress: 68,
-  },
-  {
-    id: 'dl-2',
-    filename: 'Burial - Untrue (2007) [320kbps].rar',
-    username: 'ambient_drone',
-    status: 'downloading',
-    size: 104 * 1024 * 1024,
-    bytesTransferred: 104 * 1024 * 1024 * 0.12,
-    speed: 1.1 * 1024 * 1024,
-    eta: 285,
-    progress: 12,
-  },
-  {
-    id: 'dl-3',
-    filename: 'Boards of Canada - Geogaddi.zip',
-    username: 'fast_leecher',
-    status: 'queued',
-    size: 250 * 1024 * 1024,
-    bytesTransferred: 0,
-    speed: 0,
-    eta: 0,
-    progress: 0,
-  },
-  {
-    id: 'dl-4',
-    filename: 'Autechre - Tri Repetae.rar',
-    username: 'archive_bot',
-    status: 'queued',
-    size: 180 * 1024 * 1024,
-    bytesTransferred: 0,
-    speed: 0,
-    eta: 0,
-    progress: 0,
-  },
-  {
-    id: 'dl-5',
-    filename: 'Massive Attack - Mezzanine (FLAC).zip',
-    username: 'user_analog',
-    status: 'completed',
-    size: 385 * 1024 * 1024,
-    bytesTransferred: 385 * 1024 * 1024,
-    speed: 0,
-    eta: 0,
-    progress: 100,
-  },
-  {
-    id: 'dl-6',
-    filename: 'Various Artists - 90s Jungle Classics.rar',
-    username: 'ambient_drone',
-    status: 'failed',
-    size: 450 * 1024 * 1024,
-    bytesTransferred: 45 * 1024 * 1024,
-    speed: 0,
-    eta: 0,
-    progress: 10,
-  }
-];
-
-export const useDownloadStore = create<DownloadState>((set) => ({
-  queue: mockDownloads,
-  activeCount: 4,
-  totalSpeed: 3.5 * 1024 * 1024,
+export const useDownloadStore = create<DownloadState>((set, get) => ({
+  queue: [],
+  activeCount: 0,
+  totalSpeed: 0,
+  pollInterval: 3000,
+  cancelledIds: [],
 
   setQueue: (queue) => set({ queue }),
+
+  fetchQueue: async () => {
+    try {
+      const response = await fetch('/api/transfers');
+      if (!response.ok) {
+        throw new Error(`Server returned status ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      const mappedQueue: DownloadItem[] = data.flatMap((userDl: any) => {
+        const username = userDl.username;
+        const dirs = userDl.directories || [];
+        const files = userDl.files || [];
+
+        const dirFiles = dirs.flatMap((d: any) => (d.files || []).map((f: any) => ({
+          id: f.id || `${username}-${f.filename}`,
+          filename: f.filename,
+          username: username,
+          status: (f.state === 'Completed' ? 'completed' : f.state === 'Downloading' ? 'downloading' : f.state === 'Failed' ? 'failed' : 'queued') as any,
+          size: f.size || 0,
+          bytesTransferred: f.bytesTransferred || 0,
+          speed: f.speed || 0,
+          eta: f.eta || 0,
+          progress: f.percentComplete || 0,
+        })));
+
+        const flatFiles = files.map((f: any) => ({
+          id: f.id || `${username}-${f.filename}`,
+          filename: f.filename,
+          username: username,
+          status: (f.state === 'Completed' ? 'completed' : f.state === 'Downloading' ? 'downloading' : f.state === 'Failed' ? 'failed' : 'queued') as any,
+          size: f.size || 0,
+          bytesTransferred: f.bytesTransferred || 0,
+          speed: f.speed || 0,
+          eta: f.eta || 0,
+          progress: f.percentComplete || 0,
+        }));
+
+        return [...dirFiles, ...flatFiles];
+      });
+
+      // Filter out any recently cancelled IDs to ensure optimistic update integrity
+      const { cancelledIds } = get();
+      const filteredMapped = mappedQueue.filter(item => !cancelledIds.includes(item.id));
+
+      set({
+        queue: filteredMapped,
+        activeCount: filteredMapped.filter(item => item.status === 'downloading').length,
+        totalSpeed: filteredMapped.reduce((acc, item) => acc + item.speed, 0),
+        pollInterval: 3000, // Reset backoff on success
+      });
+    } catch (err) {
+      console.error('Fetch transfers failed. Applying network backoff...', err);
+      // Double the interval up to 30 seconds
+      set((state) => ({
+        pollInterval: Math.min(state.pollInterval * 2, 30000)
+      }));
+    }
+  },
 
   addDownload: (item) => set((state) => {
     const newItem: DownloadItem = {
@@ -113,9 +109,24 @@ export const useDownloadStore = create<DownloadState>((set) => ({
     queue: state.queue.map((dl) => dl.id === id ? { ...dl, status: 'downloading', speed: 1.5 * 1024 * 1024, eta: 60 } : dl)
   })),
 
-  cancelDownload: (id) => set((state) => ({
-    queue: state.queue.filter((dl) => dl.id !== id)
-  })),
+  cancelDownload: async (id: string, username?: string) => {
+    // 1. Instantly perform optimistic update & register cancelled ID to prevent poll race conditions
+    set((state) => ({
+      queue: state.queue.filter((dl) => dl.id !== id),
+      cancelledIds: [...state.cancelledIds, id]
+    }));
+
+    // 2. Perform background delete request
+    try {
+      if (username) {
+        await fetch(`/api/transfers/${encodeURIComponent(username)}/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+        });
+      }
+    } catch (err) {
+      console.error('Failed to cancel download on backend:', err);
+    }
+  },
 
   retryDownload: (id) => set((state) => ({
     queue: state.queue.map((dl) => dl.id === id ? { ...dl, status: 'downloading', speed: 1.2 * 1024 * 1024, eta: 90, progress: 0, bytesTransferred: 0 } : dl)

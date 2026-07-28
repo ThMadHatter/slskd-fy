@@ -81,13 +81,13 @@ def test_search_query_valid():
 
 
 def test_search_query_invalid():
-    # Empty artist
+    # Both artist and track are empty
     with pytest.raises(ValidationError):
-        SearchQuery(artist="", track="One More Time")
+        SearchQuery(artist="", track="")
 
-    # Empty track
+    # Both artist and track are whitespace
     with pytest.raises(ValidationError):
-        SearchQuery(artist="Daft Punk", track="")
+        SearchQuery(artist="   ", track="  ")
 
     # Invalid mode
     with pytest.raises(ValidationError):

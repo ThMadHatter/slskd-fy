@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDownloadStore } from '../store/downloadStore';
 import { DownloadItem, DownloadStatus } from '../types';
 import { Search, Pause, Play, RefreshCw, X, FolderOpen, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
@@ -10,8 +10,8 @@ import ProgressBar from './ui/ProgressBar';
 export default function DownloadsView() {
   const {
     queue,
-    pauseDownload,
-    resumeDownload,
+    fetchQueue,
+    pollInterval,
     cancelDownload,
     retryDownload,
     pauseAll,
@@ -20,6 +20,24 @@ export default function DownloadsView() {
   } = useDownloadStore();
 
   const [filterQuery, setFilterQuery] = useState('');
+
+  useEffect(() => {
+    let timeoutId: any;
+
+    const poll = async () => {
+      await fetchQueue();
+      const currentInterval = useDownloadStore.getState().pollInterval;
+      timeoutId = setTimeout(poll, currentInterval);
+    };
+
+    poll();
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [fetchQueue]);
 
   const formatBytes = (bytes: number) => {
     if (!bytes || bytes === 0) return '0 B';
@@ -145,14 +163,7 @@ export default function DownloadsView() {
                 <div className="col-span-1 text-right font-data-mono text-data-mono text-[#10b981]">{formatEta(item.eta)}</div>
                 <div className="col-span-1 flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => pauseDownload(item.id)}
-                    className="p-1 text-[#bbcabf] hover:text-[#e5e2e3] cursor-pointer"
-                    title="Pause"
-                  >
-                    <Pause size={16} />
-                  </button>
-                  <button
-                    onClick={() => cancelDownload(item.id)}
+                    onClick={() => cancelDownload(item.id, item.username)}
                     className="p-1 text-[#bbcabf] hover:text-red-400 cursor-pointer"
                     title="Cancel"
                   >
@@ -188,14 +199,7 @@ export default function DownloadsView() {
                 <div className="col-span-1 text-right font-data-mono text-data-mono text-[#bbcabf]/70">--</div>
                 <div className="col-span-1 flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => resumeDownload(item.id)}
-                    className="p-1 text-[#bbcabf] hover:text-[#e5e2e3] cursor-pointer"
-                    title="Resume"
-                  >
-                    <Play size={16} />
-                  </button>
-                  <button
-                    onClick={() => cancelDownload(item.id)}
+                    onClick={() => cancelDownload(item.id, item.username)}
                     className="p-1 text-[#bbcabf] hover:text-red-400 cursor-pointer"
                     title="Cancel"
                   >
@@ -273,7 +277,7 @@ export default function DownloadsView() {
                     <RefreshCw size={16} />
                   </button>
                   <button
-                    onClick={() => cancelDownload(item.id)}
+                    onClick={() => cancelDownload(item.id, item.username)}
                     className="p-1 text-[#bbcabf] hover:text-red-400 cursor-pointer"
                     title="Remove"
                   >

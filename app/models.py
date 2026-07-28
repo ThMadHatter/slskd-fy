@@ -11,6 +11,8 @@ class User(Base):
     is_admin = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
+    two_factor_secret = Column(String, nullable=True)
+    two_factor_enabled = Column(Boolean, default=False, nullable=False)
 
 class Wishlist(Base):
     __tablename__ = "wishlist"

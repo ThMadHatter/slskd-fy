@@ -14,9 +14,11 @@ export default function HomeView() {
   const { setActiveTab } = useNavigationStore();
   const {
     artist,
+    artistMbid,
     track,
     searchMode,
     setArtist,
+    setArtistMbid,
     setTrack,
     setSearchMode,
     setResults,
@@ -29,6 +31,8 @@ export default function HomeView() {
   const [trackInput, setTrackInput] = useState(track);
   const [showArtistDropdown, setShowArtistDropdown] = useState(false);
   const [showTrackDropdown, setShowTrackDropdown] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
 
   const [debouncedArtist, setDebouncedArtist] = useState('');
   const [debouncedTrack, setDebouncedTrack] = useState('');
@@ -67,6 +71,12 @@ export default function HomeView() {
     enabled: debouncedTrack.trim().length >= 2 && debouncedArtist.trim().length > 0,
   });
 
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
   const handleSearchExecute = async () => {
     const searchArtist = searchType === 'structured' ? artistInput.trim() : '';
     const searchTrack = searchType === 'structured' ? trackInput.trim() : keywordQuery.trim();
@@ -86,14 +96,60 @@ export default function HomeView() {
         body: JSON.stringify({
           artist: searchArtist,
           track_or_album: searchTrack,
+          mode: searchMode,
+          artist_mbid: artistMbid,
         }),
       });
 
-      if (!response.ok) throw new Error('Search failed');
-      const data = await response.json();
-      setResults(data.results || []);
-    } catch (error) {
-      console.error(error);
+      if (!response.ok) throw new Error('Search execution request failed');
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Streaming response body not readable');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        let value, done;
+        try {
+          const chunk = await reader.read();
+          value = chunk.value;
+          done = chunk.done;
+        } catch (readErr: any) {
+          throw new Error(`Stream read interrupted: ${readErr?.message || readErr}`);
+        }
+
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const data = JSON.parse(line);
+              if (data.results && data.results.length > 0) {
+                const currentResults = useSearchStore.getState().results;
+                const merged = [...currentResults];
+                data.results.forEach((item: any) => {
+                  if (!merged.some(m => m.username === item.username && m.filename === item.filename)) {
+                    merged.push(item);
+                  }
+                });
+                setResults(merged);
+              }
+            } catch (jsonErr) {
+              console.error('Error parsing streamed JSON chunk:', jsonErr);
+            }
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('Search Stream Error:', error);
+      showToast(error?.message || 'Connection interrupted. Showing partial search results.', 'error');
     } finally {
       setIsSearching(false);
     }
@@ -101,6 +157,13 @@ export default function HomeView() {
 
   return (
     <div className="w-full max-w-4xl mx-auto flex flex-col gap-8 animate-fade-in-up mt-8">
+      {toastMessage && (
+        <div className={`fixed bottom-6 right-6 border p-4 z-50 flex items-center gap-3 ${
+          toastType === 'success' ? 'bg-[#131314] border-[#10b981] text-[#10b981]' : 'bg-[#131314] border-red-500 text-red-400'
+        }`}>
+          <span className="font-semibold text-sm">{toastMessage}</span>
+        </div>
+      )}
       {/* Title Header */}
       <div className="text-center md:text-left select-none mb-2">
         <h2 className="font-headline-lg text-headline-lg font-bold text-[#e5e2e3] tracking-tight uppercase">
@@ -153,6 +216,7 @@ export default function HomeView() {
                     value={artistInput}
                     onChange={(e) => {
                       setArtistInput(e.target.value);
+                      setArtistMbid(''); // Clear MBID cache on manual edits
                       setShowArtistDropdown(true);
                     }}
                     onFocus={() => setShowArtistDropdown(true)}
@@ -169,8 +233,10 @@ export default function HomeView() {
                     {artistSuggestions.map((item: any) => (
                       <li key={item.id}>
                         <button
+                          type="button"
                           onMouseDown={() => {
                             setArtistInput(item.name);
+                            setArtistMbid(item.id); // Bind selected MBID!
                             setShowArtistDropdown(false);
                           }}
                           className="w-full text-left px-4 py-2.5 hover:bg-[#1c1b1c] text-[#bbcabf] hover:text-[#e5e2e3] font-data-mono text-data-mono flex items-center justify-between cursor-pointer"
@@ -215,6 +281,7 @@ export default function HomeView() {
                     {trackSuggestions.map((item: any) => (
                       <li key={item.id}>
                         <button
+                          type="button"
                           onMouseDown={() => {
                             setTrackInput(item.title);
                             setShowTrackDropdown(false);
@@ -299,9 +366,11 @@ export default function HomeView() {
             ].map((q, idx) => (
               <button
                 key={idx}
+                type="button"
                 onClick={() => {
                   if (q.label === 'ARTIST') {
                     setArtistInput(q.value);
+                    setArtistMbid('');
                   } else {
                     setTrackInput(q.value);
                   }

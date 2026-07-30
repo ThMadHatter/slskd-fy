@@ -6,7 +6,13 @@
 .coverage
 htmlcov/
 *.db
+*.log
 .env
 **/node_modules/
 **/.next/
 **/out/
+/home/jules/verification/
+verification/
+dist/
+build/
+*.egg-info/

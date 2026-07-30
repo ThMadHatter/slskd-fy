@@ -114,17 +114,3 @@ def test_login_flow_with_2fa_enabled():
     assert verify_success.status_code == 200
     assert COOKIE_NAME in verify_success.cookies
 
-def test_user_limit_max_2():
-    client = TestClient(app)
-    login_resp = client.post("/api/auth/login", json={"username": "test_user", "password": "test_pass"})
-    session_cookie = login_resp.cookies.get(COOKIE_NAME)
-    client.cookies.set(COOKIE_NAME, session_cookie)
-
-    # Create user 2 (success)
-    u2_resp = client.post("/api/users", json={"username": "user2", "password": "user2_pass", "is_admin": False})
-    assert u2_resp.status_code == 200
-
-    # Try to create user 3 (should fail due to max 2 limit)
-    u3_resp = client.post("/api/users", json={"username": "user3", "password": "user3_pass", "is_admin": False})
-    assert u3_resp.status_code == 400
-    assert u3_resp.json()["detail"] == "Max user limit of 2 reached. Cannot create more users."

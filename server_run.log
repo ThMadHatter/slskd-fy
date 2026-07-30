@@ -1,21 +1,39 @@
-INFO:     Started server process [761652]
+INFO:     Started server process [297353]
 INFO:     Waiting for application startup.
-2026-07-20 09:03:15,343 [INFO] track_portal: Startup step 1 complete
-2026-07-20 09:03:15,343 [INFO] track_portal: Startup step 2: Running database migrations...
-2026-07-20 09:03:15,343 [INFO] track_portal: Running database migrations via Alembic...
+2026-07-30 06:54:33,490 [INFO] track_portal: Startup step 1 complete
+2026-07-30 06:54:33,490 [INFO] track_portal: Startup step 2: Running database migrations...
+2026-07-30 06:54:33,490 [INFO] track_portal: Running database migrations via Alembic...
 INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
 INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
-2026-07-20 09:03:15,361 [INFO] track_portal: Database migrations completed successfully!
-2026-07-20 09:03:15,361 [INFO] track_portal: Startup step 2 complete
-2026-07-20 09:03:15,361 [INFO] track_portal: Startup step 3: Initializing admin user if none exists...
-2026-07-20 09:03:15,361 [INFO] track_portal.auth: Startup step 3a: Querying User count in database...
-2026-07-20 09:03:15,376 [INFO] track_portal.auth: Startup step 3b: User count is 1
-2026-07-20 09:03:15,376 [INFO] track_portal: Startup step 3 complete
-2026-07-20 09:03:15,376 [INFO] track_portal: Startup step 4: Starting background downloads poller...
-2026-07-20 09:03:15,376 [INFO] track_portal.poller: Startup step 4a: Getting event loop...
-2026-07-20 09:03:15,376 [INFO] track_portal.poller: Startup step 4b: Creating task for poll_downloads...
-2026-07-20 09:03:15,376 [INFO] track_portal.poller: Startup step 4c: Background download poller started successfully.
-2026-07-20 09:03:15,376 [INFO] track_portal: Startup step 4 complete
-2026-07-20 09:03:15,376 [INFO] track_portal: Startup step 5: Lifespan startup fully complete!
+2026-07-30 06:54:33,500 [INFO] track_portal: Database migrations completed successfully!
+2026-07-30 06:54:33,500 [INFO] track_portal: Startup step 2 complete
+2026-07-30 06:54:33,500 [INFO] track_portal: Startup step 3: Initializing admin user if none exists...
+2026-07-30 06:54:33,500 [INFO] track_portal.auth: Startup step 3a: Querying User count in database...
+2026-07-30 06:54:33,513 [INFO] track_portal.auth: Startup step 3b: User count is 1
+2026-07-30 06:54:33,513 [INFO] track_portal: Startup step 3 complete
+2026-07-30 06:54:33,513 [INFO] track_portal: Startup step 4: Starting background downloads poller...
+2026-07-30 06:54:33,514 [INFO] track_portal.poller: Startup step 4a: Getting event loop...
+2026-07-30 06:54:33,514 [INFO] track_portal.poller: Startup step 4b: Creating task for poll_downloads...
+2026-07-30 06:54:33,514 [INFO] track_portal.poller: Startup step 4c: Background download poller started successfully.
+2026-07-30 06:54:33,514 [INFO] track_portal: Startup step 4 complete
+2026-07-30 06:54:33,514 [INFO] track_portal: Startup step 5: Lifespan startup fully complete!
+[AUDIT_POLLER] Loop Step: active downloads found count=0
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:53466 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53466 - "GET /_next/static/css/c5b3feb667e2c366.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53468 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53482 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53496 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53512 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53468 - "GET /_next/static/chunks/913-4578f460422b4b5d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53466 - "GET /_next/static/chunks/app/layout-bd32455b8ca90555.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53520 - "GET /_next/static/chunks/445-06202f55a3658a48.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53482 - "GET /_next/static/chunks/210-7b8c0f45a73ffdd4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53468 - "GET /_next/static/chunks/app/page-5a7de415c3d1d9f0.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53468 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-07-30 06:54:36,766 [INFO] track_portal: Shutting down Track Portal...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [297353]

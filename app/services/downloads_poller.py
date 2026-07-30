@@ -276,6 +276,12 @@ async def poll_downloads():
                                         wishlist_item.fulfilled_at = datetime.utcnow()
 
                                     logger.info(f"Track '{download.track}' successfully organized and marked completed.")
+                                    try:
+                                        import subprocess
+                                        logger.info(f"Triggering beets import on completed track: {dest_file_path}")
+                                        subprocess.Popen(["beet", "import", "-q", "-y", dest_file_path])
+                                    except Exception as e_beet:
+                                        logger.error(f"Failed to trigger beets import: {e_beet}")
                                 except Exception as e:
                                     logger.error(f"Failed to move completed file {found_file_path}: {e}")
                             else:
@@ -316,6 +322,13 @@ async def poll_downloads():
                                 if wishlist_item:
                                     wishlist_item.status = "downloaded"
                                     wishlist_item.fulfilled_at = datetime.utcnow()
+
+                                try:
+                                    import subprocess
+                                    logger.info(f"Triggering beets import on orphaned track: {dest_file_path}")
+                                    subprocess.Popen(["beet", "import", "-q", "-y", dest_file_path])
+                                except Exception as e_beet:
+                                    logger.error(f"Failed to trigger beets import: {e_beet}")
                             except Exception as e:
                                 logger.error(f"Failed to move orphaned file: {e}")
 

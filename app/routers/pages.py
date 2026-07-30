@@ -136,7 +136,8 @@ async def get_spa(request: Request):
 async def api_search(
     payload: SearchRequest,
     search_executor: SearchExecutorContract = Depends(get_search_executor),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
     """
     Triggers progressive fallback query generation, executes on slskd,
@@ -265,7 +266,8 @@ async def api_search(
 @router.post("/api/download", response_class=JSONResponse)
 async def api_download(
     payload: DownloadRequest,
-    slskd_client: SlskdClientContract = Depends(get_slskd_client)
+    slskd_client: SlskdClientContract = Depends(get_slskd_client),
+    user: User = Depends(get_current_user)
 ):
     """
     Enqueues a file download via slskd.
@@ -287,7 +289,8 @@ async def api_download(
 async def api_autocomplete_artist(
     q: Optional[str] = None,
     artist: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
     """
     Returns autocomplete suggestions for artists.
@@ -302,7 +305,8 @@ async def api_autocomplete_track(
     track: Optional[str] = None,
     artist_name: Optional[str] = None,
     artist: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
 ):
     """
     Returns autocomplete suggestions for tracks.
@@ -610,7 +614,7 @@ def api_change_password(target_username: str, payload: ChangePasswordRequest, us
     return {"status": "success"}
 
 @router.get("/api/explore", response_class=JSONResponse)
-def api_get_explore(db: Session = Depends(get_db)):
+def api_get_explore(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """
     [DAT-001] Dynamic Statistics and Local Discovery Engine endpoint.
     Aggregates SearchHistory, CacheEntry, and DownloadHistory into dynamic lists.
@@ -738,7 +742,8 @@ def api_get_explore(db: Session = Depends(get_db)):
 
 @router.get("/api/transfers", response_class=JSONResponse)
 async def api_get_transfers(
-    slskd_client: SlskdClientContract = Depends(get_slskd_client)
+    slskd_client: SlskdClientContract = Depends(get_slskd_client),
+    user: User = Depends(get_current_user)
 ):
     """
     Retrieves the real-time downloads/transfers from slskd.
@@ -750,7 +755,8 @@ async def api_get_transfers(
 async def api_cancel_transfer(
     username: str,
     id_: str,
-    slskd_client: SlskdClientContract = Depends(get_slskd_client)
+    slskd_client: SlskdClientContract = Depends(get_slskd_client),
+    user: User = Depends(get_current_user)
 ):
     """
     Cancels a specific transfer in slskd.
@@ -762,7 +768,7 @@ async def api_cancel_transfer(
         raise HTTPException(status_code=500, detail="Failed to cancel transfer")
 
 @router.get("/api/version", response_class=JSONResponse)
-def api_get_version():
+def api_get_version(user: User = Depends(get_current_user)):
     """
     Returns application build version and metadata.
     """

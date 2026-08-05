@@ -6,7 +6,7 @@ import { useSearchStore } from '../store/searchStore';
 import { Search, Filter, Sliders, Settings2, Menu } from 'lucide-react';
 
 export default function TopAppBar() {
-  const { toggleCommandPalette, toggleMobileMenu } = useNavigationStore();
+  const { toggleCommandPalette, toggleMobileMenu, setActiveTab } = useNavigationStore();
   const { artist, track } = useSearchStore();
 
   const searchQueryDisplay = artist && track
@@ -62,7 +62,11 @@ export default function TopAppBar() {
             T
           </div>
         </button>
-        <button className="hover:text-[#10b981] transition-colors cursor-pointer relative group flex items-center justify-center p-1">
+        <button
+          onClick={() => setActiveTab('settings')}
+          className="hover:text-[#10b981] transition-colors cursor-pointer relative group flex items-center justify-center p-1"
+          title="Settings"
+        >
           <Settings2 size={18} />
           <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#201f20] border border-[#27272a] px-1.5 py-0.5 font-data-mono text-[10px] text-[#e5e2e3] whitespace-nowrap pointer-events-none z-50">
             C

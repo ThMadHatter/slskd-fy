@@ -10,7 +10,7 @@ import Button from './ui/Button';
 
 interface ExploreData {
   trending_artists: Array<{ name: string; match: string; hotkey: string }>;
-  trending_albums: Array<{ title: string; artist: string; format: string; seeders: string }>;
+  trending_albums: Array<{ title: string; artist: string; format: string; seeders: string; mbid?: string }>;
   rediscover: { title: string; artist: string; format: string };
   additions: Array<{ title: string; path: string; fmt: string; size: number; seeders: string }>;
   similar: Array<{ name: string; similarity: string }>;
@@ -87,7 +87,8 @@ export default function ExploreView() {
     title: "Architectural Silence",
     artist: "Autechre & Ryoji Ikeda",
     format: "FLAC 24-bit/96kHz",
-    seeders: "912 Seeders"
+    seeders: "912 Seeders",
+    mbid: undefined as string | undefined
   };
 
   const secondaryAlbums = exploreData.trending_albums.slice(1, 3);
@@ -111,7 +112,18 @@ export default function ExploreView() {
           <div className="col-span-1 md:col-span-2 row-span-2 group relative overflow-hidden border border-[#27272a] bg-[#131314] flex flex-col">
             <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0b] via-[#0a0a0b]/80 to-transparent z-10"></div>
             <div className="absolute inset-0 w-full h-full bg-[#1c1b1c] opacity-60 group-hover:opacity-85 group-hover:scale-105 transition-all duration-500 flex items-center justify-center">
-              <span className="font-data-mono text-data-mono text-[#bbcabf]/20 uppercase text-8xl tracking-tighter">ARCHIVE</span>
+              {featuredAlbum.mbid ? (
+                <img
+                  src={`https://coverartarchive.org/release-group/${featuredAlbum.mbid}/front-250`}
+                  alt={featuredAlbum.title}
+                  className="w-full h-full object-cover opacity-25 group-hover:opacity-40 transition-opacity duration-500 grayscale contrast-125 brightness-75"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = 'none';
+                  }}
+                />
+              ) : (
+                <span className="font-data-mono text-data-mono text-[#bbcabf]/20 uppercase text-8xl tracking-tighter">ARCHIVE</span>
+              )}
             </div>
             <div className="relative z-20 mt-auto p-6 flex flex-col gap-2">
               <div className="flex items-center gap-2 mb-2">
@@ -148,7 +160,18 @@ export default function ExploreView() {
           {secondaryAlbums.map((album, idx) => (
             <div key={idx} className="border border-[#27272a] bg-[#1c1b1c] rounded-none p-4 flex flex-col justify-between hover:border-[#10b981] transition-colors group relative">
               <div className="relative w-full aspect-square bg-[#131314] overflow-hidden flex items-center justify-center">
-                <span className="font-data-mono text-data-mono text-[#bbcabf]/10 uppercase text-3xl font-bold">ALBUM</span>
+                {album.mbid ? (
+                  <img
+                    src={`https://coverartarchive.org/release-group/${album.mbid}/front-250`}
+                    alt={album.title}
+                    className="w-full h-full object-cover opacity-30 group-hover:opacity-50 transition-all duration-500 grayscale contrast-125 brightness-75"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <span className="font-data-mono text-data-mono text-[#bbcabf]/10 uppercase text-3xl font-bold">ALBUM</span>
+                )}
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                   <Button
                     onClick={() => handleQuickSearch(album.artist, album.title)}

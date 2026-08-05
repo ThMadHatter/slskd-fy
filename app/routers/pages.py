@@ -676,7 +676,8 @@ def api_get_explore(db: Session = Depends(get_db), user: User = Depends(get_curr
                             "title": title,
                             "artist": r.get("artist_name") or "Various Artists",
                             "format": "FLAC",
-                            "seeders": "MusicBrainz Cache"
+                            "seeders": "MusicBrainz Cache",
+                            "mbid": r.get("mbid")
                         })
         except Exception:
             pass

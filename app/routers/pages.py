@@ -163,6 +163,10 @@ async def api_search(
                 artists = await MusicBrainzService.search_artists(artist, db)
                 if artists:
                     artist_mbid = artists[0].get("id")
+                    official_name = artists[0].get("name")
+                    if official_name:
+                        logger.info(f"Enriching search artist '{artist}' -> '{official_name}' via MusicBrainz")
+                        artist = official_name
             except Exception as e:
                 logger.error(f"Error resolving artist MBID dynamically: {e}")
 

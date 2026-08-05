@@ -112,18 +112,12 @@ export default function ExploreView() {
           <div className="col-span-1 md:col-span-2 row-span-2 group relative overflow-hidden border border-[#27272a] bg-[#131314] flex flex-col">
             <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0b] via-[#0a0a0b]/80 to-transparent z-10"></div>
             <div className="absolute inset-0 w-full h-full bg-[#1c1b1c] opacity-60 group-hover:opacity-85 group-hover:scale-105 transition-all duration-500 flex items-center justify-center">
-              {featuredAlbum.mbid ? (
-                <img
-                  src={`https://coverartarchive.org/release-group/${featuredAlbum.mbid}/front-250`}
-                  alt={featuredAlbum.title}
-                  className="w-full h-full object-cover opacity-25 group-hover:opacity-40 transition-opacity duration-500 grayscale contrast-125 brightness-75"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = 'none';
-                  }}
-                />
-              ) : (
-                <span className="font-data-mono text-data-mono text-[#bbcabf]/20 uppercase text-8xl tracking-tighter">ARCHIVE</span>
-              )}
+              <AlbumArt
+                artist={featuredAlbum.artist}
+                title={featuredAlbum.title}
+                mbid={featuredAlbum.mbid}
+                className="w-full h-full object-cover opacity-25 group-hover:opacity-40 transition-opacity duration-500 grayscale contrast-125 brightness-75"
+              />
             </div>
             <div className="relative z-20 mt-auto p-6 flex flex-col gap-2">
               <div className="flex items-center gap-2 mb-2">
@@ -160,18 +154,12 @@ export default function ExploreView() {
           {secondaryAlbums.map((album, idx) => (
             <div key={idx} className="border border-[#27272a] bg-[#1c1b1c] rounded-none p-4 flex flex-col justify-between hover:border-[#10b981] transition-colors group relative">
               <div className="relative w-full aspect-square bg-[#131314] overflow-hidden flex items-center justify-center">
-                {album.mbid ? (
-                  <img
-                    src={`https://coverartarchive.org/release-group/${album.mbid}/front-250`}
-                    alt={album.title}
-                    className="w-full h-full object-cover opacity-30 group-hover:opacity-50 transition-all duration-500 grayscale contrast-125 brightness-75"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <span className="font-data-mono text-data-mono text-[#bbcabf]/10 uppercase text-3xl font-bold">ALBUM</span>
-                )}
+                <AlbumArt
+                  artist={album.artist}
+                  title={album.title}
+                  mbid={album.mbid}
+                  className="w-full h-full object-cover opacity-30 group-hover:opacity-50 transition-all duration-500 grayscale contrast-125 brightness-75"
+                />
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                   <Button
                     onClick={() => handleQuickSearch(album.artist, album.title)}
@@ -358,4 +346,73 @@ function formatBytes(bytes: number) {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function AlbumArt({ artist, title, mbid, className }: { artist: string; title: string; mbid?: string; className?: string }) {
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    // 1. Try Cover Art Archive if mbid is provided
+    if (mbid) {
+      setImgUrl(`https://coverartarchive.org/release-group/${mbid}/front-250`);
+      return;
+    }
+
+    // 2. Otherwise, query iTunes Search API (highly reliable, no rate limit/CORS issues)
+    const queryITunes = async () => {
+      try {
+        const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artist + ' ' + title)}&entity=album&limit=1`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.results && data.results.length > 0) {
+            const artworkUrl = data.results[0].artworkUrl100;
+            // Replace 100x100 with 500x500 for a gorgeous high-res image
+            const highResUrl = artworkUrl.replace('100x100bb.jpg', '500x500bb.jpg').replace('100x100', '500x500');
+            setImgUrl(highResUrl);
+          }
+        }
+      } catch (err) {
+        console.error("iTunes cover art resolution failed:", err);
+      }
+    };
+
+    queryITunes();
+  }, [artist, title, mbid]);
+
+  if (!imgUrl) {
+    return <span className="font-data-mono text-data-mono text-[#bbcabf]/10 uppercase text-3xl font-bold">ALBUM</span>;
+  }
+
+  return (
+    <img
+      src={imgUrl}
+      alt={title}
+      className={className}
+      onError={(e) => {
+        // If Cover Art Archive mbid call failed (returned 404), fall back to iTunes Search API
+        if (mbid) {
+          const queryITunes = async () => {
+            try {
+              const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artist + ' ' + title)}&entity=album&limit=1`);
+              if (res.ok) {
+                const data = await res.json();
+                if (data.results && data.results.length > 0) {
+                  const artworkUrl = data.results[0].artworkUrl100;
+                  const highResUrl = artworkUrl.replace('100x100bb.jpg', '500x500bb.jpg').replace('100x100', '500x500');
+                  setImgUrl(highResUrl);
+                  return;
+                }
+              }
+            } catch (err) {
+              console.error("iTunes cover art fallback resolution failed:", err);
+            }
+            setImgUrl(null); // Completely hide if all attempts fail
+          };
+          queryITunes();
+        } else {
+          setImgUrl(null);
+        }
+      }}
+    />
+  );
 }

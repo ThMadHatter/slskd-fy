@@ -51,6 +51,23 @@ class FallbackSearchExecutor(SearchExecutorContract):
         artist = query.artist.strip()
         track = query.track.strip()
 
+        # Enforce dynamic artist name enrichment for robust P2P searching [Gap 22]
+        if artist:
+            from app.database import SessionLocal
+            from app.services.musicbrainz_service import MusicBrainzService
+            db = SessionLocal()
+            try:
+                artists = await MusicBrainzService.search_artists(artist, db)
+                if artists:
+                    official_name = artists[0].get("name")
+                    if official_name:
+                        logger.info(f"Enriching search executor artist '{artist}' -> '{official_name}' via MusicBrainz")
+                        artist = official_name
+            except Exception as e:
+                logger.error(f"Error enriching executor artist: {e}")
+            finally:
+                db.close()
+
         # Log exact required log keyword: SEARCH_START
         logger.info(f"SEARCH_START - Artist: '{artist}', Track: '{track}'")
 

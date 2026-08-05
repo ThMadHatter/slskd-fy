@@ -49,7 +49,7 @@ export default function SideNavBar() {
   ] as const;
 
   return (
-    <nav className="fixed left-0 top-0 h-full w-[240px] bg-[#0a0a0b] border-r border-[#27272a] flex flex-col py-8 z-50 shrink-0">
+    <nav className="hidden md:flex fixed left-0 top-0 h-full w-[240px] bg-[#0a0a0b] border-r border-[#27272a] flex-col py-8 z-50 shrink-0">
       <div className="px-6 mb-8 flex items-center gap-3">
         <Disc className="text-[#10b981] animate-[spin_8s_linear_infinite] shrink-0" size={24} />
         <div className="flex flex-col">

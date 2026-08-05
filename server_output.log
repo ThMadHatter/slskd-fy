@@ -1,22 +1,23 @@
-INFO:     Started server process [216679]
+INFO:     Started server process [938541]
 INFO:     Waiting for application startup.
-2026-07-22 15:08:06,428 [INFO] track_portal: Startup step 1 complete
-2026-07-22 15:08:06,428 [INFO] track_portal: Startup step 2: Running database migrations...
-2026-07-22 15:08:06,428 [INFO] track_portal: Running database migrations via Alembic...
+2026-08-05 06:44:13,465 [INFO] track_portal: Startup step 1 complete
+2026-08-05 06:44:13,465 [INFO] track_portal: Startup step 2: Running database migrations...
+2026-08-05 06:44:13,465 [INFO] track_portal: Running database migrations via Alembic...
 INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
 INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
-2026-07-22 15:08:06,438 [INFO] track_portal: Database migrations completed successfully!
-2026-07-22 15:08:06,438 [INFO] track_portal: Startup step 2 complete
-2026-07-22 15:08:06,438 [INFO] track_portal: Startup step 3: Initializing admin user if none exists...
-2026-07-22 15:08:06,438 [INFO] track_portal.auth: Startup step 3a: Querying User count in database...
-2026-07-22 15:08:06,453 [INFO] track_portal.auth: Startup step 3b: User count is 1
-2026-07-22 15:08:06,453 [INFO] track_portal: Startup step 3 complete
-2026-07-22 15:08:06,453 [INFO] track_portal: Startup step 4: Starting background downloads poller...
-2026-07-22 15:08:06,453 [INFO] track_portal.poller: Startup step 4a: Getting event loop...
-2026-07-22 15:08:06,453 [INFO] track_portal.poller: Startup step 4b: Creating task for poll_downloads...
-2026-07-22 15:08:06,453 [INFO] track_portal.poller: Startup step 4c: Background download poller started successfully.
-2026-07-22 15:08:06,454 [INFO] track_portal: Startup step 4 complete
-2026-07-22 15:08:06,454 [INFO] track_portal: Startup step 5: Lifespan startup fully complete!
+2026-08-05 06:44:13,476 [INFO] track_portal: Database migrations completed successfully!
+2026-08-05 06:44:13,476 [INFO] track_portal: Startup step 2 complete
+2026-08-05 06:44:13,476 [INFO] track_portal: Startup step 3: Initializing admin user if none exists...
+2026-08-05 06:44:13,476 [INFO] track_portal.auth: Startup step 3a: Querying User count in database...
+2026-08-05 06:44:13,494 [INFO] track_portal.auth: Startup step 3b: User count is 0
+2026-08-05 06:44:13,868 [INFO] track_portal.auth: Initialized database with single admin user: 'admin'
+2026-08-05 06:44:13,868 [INFO] track_portal: Startup step 3 complete
+2026-08-05 06:44:13,869 [INFO] track_portal: Startup step 4: Starting background downloads poller...
+2026-08-05 06:44:13,869 [INFO] track_portal.poller: Startup step 4a: Getting event loop...
+2026-08-05 06:44:13,869 [INFO] track_portal.poller: Startup step 4b: Creating task for poll_downloads...
+2026-08-05 06:44:13,869 [INFO] track_portal.poller: Startup step 4c: Background download poller started successfully.
+2026-08-05 06:44:13,869 [INFO] track_portal: Startup step 4 complete
+2026-08-05 06:44:13,869 [INFO] track_portal: Startup step 5: Lifespan startup fully complete!
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
@@ -25,310 +26,23 @@ INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     127.0.0.1:43848 - "GET / HTTP/1.1" 500 Internal Server Error
-ERROR:    Exception in ASGI application
-Traceback (most recent call last):
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/uvicorn/protocols/http/h11_impl.py", line 416, in run_asgi
-    result = await app(  # type: ignore[func-returns-value]
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 63, in __call__
-    return await self.app(scope, receive, send)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/applications.py", line 1163, in __call__
-    await super().__call__(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/applications.py", line 90, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
-    raise exc
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
-    await self.app(scope, receive, _send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/base.py", line 193, in __call__
-    response = await self.dispatch_func(request, call_next)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/app/main.py", line 97, in security_middleware
-    response = await call_next(request)
-               ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/base.py", line 168, in call_next
-    raise app_exc from app_exc.__cause__ or app_exc.__context__
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/base.py", line 144, in coro
-    await self.app(scope, receive_or_disconnect, send_no_error)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
-    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
-    await self.app(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/routing.py", line 660, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 2683, in app
-    await route.handle(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 1753, in handle
-    await self.original_router.handle(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 2738, in handle
-    await included_router._handle_selected(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 1773, in _handle_selected
-    await original_route.handle(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 1264, in handle
-    await app(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 150, in app
-    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 136, in app
-    response = await f(request)
-               ^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 690, in app
-    raw_response = await run_endpoint_function(
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 344, in run_endpoint_function
-    return await dependant.call(**values)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/app/routers/pages.py", line 37, in get_spa
-    return templates.TemplateResponse("index.html", {"request": request})
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/templating.py", line 148, in TemplateResponse
-    template = self.get_template(name)
-               ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/templating.py", line 115, in get_template
-    return self.env.get_template(name)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/jinja2/environment.py", line 1016, in get_template
-    return self._load_template(name, globals)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/jinja2/environment.py", line 964, in _load_template
-    template = self.cache.get(cache_key)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/jinja2/utils.py", line 477, in get
-    return self[key]
-           ~~~~^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/jinja2/utils.py", line 515, in __getitem__
-    rv = self._mapping[key]
-         ~~~~~~~~~~~~~^^^^^
-TypeError: unhashable type: 'dict'
 [AUDIT_POLLER] Loop Step: active downloads found count=0
+INFO:     127.0.0.1:60468 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60468 - "GET /_next/static/css/03000fe0e41b980c.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60484 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60496 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60506 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60526 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60510 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60468 - "GET /_next/static/chunks/191-44cb50786ad1c7e6.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60484 - "GET /_next/static/chunks/app/layout-9cdf912a302137e2.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60526 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60506 - "GET /_next/static/chunks/app/page-78c71eb87636e496.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60506 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
 [AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     127.0.0.1:33700 - "GET / HTTP/1.1" 500 Internal Server Error
-ERROR:    Exception in ASGI application
-Traceback (most recent call last):
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/uvicorn/protocols/http/h11_impl.py", line 416, in run_asgi
-    result = await app(  # type: ignore[func-returns-value]
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 63, in __call__
-    return await self.app(scope, receive, send)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/applications.py", line 1163, in __call__
-    await super().__call__(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/applications.py", line 90, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
-    raise exc
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
-    await self.app(scope, receive, _send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/base.py", line 193, in __call__
-    response = await self.dispatch_func(request, call_next)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/app/main.py", line 97, in security_middleware
-    response = await call_next(request)
-               ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/base.py", line 168, in call_next
-    raise app_exc from app_exc.__cause__ or app_exc.__context__
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/base.py", line 144, in coro
-    await self.app(scope, receive_or_disconnect, send_no_error)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
-    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
-    await self.app(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/routing.py", line 660, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 2683, in app
-    await route.handle(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 1753, in handle
-    await self.original_router.handle(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 2738, in handle
-    await included_router._handle_selected(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 1773, in _handle_selected
-    await original_route.handle(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 1264, in handle
-    await app(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 150, in app
-    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 136, in app
-    response = await f(request)
-               ^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 690, in app
-    raw_response = await run_endpoint_function(
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 344, in run_endpoint_function
-    return await dependant.call(**values)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/app/routers/pages.py", line 37, in get_spa
-    return templates.TemplateResponse("index.html", {"request": request})
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/templating.py", line 148, in TemplateResponse
-    template = self.get_template(name)
-               ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/templating.py", line 115, in get_template
-    return self.env.get_template(name)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/jinja2/environment.py", line 1016, in get_template
-    return self._load_template(name, globals)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/jinja2/environment.py", line 964, in _load_template
-    template = self.cache.get(cache_key)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/jinja2/utils.py", line 477, in get
-    return self[key]
-           ~~~~^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/jinja2/utils.py", line 515, in __getitem__
-    rv = self._mapping[key]
-         ~~~~~~~~~~~~~^^^^^
-TypeError: unhashable type: 'dict'
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     127.0.0.1:58736 - "GET / HTTP/1.1" 500 Internal Server Error
-ERROR:    Exception in ASGI application
-Traceback (most recent call last):
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/uvicorn/protocols/http/h11_impl.py", line 416, in run_asgi
-    result = await app(  # type: ignore[func-returns-value]
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 63, in __call__
-    return await self.app(scope, receive, send)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/applications.py", line 1163, in __call__
-    await super().__call__(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/applications.py", line 90, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
-    raise exc
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
-    await self.app(scope, receive, _send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/base.py", line 193, in __call__
-    response = await self.dispatch_func(request, call_next)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/app/main.py", line 97, in security_middleware
-    response = await call_next(request)
-               ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/base.py", line 168, in call_next
-    raise app_exc from app_exc.__cause__ or app_exc.__context__
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/base.py", line 144, in coro
-    await self.app(scope, receive_or_disconnect, send_no_error)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
-    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
-    await self.app(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/routing.py", line 660, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 2683, in app
-    await route.handle(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 1753, in handle
-    await self.original_router.handle(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 2738, in handle
-    await included_router._handle_selected(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 1773, in _handle_selected
-    await original_route.handle(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 1264, in handle
-    await app(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 150, in app
-    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 136, in app
-    response = await f(request)
-               ^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 690, in app
-    raw_response = await run_endpoint_function(
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/fastapi/routing.py", line 344, in run_endpoint_function
-    return await dependant.call(**values)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/app/app/routers/pages.py", line 37, in get_spa
-    return templates.TemplateResponse("index.html", {"request": request})
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/templating.py", line 148, in TemplateResponse
-    template = self.get_template(name)
-               ^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/starlette/templating.py", line 115, in get_template
-    return self.env.get_template(name)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/jinja2/environment.py", line 1016, in get_template
-    return self._load_template(name, globals)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/jinja2/environment.py", line 964, in _load_template
-    template = self.cache.get(cache_key)
-               ^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/jinja2/utils.py", line 477, in get
-    return self[key]
-           ~~~~^^^^^
-  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/jinja2/utils.py", line 515, in __getitem__
-    rv = self._mapping[key]
-         ~~~~~~~~~~~~~^^^^^
-TypeError: unhashable type: 'dict'
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
+INFO:     127.0.0.1:60506 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60506 - "GET /api/version HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60526 - "GET /api/version HTTP/1.1" 200 OK
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0

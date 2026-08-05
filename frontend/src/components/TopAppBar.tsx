@@ -3,10 +3,10 @@
 import React from 'react';
 import { useNavigationStore } from '../store/navigationStore';
 import { useSearchStore } from '../store/searchStore';
-import { Search, Filter, Sliders, Settings2 } from 'lucide-react';
+import { Search, Filter, Sliders, Settings2, Menu } from 'lucide-react';
 
 export default function TopAppBar() {
-  const { toggleCommandPalette } = useNavigationStore();
+  const { toggleCommandPalette, toggleMobileMenu } = useNavigationStore();
   const { artist, track } = useSearchStore();
 
   const searchQueryDisplay = artist && track
@@ -14,8 +14,16 @@ export default function TopAppBar() {
     : artist || track || '';
 
   return (
-    <header className="bg-[#131314] border-b border-[#27272a] flex items-center justify-between h-16 px-8 w-full sticky top-0 z-40 shrink-0 select-none">
+    <header className="bg-[#131314] border-b border-[#27272a] flex items-center justify-between h-16 px-4 md:px-8 w-full sticky top-0 z-40 shrink-0 select-none">
       <div className="flex items-center gap-4 flex-1">
+        {/* Hamburger Menu Button (Mobile Only) */}
+        <button
+          onClick={toggleMobileMenu}
+          className="md:hidden text-[#bbcabf] hover:text-[#10b981] p-1.5 cursor-pointer shrink-0"
+        >
+          <Menu size={20} />
+        </button>
+
         {/* Subtle Command Palette Input Trigger */}
         <div className="relative flex items-center w-full max-w-md">
           <Search size={16} className="absolute left-3 text-[#bbcabf]" />

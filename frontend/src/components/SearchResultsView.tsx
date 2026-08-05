@@ -5,7 +5,7 @@ import { useSearchStore } from '../store/searchStore';
 import { useDownloadStore } from '../store/downloadStore';
 import { SlskdResult } from '../types';
 import { useReactTable, getCoreRowModel, getPaginationRowModel, getSortedRowModel, flexRender, createColumnHelper, SortingState } from '@tanstack/react-table';
-import { Search, Filter, Sliders, CheckSquare, Square, Download, ChevronDown, ChevronRight, HelpCircle, ArrowUpDown } from 'lucide-react';
+import { Search, Filter, Sliders, CheckSquare, Square, Download, ChevronDown, ChevronRight, HelpCircle, ArrowUpDown, X } from 'lucide-react';
 import Button from './ui/Button';
 import Card from './ui/Card';
 import ScoreBadge from './ui/ScoreBadge';
@@ -22,6 +22,7 @@ export default function SearchResultsView() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [albumVerifiedOnly, setAlbumVerifiedOnly] = useState(false);
   const [albumSortBy, setAlbumSortBy] = useState<'score' | 'year' | 'tracks'>('score');
+  const [showFiltersMobile, setShowFiltersMobile] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToastMessage(message);
@@ -365,7 +366,14 @@ export default function SearchResultsView() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-10rem)] overflow-hidden bg-[#0a0a0b] animate-fade-in-up -mx-8 -my-8 select-none">
+    <div className="flex h-[calc(100vh-10rem)] overflow-hidden bg-[#0a0a0b] animate-fade-in-up -mx-4 -my-4 md:-mx-8 md:-my-8 select-none">
+
+      {showFiltersMobile && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          onClick={() => setShowFiltersMobile(false)}
+        />
+      )}
 
       {toastMessage && (
         <div className={`fixed bottom-6 right-6 border p-4 z-50 flex items-center gap-3 ${
@@ -379,8 +387,8 @@ export default function SearchResultsView() {
       <div className="flex-1 flex flex-col h-full overflow-hidden border-r border-[#27272a]">
 
         {/* Table Title Header */}
-        <div className="p-8 pb-4 border-b border-[#27272a] shrink-0 bg-[#0a0a0b]">
-          <div className="flex items-center justify-between">
+        <div className="p-4 md:p-8 pb-4 border-b border-[#27272a] shrink-0 bg-[#0a0a0b]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h2 className="font-headline-lg text-headline-lg text-[#e5e2e3] font-bold tracking-tight">
                 Search Results
@@ -393,21 +401,31 @@ export default function SearchResultsView() {
               </p>
             </div>
 
-            <button
-              onClick={() => setIsAccordionMode(!isAccordionMode)}
-              className={`border border-[#27272a] px-4 py-2 font-label-caps text-label-caps tracking-wider cursor-pointer hover:border-[#10b981] ${
-                isAccordionMode ? 'bg-[#1c1b1c] text-[#10b981]' : 'bg-transparent text-[#bbcabf]'
-              }`}
-            >
-              {isAccordionMode ? 'Flat Grid View' : 'Canonical Album Grouping'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowFiltersMobile(!showFiltersMobile)}
+                className="lg:hidden border border-[#27272a] px-3 py-2 font-label-caps text-label-caps tracking-wider cursor-pointer hover:border-[#10b981] bg-transparent text-[#bbcabf] flex items-center gap-1.5 shrink-0"
+              >
+                <Filter size={14} />
+                Filters
+              </button>
+
+              <button
+                onClick={() => setIsAccordionMode(!isAccordionMode)}
+                className={`border border-[#27272a] px-4 py-2 font-label-caps text-label-caps tracking-wider cursor-pointer hover:border-[#10b981] ${
+                  isAccordionMode ? 'bg-[#1c1b1c] text-[#10b981]' : 'bg-transparent text-[#bbcabf]'
+                }`}
+              >
+                {isAccordionMode ? 'Flat Grid View' : 'Canonical Album Grouping'}
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Bulk Action Header bar */}
         {selectedCount > 0 && (
-          <div className="bg-[#201f20] border-b border-[#27272a] px-8 py-2.5 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-4">
+          <div className="bg-[#201f20] border-b border-[#27272a] px-4 md:px-8 py-2.5 flex flex-wrap gap-2 items-center justify-between shrink-0">
+            <div className="flex flex-wrap items-center gap-4">
               <span className="font-data-mono text-data-mono text-[#e5e2e3] bg-[#2a2a2b] border border-[#27272a] px-2.5 py-1">
                 {selectedCount} selected
               </span>
@@ -573,7 +591,7 @@ export default function SearchResultsView() {
             /* SECTION: FLAT GRID VIEW (DEFAULT) */
             <div className="w-full h-full overflow-x-auto flex flex-col justify-between">
               <div className="overflow-auto flex-1">
-                <table className="w-full text-left border-collapse whitespace-nowrap table-fixed">
+                <table className="w-full text-left border-collapse whitespace-nowrap table-fixed min-w-[1000px]">
                   <thead className="sticky top-0 bg-[#1c1b1c] border-b border-[#27272a] z-10 font-label-caps text-label-caps text-[#bbcabf] uppercase tracking-widest">
                     {table.getHeaderGroups().map(headerGroup => (
                       <tr key={headerGroup.id}>
@@ -656,18 +674,29 @@ export default function SearchResultsView() {
       </div>
 
       {/* Refinement Inspector Sidebar (Right) */}
-      <aside className="w-[280px] bg-[#131314] flex flex-col shrink-0 overflow-hidden z-30 select-none">
+      <aside className={`
+        ${showFiltersMobile ? 'fixed inset-y-0 right-0 z-50 w-[280px] bg-[#131314] shadow-2xl flex flex-col border-l border-[#27272a]' : 'hidden'}
+        lg:static lg:flex lg:w-[280px] lg:bg-[#131314] lg:flex-col lg:shrink-0 lg:overflow-hidden lg:z-30 lg:border-l lg:border-[#27272a] select-none
+      `}>
         <div className="p-4 border-b border-[#27272a] bg-[#1c1b1c] shrink-0 flex items-center justify-between">
           <h3 className="font-label-caps text-label-caps text-[#e5e2e3] uppercase tracking-widest flex items-center gap-1.5 font-bold">
             <Filter size={14} className="text-[#10b981]" />
             Refine Search
           </h3>
-          <button
-            onClick={clearFilters}
-            className="text-[#bbcabf] hover:text-[#e5e2e3] transition-colors font-label-caps text-[10px] uppercase tracking-wider block cursor-pointer"
-          >
-            Clear All
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={clearFilters}
+              className="text-[#bbcabf] hover:text-[#e5e2e3] transition-colors font-label-caps text-[10px] uppercase tracking-wider cursor-pointer"
+            >
+              Clear All
+            </button>
+            <button
+              onClick={() => setShowFiltersMobile(false)}
+              className="lg:hidden text-[#bbcabf] hover:text-[#10b981] p-1 cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">

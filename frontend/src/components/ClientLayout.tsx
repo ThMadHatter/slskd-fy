@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import SideNavBar from './SideNavBar';
 import TopAppBar from './TopAppBar';
 import CommandPalette from './CommandPalette';
+import MobileNavDrawer from './MobileNavDrawer';
 import { useHotkeys } from '../hooks/useHotkeys';
 import { useNavigationStore } from '../store/navigationStore';
 import { useAuthStore } from '../store/authStore';
@@ -40,9 +41,10 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   return (
     <div className="bg-[#0a0a0b] text-[#e5e2e3] font-body-md antialiased min-h-screen flex selection:bg-[#353436] selection:text-[#10b981]">
       <SideNavBar />
-      <div className="flex-1 ml-[240px] flex flex-col h-screen overflow-hidden">
+      <MobileNavDrawer />
+      <div className="flex-1 ml-0 md:ml-[240px] flex flex-col h-screen overflow-hidden">
         <TopAppBar />
-        <div className="flex-1 overflow-y-auto bg-[#0a0a0b] p-8">
+        <div className="flex-1 overflow-y-auto bg-[#0a0a0b] p-4 md:p-8">
           {children}
         </div>
       </div>

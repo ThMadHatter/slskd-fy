@@ -1,32 +1,23 @@
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2026-08-04 16:13:49,164 [INFO] track_portal: Shutting down Track Portal...
-INFO:     Application shutdown complete.
-INFO:     Finished server process [190915]
-INFO:     Started server process [203244]
+INFO:     Started server process [938541]
 INFO:     Waiting for application startup.
-2026-08-04 16:13:50,582 [INFO] track_portal: Startup step 1 complete
-2026-08-04 16:13:50,582 [INFO] track_portal: Startup step 2: Running database migrations...
-2026-08-04 16:13:50,582 [INFO] track_portal: Running database migrations via Alembic...
+2026-08-05 06:44:13,465 [INFO] track_portal: Startup step 1 complete
+2026-08-05 06:44:13,465 [INFO] track_portal: Startup step 2: Running database migrations...
+2026-08-05 06:44:13,465 [INFO] track_portal: Running database migrations via Alembic...
 INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
 INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
-INFO  [alembic.runtime.migration] Running upgrade  -> 3e040caa7073, Initial schema
-INFO  [alembic.runtime.migration] Running upgrade 3e040caa7073 -> cda9022762d6, Add file_hash and audit_logs
-INFO  [alembic.runtime.migration] Running upgrade cda9022762d6 -> 6ef5ed252102, add_cache
-INFO  [alembic.runtime.migration] Running upgrade 6ef5ed252102 -> a41f121fd3e1, add_two_factor_auth_columns
-2026-08-04 16:13:50,658 [INFO] track_portal: Database migrations completed successfully!
-2026-08-04 16:13:50,658 [INFO] track_portal: Startup step 2 complete
-2026-08-04 16:13:50,658 [INFO] track_portal: Startup step 3: Initializing admin user if none exists...
-2026-08-04 16:13:50,658 [INFO] track_portal.auth: Startup step 3a: Querying User count in database...
-2026-08-04 16:13:50,672 [INFO] track_portal.auth: Startup step 3b: User count is 0
-2026-08-04 16:13:51,022 [INFO] track_portal.auth: Initialized database with single admin user: 'admin'
-2026-08-04 16:13:51,022 [INFO] track_portal: Startup step 3 complete
-2026-08-04 16:13:51,022 [INFO] track_portal: Startup step 4: Starting background downloads poller...
-2026-08-04 16:13:51,022 [INFO] track_portal.poller: Startup step 4a: Getting event loop...
-2026-08-04 16:13:51,022 [INFO] track_portal.poller: Startup step 4b: Creating task for poll_downloads...
-2026-08-04 16:13:51,022 [INFO] track_portal.poller: Startup step 4c: Background download poller started successfully.
-2026-08-04 16:13:51,022 [INFO] track_portal: Startup step 4 complete
-2026-08-04 16:13:51,022 [INFO] track_portal: Startup step 5: Lifespan startup fully complete!
+2026-08-05 06:44:13,476 [INFO] track_portal: Database migrations completed successfully!
+2026-08-05 06:44:13,476 [INFO] track_portal: Startup step 2 complete
+2026-08-05 06:44:13,476 [INFO] track_portal: Startup step 3: Initializing admin user if none exists...
+2026-08-05 06:44:13,476 [INFO] track_portal.auth: Startup step 3a: Querying User count in database...
+2026-08-05 06:44:13,494 [INFO] track_portal.auth: Startup step 3b: User count is 0
+2026-08-05 06:44:13,868 [INFO] track_portal.auth: Initialized database with single admin user: 'admin'
+2026-08-05 06:44:13,868 [INFO] track_portal: Startup step 3 complete
+2026-08-05 06:44:13,869 [INFO] track_portal: Startup step 4: Starting background downloads poller...
+2026-08-05 06:44:13,869 [INFO] track_portal.poller: Startup step 4a: Getting event loop...
+2026-08-05 06:44:13,869 [INFO] track_portal.poller: Startup step 4b: Creating task for poll_downloads...
+2026-08-05 06:44:13,869 [INFO] track_portal.poller: Startup step 4c: Background download poller started successfully.
+2026-08-05 06:44:13,869 [INFO] track_portal: Startup step 4 complete
+2026-08-05 06:44:13,869 [INFO] track_portal: Startup step 5: Lifespan startup fully complete!
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
@@ -36,19 +27,22 @@ INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
+INFO:     127.0.0.1:60468 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60468 - "GET /_next/static/css/03000fe0e41b980c.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60484 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60496 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60506 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60526 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60510 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60468 - "GET /_next/static/chunks/191-44cb50786ad1c7e6.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60484 - "GET /_next/static/chunks/app/layout-9cdf912a302137e2.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60526 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60506 - "GET /_next/static/chunks/app/page-78c71eb87636e496.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60506 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
 [AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     127.0.0.1:45502 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:45502 - "GET /_next/static/css/03000fe0e41b980c.css HTTP/1.1" 200 OK
-INFO:     127.0.0.1:45514 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:45514 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:45502 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:45528 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:45540 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:45552 - "GET /_next/static/chunks/app/layout-9cdf912a302137e2.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:45550 - "GET /_next/static/chunks/191-44cb50786ad1c7e6.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:45514 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:45514 - "GET /_next/static/chunks/app/page-78c71eb87636e496.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:45514 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:60506 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60506 - "GET /api/version HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60526 - "GET /api/version HTTP/1.1" 200 OK
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
@@ -56,398 +50,3 @@ INFO:     127.0.0.1:45514 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     127.0.0.1:38534 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38534 - "GET /_next/static/css/03000fe0e41b980c.css HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38550 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38566 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38576 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38572 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38586 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38534 - "GET /_next/static/chunks/191-44cb50786ad1c7e6.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38550 - "GET /_next/static/chunks/app/page-78c71eb87636e496.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38586 - "GET /_next/static/chunks/app/layout-9cdf912a302137e2.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38534 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38534 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
-INFO:     127.0.0.1:38534 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38534 - "GET /api/version HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38586 - "GET /api/version HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36672 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36672 - "GET /_next/static/css/03000fe0e41b980c.css HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36688 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36672 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36694 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36712 - "GET /_next/static/chunks/191-44cb50786ad1c7e6.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36688 - "GET /_next/static/chunks/app/layout-9cdf912a302137e2.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36698 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36692 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36694 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36688 - "GET /_next/static/chunks/app/page-78c71eb87636e496.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36688 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     127.0.0.1:36688 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36688 - "GET /api/version HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36692 - "GET /api/version HTTP/1.1" 200 OK
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     127.0.0.1:47496 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47496 - "GET /_next/static/css/03000fe0e41b980c.css HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47512 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47538 - "GET /_next/static/chunks/191-44cb50786ad1c7e6.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47512 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47496 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47554 - "GET /_next/static/chunks/app/layout-9cdf912a302137e2.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47528 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47520 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47554 - "GET /_next/static/chunks/app/page-78c71eb87636e496.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47538 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47538 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
-INFO:     127.0.0.1:47538 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47538 - "GET /api/version HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47554 - "GET /api/version HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47684 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47684 - "GET /_next/static/css/03000fe0e41b980c.css HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47700 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47744 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47704 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47684 - "GET /_next/static/chunks/191-44cb50786ad1c7e6.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47732 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47718 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47700 - "GET /_next/static/chunks/app/layout-9cdf912a302137e2.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47732 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47684 - "GET /_next/static/chunks/app/page-78c71eb87636e496.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47684 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     127.0.0.1:47684 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47684 - "GET /api/version HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47718 - "GET /api/version HTTP/1.1" 200 OK
-ERROR [app.services.slskd] Failed to retrieve downloads from slskd: All connection attempts failed
-INFO:     127.0.0.1:47718 - "GET /api/transfers HTTP/1.1" 200 OK
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-2026-08-04 18:22:33,483 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:22:43,502 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:22:53,505 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:23:03,578 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:23:13,580 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:23:23,582 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:23:33,584 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:23:43,587 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:23:53,589 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:24:03,593 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:24:13,596 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:24:23,599 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:24:33,601 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:24:43,603 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:24:53,606 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:25:03,608 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:25:13,614 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:25:23,616 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:25:33,618 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:25:43,620 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:25:53,622 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:26:03,625 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:26:13,629 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:26:23,632 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:26:33,634 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:26:43,635 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:26:53,638 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)
-2026-08-04 18:27:03,640 [ERROR] track_portal.poller: Error in background polling task: (sqlite3.OperationalError) no such table: download_history
-[SQL: SELECT download_history.id AS download_history_id, download_history.search_query AS download_history_search_query, download_history.artist AS download_history_artist, download_history.track AS download_history_track, download_history.album AS download_history_album, download_history.filename AS download_history_filename, download_history.download_id AS download_history_download_id, download_history.source_user AS download_history_source_user, download_history.format AS download_history_format, download_history.bitrate AS download_history_bitrate, download_history.sample_rate AS download_history_sample_rate, download_history.size_bytes AS download_history_size_bytes, download_history.status AS download_history_status, download_history.file_hash AS download_history_file_hash, download_history.downloaded_at AS download_history_downloaded_at, download_history.imported_at AS download_history_imported_at
-FROM download_history
-WHERE download_history.status = ?]
-[parameters: ('downloading',)]
-(Background on this error at: https://sqlalche.me/e/20/e3q8)

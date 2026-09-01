@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type TabType = 'home' | 'explore' | 'search' | 'downloads' | 'settings';
+export type TabType = 'home' | 'explore' | 'search' | 'downloads' | 'review' | 'settings';
 
 interface NavigationState {
   activeTab: TabType;

@@ -3,12 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigationStore, TabType } from '../store/navigationStore';
 import { useDownloadStore } from '../store/downloadStore';
+import { useReviewQueueStore } from '../store/reviewQueueStore';
 import { useAuthStore } from '../store/authStore';
-import { Home, Compass, Search, Download, Settings, X, Disc, User } from 'lucide-react';
+import { Home, Compass, Search, Download, ShieldAlert, Settings, X, User } from 'lucide-react';
+import SonicLogo from './ui/SonicLogo';
 
 export default function MobileNavDrawer() {
   const { activeTab, setActiveTab, mobileMenuOpen, setMobileMenuOpen } = useNavigationStore();
   const { queue } = useDownloadStore();
+  const { items: reviewItems, fetchQueue } = useReviewQueueStore();
   const { user } = useAuthStore();
 
   const activeDownloads = queue.filter((dl) => dl.status === 'downloading').length;
@@ -19,6 +22,7 @@ export default function MobileNavDrawer() {
   });
 
   useEffect(() => {
+    fetchQueue();
     fetch('/api/version')
       .then((res) => {
         if (res.ok) return res.json();
@@ -31,13 +35,14 @@ export default function MobileNavDrawer() {
         });
       })
       .catch(() => {});
-  }, []);
+  }, [fetchQueue]);
 
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'explore', label: 'Explore', icon: Compass },
     { id: 'search', label: 'Search', icon: Search },
     { id: 'downloads', label: 'Downloads', icon: Download },
+    { id: 'review', label: 'Review Queue', icon: ShieldAlert, badge: reviewItems.length },
     { id: 'settings', label: 'Settings', icon: Settings },
   ] as const;
 
@@ -59,8 +64,8 @@ export default function MobileNavDrawer() {
       >
         {/* Header inside drawer */}
         <div className="h-16 px-4 flex items-center justify-between border-b border-[#27272a] shrink-0">
-          <div className="flex items-center gap-2">
-            <Disc className="text-[#10b981] animate-[spin_8s_linear_infinite] shrink-0" size={20} />
+          <div className="flex items-center gap-2.5">
+            <SonicLogo size={24} animated={true} />
             <span className="font-headline-sm text-headline-sm font-bold text-[#e5e2e3] uppercase tracking-tighter">
               Sonic Archive
             </span>
@@ -83,11 +88,13 @@ export default function MobileNavDrawer() {
               {navItems.map((item) => {
                 const isActive = activeTab === item.id;
                 const Icon = item.icon;
+                const badgeCount = (item as any).badge;
+
                 return (
                   <li key={item.id}>
                     <button
                       onClick={() => {
-                        setActiveTab(item.id);
+                        setActiveTab(item.id as TabType);
                         setMobileMenuOpen(false);
                       }}
                       className={`w-full flex items-center gap-4 px-3 py-3 rounded text-left transition-colors font-headline-sm uppercase tracking-wide border-l-2 ${
@@ -101,6 +108,11 @@ export default function MobileNavDrawer() {
                       {item.id === 'downloads' && activeDownloads > 0 && (
                         <span className="ml-auto bg-[#10b981] text-[#003824] font-data-mono text-[10px] px-1.5 py-0.5 font-bold">
                           {activeDownloads}
+                        </span>
+                      )}
+                      {badgeCount !== undefined && badgeCount > 0 && item.id === 'review' && (
+                        <span className="ml-auto bg-[#fc7c78] text-[#310002] font-data-mono text-[10px] px-1.5 py-0.5 font-bold">
+                          {badgeCount}
                         </span>
                       )}
                     </button>

@@ -90,3 +90,19 @@ class CacheMetric(Base):
     entity_type = Column(String, unique=True, nullable=False)  # artist, album, track, musicbrainz
     hits = Column(Integer, default=0, nullable=False)
     misses = Column(Integer, default=0, nullable=False)
+
+class BeetsReviewItem(Base):
+    __tablename__ = "beets_review_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    download_id = Column(Integer, nullable=True)
+    artist = Column(String, nullable=False)
+    track = Column(String, nullable=False)
+    album = Column(String, nullable=True)
+    downloaded_path = Column(String, nullable=False)
+    confidence_score = Column(Integer, default=50) # e.g. 50-89% confidence
+    status = Column(String, default="review_required") # review_required, imported, skipped, kept_original
+    candidates_json = Column(String, nullable=False) # JSON list of match candidates
+    selected_match_json = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)

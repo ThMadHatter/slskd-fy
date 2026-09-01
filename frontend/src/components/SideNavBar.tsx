@@ -3,12 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigationStore, TabType } from '../store/navigationStore';
 import { useDownloadStore } from '../store/downloadStore';
-import { Home, Compass, Search, Download, Settings, User, RefreshCw } from 'lucide-react';
+import { useReviewQueueStore } from '../store/reviewQueueStore';
+import { Home, Compass, Search, Download, ShieldAlert, Settings, User, RefreshCw } from 'lucide-react';
 import SonicLogo from './ui/SonicLogo';
 
 export default function SideNavBar() {
   const { activeTab, setActiveTab } = useNavigationStore();
   const { queue } = useDownloadStore();
+  const { items: reviewItems, fetchQueue } = useReviewQueueStore();
 
   const activeDownloads = queue.filter((dl) => dl.status === 'downloading').length;
 
@@ -23,6 +25,7 @@ export default function SideNavBar() {
   const [showBuildInfo, setShowBuildInfo] = useState(false);
 
   useEffect(() => {
+    fetchQueue();
     fetch('/api/version')
       .then((res) => {
         if (res.ok) return res.json();
@@ -39,14 +42,15 @@ export default function SideNavBar() {
         });
       })
       .catch(() => {});
-  }, []);
+  }, [fetchQueue]);
 
   const navItems = [
-    { id: 'home', label: 'Home', icon: Home, hotkey: '⌘1', seq: 'G H' },
-    { id: 'explore', label: 'Explore', icon: Compass, hotkey: '⌘2', seq: 'G E' },
-    { id: 'search', label: 'Search', icon: Search, hotkey: '⌘3', seq: 'G S' },
-    { id: 'downloads', label: 'Downloads', icon: Download, hotkey: '⌘4', seq: 'G D' },
-    { id: 'settings', label: 'Settings', icon: Settings, hotkey: '⌘,', seq: 'G ,' },
+    { id: 'home', label: 'Home', icon: Home, hotkey: '⌘1' },
+    { id: 'explore', label: 'Explore', icon: Compass, hotkey: '⌘2' },
+    { id: 'search', label: 'Search', icon: Search, hotkey: '⌘3' },
+    { id: 'downloads', label: 'Downloads', icon: Download, hotkey: '⌘4' },
+    { id: 'review', label: 'Review Queue', icon: ShieldAlert, hotkey: '⌘5', badge: reviewItems.length },
+    { id: 'settings', label: 'Settings', icon: Settings, hotkey: '⌘,' },
   ] as const;
 
   return (
@@ -67,27 +71,36 @@ export default function SideNavBar() {
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
           const Icon = item.icon;
+          const badgeCount = (item as any).badge;
+
           return (
             <li key={item.id}>
               <button
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => setActiveTab(item.id as TabType)}
                 className={`w-full text-left font-label-caps text-label-caps px-4 py-3 flex items-center justify-between cursor-pointer border-r-2 transition-all duration-150 focus-visible:outline-none ${
                   isActive
                     ? 'text-[#10b981] border-[#10b981] bg-[#201f20]'
                     : 'text-[#bbcabf] border-transparent hover:text-[#e5e2e3] hover:bg-[#1c1b1c]'
                 }`}
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <Icon size={18} className={isActive ? 'text-[#10b981]' : ''} />
-                  <span>{item.label}</span>
+                  <span className="truncate">{item.label}</span>
                 </div>
-                <span className={`font-data-mono text-[10px] border px-1.5 py-0.5 rounded-none leading-none select-none ${
-                  isActive
-                    ? 'bg-[#131314] border-[#10b981]/30 text-[#10b981]'
-                    : 'bg-[#131314] border-[#27272a] text-[#bbcabf]/50'
-                }`}>
-                  {item.hotkey}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {badgeCount !== undefined && badgeCount > 0 && (
+                    <span className="bg-[#fc7c78] text-[#310002] font-data-mono text-[10px] font-bold px-1.5 py-0.5 rounded-none leading-none">
+                      {badgeCount}
+                    </span>
+                  )}
+                  <span className={`font-data-mono text-[10px] border px-1.5 py-0.5 rounded-none leading-none select-none ${
+                    isActive
+                      ? 'bg-[#131314] border-[#10b981]/30 text-[#10b981]'
+                      : 'bg-[#131314] border-[#27272a] text-[#bbcabf]/50'
+                  }`}>
+                    {item.hotkey}
+                  </span>
+                </div>
               </button>
             </li>
           );

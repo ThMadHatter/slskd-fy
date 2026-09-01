@@ -541,6 +541,53 @@ The purpose of this analysis is to map visible UI components, identify fully fun
 
 ---
 
+### Gap 20: Visual Placeholder Icons (TopAppBar Actions & SideNavBar Buttons)
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-28
+- **Date Last Updated:** 2026-07-28
+- **Owner:** Jules
+- **Description:** Trailing action buttons in `TopAppBar.tsx` (Filter, Sliders, Settings2) and action buttons in `SideNavBar.tsx` (Profile/User, Status/RefreshCw) are static visual placeholders that do not trigger any real action or page changes when clicked.
+- **Root Cause:** These buttons/icons are decorative elements stubbed during the UI design/prototyping phase and lack registered React `onClick` event handlers or state mutations.
+- **Suggested Solution:**
+  1. Register clear action handlers on these components.
+  2. Map `Settings2` in the TopAppBar to change `activeTab` to `'settings'` in `useNavigationStore`.
+  3. Map the sidebar `Profile` button to either navigate to the Settings panel or trigger a profile/user info modal.
+  4. Map the sidebar `Status` button (RefreshCw) to toggle the existing `Build Verification Heuristics` dialog, letting users inspect build information dynamically.
+- **Implementation Notes:** This provides a seamless, highly integrated user experience, transforming decorative placeholders into functional navigators and telemetry viewers.
+- **Estimated Effort:** 4 Hours
+
+---
+
+### Gap 21: Explore View Image Gaps & Last.fm API Deprecation
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-28
+- **Date Last Updated:** 2026-07-28
+- **Owner:** Jules
+- **Description:** The Explore section has no real album cover artwork or artist images; instead, it renders raw text placeholders like "ARCHIVE" and "ALBUM" in place of images.
+- **Root Cause:** Deep research into Last.fm's developer API documentation reveals that **Last.fm intentionally removed image/artwork support from all API payloads** (since ~2019) to enforce compliance with their Terms of Use (which prohibits third parties from distributing/utilizing artwork/images/audio). All Last.fm artist image lookups now return empty values or generic "white star" placeholder graphics.
+- **Suggested Solution:**
+  1. **Align on Text-First Minimalist Philosophy:** Maintain the target monochromatic, text-first minimalist layout in `ExploreView.tsx` which avoids images and aligns with the design rules.
+  2. **Cover Art Archive Integration:** Since the application implements the **MusicBrainz-First Grouping Architecture**, we already have verified release-group MBIDs. We can implement a background routine or frontend utility to query the free, open-source **Cover Art Archive API** (e.g., `https://coverartarchive.org/release-group/{mbid}/front`) to load compliant, verified cover art images if desired.
+- **Implementation Notes:** Documents the official Last.fm API deprecation clearly to guide future engineers while offering a robust, fully compliant pathway using Cover Art Archive.
+- **Estimated Effort:** 6 Hours
+
+---
+
+### Gap 22: slskd/Soulseek Short Query Constraint ("Muse" vs "Queen")
+- **Status:** NOT_STARTED
+- **Date Created:** 2026-07-28
+- **Date Last Updated:** 2026-07-28
+- **Owner:** Jules
+- **Description:** Searching for short artists like "Muse" (4 characters) returns 0 results on the Soulseek network, while "Queen" (5 characters) returns numerous results.
+- **Root Cause:** The Soulseek peer-to-peer network and official server daemon enforce strict character length filters on search terms. Query strings containing only a single word of 4 letters or less are silently ignored, blocked, or dropped to prevent massive broad-match floods from flooding client networks and crashing peer connections.
+- **Suggested Solution:**
+  1. **Query Expansion / Padding Engine:** In `SearchRankingService.generate_queries_progressive`, if a generated query term consists of a single word and has a character length of 4 or less, automatically expand the query by appending qualifiers or format preferences (e.g., `"Muse flac"`, `"Muse mp3"`, `"Muse album"`).
+  2. **Pre-cached Metadata Enrichment Lookup:** Leverage our MusicBrainz local cache or Beets indexing to find the artist's most popular release groups or songs (e.g., `Muse Showbiz` or `Muse Resistance`) and inject those specific longer strings into the fallback progressive query list.
+- **Implementation Notes:** This resolves a critical network-level limitation transparently, ensuring that short keywords execute successfully without being filtered or dropped by Soulseek.
+- **Estimated Effort:** 8 Hours
+
+---
+
 ## 5. Prioritized Project Roadmap
 
 The following defines the prioritized development roadmap to systematically resolve all implementation gaps.
@@ -563,11 +610,14 @@ The following defines the prioritized development roadmap to systematically reso
 4. **Real Connection Metrics:** Replace static "slskd connected" and "Last.fm" labels with a real healthcheck polling status.
 5. **Beets Integration Validation (Gap 8):** Populate Beets library via folder sync tasks and enable the Beets query search matching scoring boosts.
 6. **Database Configuration Persistence (Gap 4):** Connect the Settings Panel to a persistent SQLite configurations database.
+7. **Visual Placeholder Icons Resolution (Gap 20):** Register React `onClick` action handlers to map settings and telemetry buttons to functional views.
+8. **Short-Term Search Robustness (Gap 22):** Implement automatic query expansion and padding techniques to bypass Soulseek character limits for short artist terms like "Muse".
 
 ### Phase 3: Secondary Features & Polishing (P2) - *Nice to Have*
 1. **Explore View:** Construct a backend background worker to compile actual local search histories or catalog statistics to populate trending cards.
 2. **Compare Bitrates:** Implement local client-side duplicate resolution tools or bitrate visualizer charts.
 3. **UI Enhancements:** Visual refinement of search panels and list cards.
+4. **Explore View Image Gaps & Last.fm API Deprecation (Gap 21):** Document Last.fm API limits and offer a Cover Art Archive API fallback.
 
 ### Phase 4: Clean Up & Polish (P3) - *Cosmetic*
 1. **Cosmetic Cleanup:** Polishing typography, layouts, and responsiveness.
@@ -685,3 +735,10 @@ This section tracks incremental updates to this audit document.
 - Resolved **Gap 18: Streaming Response Error Handling** by wrapping the TextDecoder stream reader inside HomeView.tsx within a robust try/catch block and dispatching state triggers to notify users via popup toasts.
 - Implemented Mobile Navigation Strategy and Views. Created a custom `MobileNavDrawer.tsx` that replicates the page references (logo, directory, badges, telemetry stats, user profile footer). Added hamburger icon action to `TopAppBar.tsx` to toggle the menu. Upgraded `SearchResultsView.tsx` with sliding filters drawer below `lg` sizes. Upgraded `DownloadsView.tsx` with responsive flex-cards layout mimicking the mockup designs for a perfect mobile application experience.
 - Resolved Mobile Viewport scaling issue by explicitly injecting the standard `<meta name="viewport" content="width=device-width, initial-scale=1.0" />` tag into the HTML head in `layout.tsx`. This tells mobile browsers to scale matching the device width, enabling all responsive CSS breakpoint rules to evaluate and apply correctly on real mobile devices.
+
+## 2026-07-28
+
+- Conducted comprehensive audit of frontend placeholder icons and trailing actions, identifying Gap 20.
+- Researched Last.fm API deprecation of image distribution (the "white star" anomaly) and proposed design-aligned compliance strategies, identifying Gap 21.
+- Analyzed Soulseek character-filtering constraints for short-term queries (the "Muse" vs "Queen" query mismatch), formulating dynamic query padding and qualifier expansion strategies, identifying Gap 22.
+- Updated `docs/ui_gap_analysis.md` with detailed gap descriptions, root cause analysis, estimated efforts, suggested remediation steps, and roadmap priority alignments.

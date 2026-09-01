@@ -157,12 +157,17 @@ async def api_search(
         # 1. Resolve / Fetch complete Artist Catalog with strict 30-day pre-caching [RSL-001]
         artist_mbid = payload.artist_mbid
         catalog = []
+        search_artist = artist
 
-        if not artist_mbid and artist:
+        if not artist_mbid and search_artist:
             try:
-                artists = await MusicBrainzService.search_artists(artist, db)
+                artists = await MusicBrainzService.search_artists(search_artist, db)
                 if artists:
                     artist_mbid = artists[0].get("id")
+                    official_name = artists[0].get("name")
+                    if official_name:
+                        logger.info(f"Enriching search artist '{search_artist}' -> '{official_name}' via MusicBrainz")
+                        search_artist = official_name
             except Exception as e:
                 logger.error(f"Error resolving artist MBID dynamically: {e}")
 
@@ -173,7 +178,7 @@ async def api_search(
                 logger.error(f"Error pre-fetching artist releases catalog: {e}")
 
         # 2. Sequential fallback search loop matching & yielding chunks incrementally
-        query_strings = search_executor.generate_progressive_queries(artist, track_or_album)
+        query_strings = search_executor.generate_progressive_queries(search_artist, track_or_album)
         for idx, q_str in enumerate(query_strings):
             responses = []
             search_id = None
@@ -218,7 +223,7 @@ async def api_search(
                             bitrate=bitrate,
                             sample_rate=sample_rate,
                             queue_length=queue_length,
-                            parsed_artist=parsed.get("artist") or artist or "Unknown",
+                            parsed_artist=parsed.get("artist") or search_artist or "Unknown",
                             parsed_track=parsed.get("track") or track_or_album or "Unknown",
                             parsed_album=parsed.get("album") or "",
                             parsed_year=parsed.get("year") or None
@@ -676,7 +681,8 @@ def api_get_explore(db: Session = Depends(get_db), user: User = Depends(get_curr
                             "title": title,
                             "artist": r.get("artist_name") or "Various Artists",
                             "format": "FLAC",
-                            "seeders": "MusicBrainz Cache"
+                            "seeders": "MusicBrainz Cache",
+                            "mbid": r.get("mbid")
                         })
         except Exception:
             pass

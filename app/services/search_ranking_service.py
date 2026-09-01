@@ -96,8 +96,23 @@ class SearchRankingService(SearchProviderContract):
 
         # Unique values preserving order
         seen = set()
-        res = [q for q in queries if q and not (q in seen or seen.add(q))]
-        return res
+        raw_res = [q for q in queries if q and not (q in seen or seen.add(q))]
+
+        res = []
+        for q in raw_res:
+            # Check if query is short and consists of a single word (e.g. <= 4 characters like "Muse")
+            if len(q) <= 4 and len(q.split()) == 1:
+                # Add padded/expanded queries to bypass Soulseek short term / broad filters [Gap 22]
+                res.append(f"{q} flac")
+                res.append(f"{q} mp3")
+                res.append(f"{q} album")
+                res.append(q)
+            else:
+                res.append(q)
+
+        # De-duplicate the final list preserving order
+        final_seen = set()
+        return [q for q in res if q and not (q in final_seen or final_seen.add(q))]
 
     @classmethod
     def score_candidate(

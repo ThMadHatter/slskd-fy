@@ -110,14 +110,20 @@ export default function SideNavBar() {
         </div>
 
         <div className="flex flex-col gap-1 border-t border-[#27272a] pt-4">
-          <button className="text-[#bbcabf] hover:text-[#e5e2e3] py-2 flex items-center justify-between font-label-caps text-label-caps text-left w-full transition-colors cursor-pointer">
+          <button
+            onClick={() => setActiveTab('settings')}
+            className="text-[#bbcabf] hover:text-[#e5e2e3] py-2 flex items-center justify-between font-label-caps text-label-caps text-left w-full transition-colors cursor-pointer focus:outline-none"
+          >
             <div className="flex items-center gap-3">
               <User size={16} />
               <span>Profile</span>
             </div>
             <span className="font-data-mono text-[10px] text-[#bbcabf]/40">G P</span>
           </button>
-          <button className="text-[#bbcabf] hover:text-[#e5e2e3] py-2 flex items-center justify-between font-label-caps text-label-caps text-left w-full transition-colors cursor-pointer">
+          <button
+            onClick={() => setShowBuildInfo(true)}
+            className="text-[#bbcabf] hover:text-[#e5e2e3] py-2 flex items-center justify-between font-label-caps text-label-caps text-left w-full transition-colors cursor-pointer focus:outline-none"
+          >
             <div className="flex items-center gap-3">
               <RefreshCw size={16} />
               <span>Status</span>

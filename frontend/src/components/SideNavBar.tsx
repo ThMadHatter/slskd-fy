@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigationStore, TabType } from '../store/navigationStore';
 import { useDownloadStore } from '../store/downloadStore';
-import { Home, Compass, Search, Download, Settings, User, RefreshCw, Disc } from 'lucide-react';
+import { Home, Compass, Search, Download, Settings, User, RefreshCw } from 'lucide-react';
+import SonicLogo from './ui/SonicLogo';
 
 export default function SideNavBar() {
   const { activeTab, setActiveTab } = useNavigationStore();
@@ -51,7 +52,7 @@ export default function SideNavBar() {
   return (
     <nav className="hidden md:flex fixed left-0 top-0 h-full w-[240px] bg-[#0a0a0b] border-r border-[#27272a] flex-col py-8 z-50 shrink-0">
       <div className="px-6 mb-8 flex items-center gap-3">
-        <Disc className="text-[#10b981] animate-[spin_8s_linear_infinite] shrink-0" size={24} />
+        <SonicLogo size={30} animated={true} />
         <div className="flex flex-col">
           <h1 className="font-headline-sm text-headline-sm font-bold tracking-tighter text-[#e5e2e3] uppercase leading-tight">
             Sonic Archive

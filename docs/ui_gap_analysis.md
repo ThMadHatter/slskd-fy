@@ -742,3 +742,11 @@ This section tracks incremental updates to this audit document.
 - Researched Last.fm API deprecation of image distribution (the "white star" anomaly) and proposed design-aligned compliance strategies, identifying Gap 21.
 - Analyzed Soulseek character-filtering constraints for short-term queries (the "Muse" vs "Queen" query mismatch), formulating dynamic query padding and qualifier expansion strategies, identifying Gap 22.
 - Updated `docs/ui_gap_analysis.md` with detailed gap descriptions, root cause analysis, estimated efforts, suggested remediation steps, and roadmap priority alignments.
+
+## 2026-09-01
+
+- Integrated full SONIC visual identity into Next.js frontend:
+  1. Created `SonicHeroVisual.tsx` displaying central hero visual above login authentication card with 3 perspective speakers, 28-column background equalizer stacked directly above speakers (no vertical overlap), propagated ripples, and Michroma font SONIC wordmark with stylized speaker 'O'.
+  2. Created reusable `SonicLogo.tsx` official logo component (44x44 circular speaker SVG with unique `useId()` gradient and filter definitions) and integrated into SideNavBar, MobileNavDrawer, and LoginView.
+  3. Created `SonicLoader.tsx` 9-bar vertical wave loader with GPU-friendly `scaleY()` CSS transforms, green `#10B981` & coral `#FC7C78` colors, accessibility attributes, and `prefers-reduced-motion` support. Replaced all circular spinners (`Loader2` and rotators) across LoginView, HomeView, SearchResultsView, ExploreView, and ClientLayout.
+  4. Refined `LoginView.tsx` card to remove redundant header block, leaving a sleek minimalist card with Username/Password inputs only.

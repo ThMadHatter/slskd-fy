@@ -7,7 +7,6 @@ import Input from './ui/Input';
 import Button from './ui/Button';
 import SonicHeroVisual from './SonicHeroVisual';
 import SonicLoader from './ui/SonicLoader';
-import SonicLogo from './ui/SonicLogo';
 
 export default function LoginView() {
   const { login, verify2FA, twoFactorRequired, tempToken, loading } = useAuthStore();
@@ -57,21 +56,6 @@ export default function LoginView() {
 
         {/* Login Authentication Card */}
         <div className="w-full bg-[#131314] border border-[#27272a] p-6 md:p-8 flex flex-col gap-6 shadow-2xl">
-
-          {/* Header Molecules */}
-          <div className="text-center flex flex-col items-center gap-2">
-            <div className="w-12 h-12 bg-[#1c1b1c] border border-[#27272a] flex items-center justify-center text-[#10b981]">
-              <SonicLogo size={28} />
-            </div>
-            <div>
-              <h1 className="font-headline-md text-headline-sm font-bold text-[#e5e2e3] uppercase tracking-tight">
-                {twoFactorRequired ? 'Two-Factor Challenge' : 'Sonic Archive Portal'}
-              </h1>
-              <p className="font-data-mono text-[10px] text-[#bbcabf] opacity-75 mt-1 uppercase tracking-wider">
-                {twoFactorRequired ? 'Enter TOTP Security Key' : 'Secure Admin Authentication Required'}
-              </p>
-            </div>
-          </div>
 
           {errorMsg && (
             <div className="bg-red-500/10 border border-red-500/30 p-3 text-red-400 font-data-mono text-[11px] text-center">

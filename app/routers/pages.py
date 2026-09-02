@@ -177,6 +177,13 @@ async def api_search(
             except Exception as e:
                 logger.error(f"Error pre-fetching artist releases catalog: {e}")
 
+        # Clear any active/stuck slskd searches first
+        try:
+            if hasattr(search_executor.slskd_client, "clear_active_searches"):
+                await search_executor.slskd_client.clear_active_searches()
+        except Exception as e:
+            logger.warning(f"Could not clear active slskd searches: {e}")
+
         # 2. Sequential fallback search loop matching & yielding chunks incrementally
         query_strings = search_executor.generate_progressive_queries(search_artist, track_or_album)
         for idx, q_str in enumerate(query_strings):
@@ -193,7 +200,10 @@ async def api_search(
                         if len(responses) >= 8:
                             break
             except Exception as e:
-                logger.error(f"Error executing sequential query '{q_str}': {e}")
+                err_msg = f"slskd search failed for '{q_str}': {e}"
+                logger.error(err_msg)
+                yield json.dumps({"error": err_msg}) + "\n"
+                break
 
             chunk_results = []
             for resp in responses:
@@ -787,6 +797,157 @@ def api_get_version(user: User = Depends(get_current_user)):
         "slskd_version": "0.17.x",
         "beets_version": "1.6.0"
     })
+
+class BeetsReviewActionRequest(BaseModel):
+    action: str  # accept, select_candidate, keep_original, skip
+    candidate_id: Optional[str] = None
+
+@router.get("/api/beets/review-queue", response_class=JSONResponse)
+def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Returns pending items requiring human review for ambiguous Beets matches.
+    If the table is empty, seeds high-fidelity sample items for immediate UX testing.
+    """
+    from app.models import BeetsReviewItem
+    items = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").order_by(BeetsReviewItem.created_at.desc()).all()
+
+    if not items:
+        # Seed 2 realistic sample items if queue is empty
+        sample_1 = BeetsReviewItem(
+            artist="Muse",
+            track="Absolution",
+            album="Absolution",
+            downloaded_path="/mnt/music/Downloads/Muse - Absolution (FLAC).zip",
+            confidence_score=68,
+            status="review_required",
+            candidates_json=json.dumps([
+                {
+                    "id": "cand_1",
+                    "title": "Absolution",
+                    "artist": "Muse",
+                    "year": 2003,
+                    "format": "FLAC 16-bit/44.1kHz",
+                    "track_count": 14,
+                    "mbid": "b0a6e351-7f91-3252-8703-9d93bb0b4028",
+                    "confidence": 88,
+                    "source": "MusicBrainz Official Release"
+                },
+                {
+                    "id": "cand_2",
+                    "title": "Absolution (Remastered 20th Anniversary Edition)",
+                    "artist": "Muse",
+                    "year": 2023,
+                    "format": "FLAC 24-bit/96kHz",
+                    "track_count": 28,
+                    "mbid": "8f31b2c4-22d1-4e89-a9a5-76b6d8f6f212",
+                    "confidence": 72,
+                    "source": "MusicBrainz Deluxe Remaster"
+                },
+                {
+                    "id": "cand_3",
+                    "title": "Absolution (Japanese Edition)",
+                    "artist": "Muse",
+                    "year": 2003,
+                    "format": "FLAC 16-bit/44.1kHz",
+                    "track_count": 15,
+                    "mbid": "6a382c19-913a-4421-b4f2-2e8f192b10a2",
+                    "confidence": 68,
+                    "source": "MusicBrainz Bonus Track Release"
+                }
+            ])
+        )
+        sample_2 = BeetsReviewItem(
+            artist="Aphex Twin",
+            track="Selected Ambient Works 85-92",
+            album="Selected Ambient Works 85-92",
+            downloaded_path="/mnt/music/Downloads/Aphex Twin - Selected Ambient Works 85-92.zip",
+            confidence_score=75,
+            status="review_required",
+            candidates_json=json.dumps([
+                {
+                    "id": "cand_4",
+                    "title": "Selected Ambient Works 85-92",
+                    "artist": "Aphex Twin",
+                    "year": 1992,
+                    "format": "FLAC",
+                    "track_count": 13,
+                    "mbid": "fe1536b3-678a-36d2-b6df-20e40243e8a1",
+                    "confidence": 91,
+                    "source": "Apollo Records Original"
+                },
+                {
+                    "id": "cand_5",
+                    "title": "Selected Ambient Works 85-92 (Remastered)",
+                    "artist": "Aphex Twin",
+                    "year": 2008,
+                    "format": "FLAC",
+                    "track_count": 13,
+                    "mbid": "23d11b01-5e88-42f1-bc8e-908a8f1023d1",
+                    "confidence": 80,
+                    "source": "R&S Records Remaster"
+                }
+            ])
+        )
+        db.add(sample_1)
+        db.add(sample_2)
+        db.commit()
+        items = [sample_1, sample_2]
+
+    result = []
+    for item in items:
+        result.append({
+            "id": item.id,
+            "download_id": item.download_id,
+            "artist": item.artist,
+            "track": item.track,
+            "album": item.album,
+            "downloaded_path": item.downloaded_path,
+            "confidence_score": item.confidence_score,
+            "status": item.status,
+            "candidates": json.loads(item.candidates_json) if item.candidates_json else [],
+            "selected_match": json.loads(item.selected_match_json) if item.selected_match_json else None,
+            "created_at": item.created_at.isoformat() if item.created_at else None
+        })
+    return JSONResponse(content=result)
+
+@router.post("/api/beets/review-queue/{item_id}/action", response_class=JSONResponse)
+def api_beets_review_action(item_id: int, payload: BeetsReviewActionRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Executes a review action on a pending Beets review item:
+    - accept: accepts top match
+    - select_candidate: selects chosen candidate_id
+    - keep_original: keeps original tags without modification
+    - skip: skips item for later review
+    """
+    from app.models import BeetsReviewItem
+    item = db.query(BeetsReviewItem).filter(BeetsReviewItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Review item not found")
+
+    action = payload.action.lower()
+    candidates = json.loads(item.candidates_json) if item.candidates_json else []
+
+    if action == "accept":
+        item.status = "imported"
+        if candidates:
+            item.selected_match_json = json.dumps(candidates[0])
+    elif action == "select_candidate":
+        candidate = next((c for c in candidates if c.get("id") == payload.candidate_id), None)
+        if candidate:
+            item.selected_match_json = json.dumps(candidate)
+            item.status = "imported"
+        else:
+            raise HTTPException(status_code=400, detail="Specified candidate_id not found")
+    elif action == "keep_original":
+        item.status = "kept_original"
+    elif action == "skip":
+        item.status = "skipped"
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported action '{action}'")
+
+    db.commit()
+    log_audit_action(db, f"BEETS_REVIEW_{action.upper()}", f"User resolved Beets review item {item_id} ({item.artist} - {item.track}) with action '{action}'")
+    return {"status": "success", "action": action, "item_id": item_id}
 
 @router.post("/admin/search-debug/benchmark", response_class=HTMLResponse)
 async def post_admin_benchmark():

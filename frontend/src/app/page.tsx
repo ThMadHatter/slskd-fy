@@ -6,6 +6,7 @@ import HomeView from '../components/HomeView';
 import ExploreView from '../components/ExploreView';
 import SearchResultsView from '../components/SearchResultsView';
 import DownloadsView from '../components/DownloadsView';
+import ReviewQueueView from '../components/ReviewQueueView';
 import SettingsView from '../components/SettingsView';
 
 export default function Page() {
@@ -21,6 +22,8 @@ export default function Page() {
         return <SearchResultsView />;
       case 'downloads':
         return <DownloadsView />;
+      case 'review':
+        return <ReviewQueueView />;
       case 'settings':
         return <SettingsView />;
       default:

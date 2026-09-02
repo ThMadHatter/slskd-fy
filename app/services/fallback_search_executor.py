@@ -80,6 +80,13 @@ class FallbackSearchExecutor(SearchExecutorContract):
         unique_candidates = []
         seen_files = set()
 
+        # Clear any active/stuck slskd searches first
+        try:
+            if hasattr(self.slskd_client, "clear_active_searches"):
+                await self.slskd_client.clear_active_searches()
+        except Exception as e:
+            logger.warning(f"Failed clearing active searches in FallbackSearchExecutor: {e}")
+
         # 2. Execute searches sequentially to avoid slskd parallel search limit (HTTP 429)
         for idx, q_str in enumerate(query_strings):
             # Log exact required log keyword: SEARCH_STEP_START

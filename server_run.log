@@ -1,61 +1,141 @@
-INFO:     Started server process [175648]
+INFO:     Started server process [51773]
 INFO:     Waiting for application startup.
-2026-08-05 14:34:59,109 [INFO] track_portal: Startup step 1 complete
-2026-08-05 14:34:59,109 [INFO] track_portal: Startup step 2: Running database migrations...
-2026-08-05 14:34:59,109 [INFO] track_portal: Running database migrations via Alembic...
+2026-09-01 10:03:13,251 [INFO] track_portal: Startup step 1 complete
+2026-09-01 10:03:13,251 [INFO] track_portal: Startup step 2: Running database migrations...
+2026-09-01 10:03:13,252 [INFO] track_portal: Running database migrations via Alembic...
 INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
 INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
 INFO  [alembic.runtime.migration] Running upgrade  -> 3e040caa7073, Initial schema
 INFO  [alembic.runtime.migration] Running upgrade 3e040caa7073 -> cda9022762d6, Add file_hash and audit_logs
 INFO  [alembic.runtime.migration] Running upgrade cda9022762d6 -> 6ef5ed252102, add_cache
 INFO  [alembic.runtime.migration] Running upgrade 6ef5ed252102 -> a41f121fd3e1, add_two_factor_auth_columns
-2026-08-05 14:34:59,198 [INFO] track_portal: Database migrations completed successfully!
-2026-08-05 14:34:59,198 [INFO] track_portal: Startup step 2 complete
-2026-08-05 14:34:59,198 [INFO] track_portal: Startup step 3: Initializing admin user if none exists...
-2026-08-05 14:34:59,198 [INFO] track_portal.auth: Startup step 3a: Querying User count in database...
-2026-08-05 14:34:59,212 [INFO] track_portal.auth: Startup step 3b: User count is 0
-2026-08-05 14:34:59,212 [CRITICAL] track_portal.auth: ************************************************************
-2026-08-05 14:34:59,212 [CRITICAL] track_portal.auth: NO ADMIN PASSWORD CONFIGURED. GENERATED RANDOM: R3dbv-ztHWGf3Gvv
-2026-08-05 14:34:59,212 [CRITICAL] track_portal.auth: ************************************************************
-2026-08-05 14:34:59,568 [INFO] track_portal.auth: Initialized database with single admin user: 'admin'
-2026-08-05 14:34:59,568 [INFO] track_portal: Startup step 3 complete
-2026-08-05 14:34:59,568 [INFO] track_portal: Startup step 4: Starting background downloads poller...
-2026-08-05 14:34:59,568 [INFO] track_portal.poller: Startup step 4a: Getting event loop...
-2026-08-05 14:34:59,568 [INFO] track_portal.poller: Startup step 4b: Creating task for poll_downloads...
-2026-08-05 14:34:59,568 [INFO] track_portal.poller: Startup step 4c: Background download poller started successfully.
-2026-08-05 14:34:59,569 [INFO] track_portal: Startup step 4 complete
-2026-08-05 14:34:59,569 [INFO] track_portal: Startup step 5: Lifespan startup fully complete!
+2026-09-01 10:03:13,361 [INFO] track_portal: Database migrations completed successfully!
+2026-09-01 10:03:13,361 [INFO] track_portal: Startup step 2 complete
+2026-09-01 10:03:13,361 [INFO] track_portal: Startup step 3: Initializing admin user if none exists...
+2026-09-01 10:03:13,361 [INFO] track_portal.auth: Startup step 3a: Querying User count in database...
+2026-09-01 10:03:13,375 [INFO] track_portal.auth: Startup step 3b: User count is 0
+2026-09-01 10:03:13,376 [CRITICAL] track_portal.auth: ************************************************************
+2026-09-01 10:03:13,376 [CRITICAL] track_portal.auth: NO ADMIN PASSWORD CONFIGURED. GENERATED RANDOM: QCnl8ZfjXLy8sgqU
+2026-09-01 10:03:13,376 [CRITICAL] track_portal.auth: ************************************************************
+2026-09-01 10:03:13,729 [INFO] track_portal.auth: Initialized database with single admin user: 'admin'
+2026-09-01 10:03:13,729 [INFO] track_portal: Startup step 3 complete
+2026-09-01 10:03:13,729 [INFO] track_portal: Startup step 4: Starting background downloads poller...
+2026-09-01 10:03:13,729 [INFO] track_portal.poller: Startup step 4a: Getting event loop...
+2026-09-01 10:03:13,729 [INFO] track_portal.poller: Startup step 4b: Creating task for poll_downloads...
+2026-09-01 10:03:13,729 [INFO] track_portal.poller: Startup step 4c: Background download poller started successfully.
+2026-09-01 10:03:13,729 [INFO] track_portal: Startup step 4 complete
+2026-09-01 10:03:13,729 [INFO] track_portal: Startup step 5: Lifespan startup fully complete!
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52366 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52366 - "GET /_next/static/css/cc1229c7434a5146.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52378 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52378 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52366 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52392 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52394 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52422 - "GET /_next/static/chunks/app/layout-c8772daa75f0896a.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52410 - "GET /_next/static/chunks/191-44cb50786ad1c7e6.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52394 - "GET /_next/static/chunks/app/page-3e45bf846853f4e5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52378 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52394 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:52424 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52424 - "GET /_next/static/css/cc1229c7434a5146.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52428 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52424 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52428 - "GET /_next/static/chunks/191-44cb50786ad1c7e6.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52432 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52444 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52454 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52468 - "GET /_next/static/chunks/app/layout-c8772daa75f0896a.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52428 - "GET /_next/static/chunks/app/page-3e45bf846853f4e5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52444 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52444 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:52476 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52476 - "GET /_next/static/css/cc1229c7434a5146.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52478 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52476 - "GET /_next/static/chunks/app/layout-c8772daa75f0896a.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52520 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52504 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52534 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52478 - "GET /_next/static/chunks/191-44cb50786ad1c7e6.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52492 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52476 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52534 - "GET /_next/static/chunks/app/page-3e45bf846853f4e5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52534 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:52540 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52540 - "GET /_next/static/css/cc1229c7434a5146.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52550 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52576 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52554 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52570 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52590 - "GET /_next/static/chunks/app/layout-c8772daa75f0896a.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52540 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52550 - "GET /_next/static/chunks/191-44cb50786ad1c7e6.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52576 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52540 - "GET /_next/static/chunks/app/page-3e45bf846853f4e5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52576 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     127.0.0.1:36672 - "GET /health HTTP/1.1" 200 OK
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     127.0.0.1:60006 - "GET / HTTP/1.1" 200 OK
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
+INFO:     127.0.0.1:39570 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39570 - "GET /_next/static/css/113b2e9bbc240b06.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39572 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39584 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39600 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39630 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39570 - "GET /_next/static/chunks/561-bff89910380e15fc.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39616 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39570 - "GET /_next/static/chunks/app/layout-ae3961e3405ecb47.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39630 - "GET /_next/static/chunks/app/page-3e45bf846853f4e5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39616 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39630 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:39634 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39634 - "GET /_next/static/css/113b2e9bbc240b06.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39644 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39644 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39662 - "GET /_next/static/chunks/561-bff89910380e15fc.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39664 - "GET /_next/static/chunks/app/layout-ae3961e3405ecb47.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39634 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39652 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39660 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39662 - "GET /_next/static/chunks/app/page-3e45bf846853f4e5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39664 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39662 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:39666 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39674 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39666 - "GET /_next/static/css/113b2e9bbc240b06.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39674 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39700 - "GET /_next/static/chunks/561-bff89910380e15fc.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39666 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39688 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39676 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39706 - "GET /_next/static/chunks/app/layout-ae3961e3405ecb47.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39700 - "GET /_next/static/chunks/app/page-3e45bf846853f4e5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39676 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39700 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+INFO:     127.0.0.1:39708 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39708 - "GET /_next/static/css/113b2e9bbc240b06.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39710 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39708 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39742 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39710 - "GET /_next/static/chunks/561-bff89910380e15fc.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39726 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39716 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39744 - "GET /_next/static/chunks/app/layout-ae3961e3405ecb47.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39742 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39710 - "GET /_next/static/chunks/app/page-3e45bf846853f4e5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39710 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     127.0.0.1:47684 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47684 - "GET /_next/static/css/c13ddd51499a62a2.css HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47692 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47684 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47692 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47694 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47704 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47712 - "GET /_next/static/chunks/191-44cb50786ad1c7e6.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47718 - "GET /_next/static/chunks/app/layout-c8772daa75f0896a.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47684 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47692 - "GET /_next/static/chunks/app/page-c4fecec05d754ad8.js HTTP/1.1" 200 OK
-[AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     127.0.0.1:47692 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
@@ -63,26 +143,264 @@ INFO:     127.0.0.1:47692 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     127.0.0.1:46606 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46606 - "GET /_next/static/css/c13ddd51499a62a2.css HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46612 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46606 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46618 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46634 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46644 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46612 - "GET /_next/static/chunks/191-44cb50786ad1c7e6.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46648 - "GET /_next/static/chunks/app/layout-c8772daa75f0896a.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46618 - "GET /_next/static/chunks/app/page-c4fecec05d754ad8.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46644 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46618 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
-INFO:     127.0.0.1:46618 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46618 - "GET /api/version HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46644 - "GET /api/version HTTP/1.1" 200 OK
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
 [AUDIT_POLLER] Loop Step: active downloads found count=0
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2026-08-05 14:39:06,356 [INFO] track_portal: Shutting down Track Portal...
-INFO:     Application shutdown complete.
-INFO:     Finished server process [175648]
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+INFO:     127.0.0.1:54528 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54528 - "GET /_next/static/css/490b6c310854abe8.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54532 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54544 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54548 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54558 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54546 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54548 - "GET /_next/static/chunks/561-bff89910380e15fc.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54532 - "GET /_next/static/chunks/app/layout-8a4b2c40189c720f.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54558 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54528 - "GET /_next/static/chunks/app/page-3e45bf846853f4e5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54528 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+INFO:     127.0.0.1:45502 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45502 - "GET /_next/static/css/490b6c310854abe8.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45516 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45518 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45542 - "GET /_next/static/chunks/561-bff89910380e15fc.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45520 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45536 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45516 - "GET /_next/static/chunks/app/layout-8a4b2c40189c720f.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45502 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45542 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45520 - "GET /_next/static/chunks/app/page-3e45bf846853f4e5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45542 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:45556 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45570 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45556 - "GET /_next/static/css/490b6c310854abe8.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45556 - "GET /_next/static/chunks/app/layout-8a4b2c40189c720f.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45576 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45582 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45596 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45606 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45570 - "GET /_next/static/chunks/561-bff89910380e15fc.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45556 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45570 - "GET /_next/static/chunks/app/page-3e45bf846853f4e5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45570 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:45616 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45616 - "GET /_next/static/css/490b6c310854abe8.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45620 - "GET /_next/static/chunks/webpack-4e6bf084ac60582b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45630 - "GET /_next/static/chunks/4bd1b696-c023c6e3521b1417.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45650 - "GET /_next/static/chunks/252-cdac27ace4239b8b.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45658 - "GET /_next/static/chunks/561-bff89910380e15fc.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45616 - "GET /_next/static/chunks/main-app-8870c115a6f937d4.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45620 - "GET /_next/static/chunks/app/layout-8a4b2c40189c720f.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45646 - "GET /_next/static/chunks/255-d81c0ea625384467.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45616 - "GET /_next/static/chunks/591-b8cc1395f088167d.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45630 - "GET /_next/static/chunks/app/page-3e45bf846853f4e5.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45630 - "GET /api/auth/me HTTP/1.1" 401 Unauthorized
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0
+[AUDIT_POLLER] Loop Step: active downloads found count=0

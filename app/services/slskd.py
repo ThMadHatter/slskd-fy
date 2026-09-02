@@ -22,6 +22,34 @@ class SlskdClient:
     def _get_client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(headers=self.headers)
 
+    async def get_searches(self) -> List[Dict[str, Any]]:
+        """
+        Retrieves active/historical searches from slskd.
+        GET /api/v0/searches
+        """
+        url = f"{self.api_url}/searches"
+        async with self._get_client() as client:
+            try:
+                response = await client.get(url, timeout=10)
+                response.raise_for_status()
+                return response.json()
+            except Exception as e:
+                logger.error(f"Failed to retrieve searches from slskd: {e}")
+                return []
+
+    async def clear_active_searches(self) -> None:
+        """
+        Clears any active/stuck slskd searches to prevent HTTP 400/409/429 concurrency blocks.
+        """
+        try:
+            searches = await self.get_searches()
+            for s in searches:
+                s_id = s.get("id")
+                if s_id:
+                    await self.delete_search(s_id)
+        except Exception as e:
+            logger.warning(f"Failed clearing active searches in slskd: {e}")
+
     async def search(self, query: str, timeout_sec: int = 15) -> Dict[str, Any]:
         """
         Performs a search for the specified query.
@@ -53,7 +81,6 @@ class SlskdClient:
                 response = await client.post(url, json=payload, timeout=20)
                 response.raise_for_status()
                 data = response.json()
-                # Stopped logging the massive raw JSON payload here to avoid choking Docker logs
                 logger.info(f"Successfully started search. Search ID: {data.get('id')}.")
                 return data
             except httpx.HTTPStatusError as e:
@@ -88,8 +115,6 @@ class SlskdClient:
                     total_files_count += len(resp.get("files", []))
                 print(f"[AUDIT] SLSKD RESPONSE COUNT - search_id={search_id!r}, peer_responses={len(data)}, total_files={total_files_count}", flush=True)
 
-                # FIX 4: Removed `Raw: {data}` print.
-                # Soulseek search results can easily be 5MB+ of text which will crash your log viewer!
                 logger.info(f"Search {search_id} returned {len(data)} peer responses.")
                 return data
             except Exception as e:

@@ -177,6 +177,13 @@ async def api_search(
             except Exception as e:
                 logger.error(f"Error pre-fetching artist releases catalog: {e}")
 
+        # Clear any active/stuck slskd searches first
+        try:
+            if hasattr(search_executor.slskd_client, "clear_active_searches"):
+                await search_executor.slskd_client.clear_active_searches()
+        except Exception as e:
+            logger.warning(f"Could not clear active slskd searches: {e}")
+
         # 2. Sequential fallback search loop matching & yielding chunks incrementally
         query_strings = search_executor.generate_progressive_queries(search_artist, track_or_album)
         for idx, q_str in enumerate(query_strings):
@@ -193,7 +200,10 @@ async def api_search(
                         if len(responses) >= 8:
                             break
             except Exception as e:
-                logger.error(f"Error executing sequential query '{q_str}': {e}")
+                err_msg = f"slskd search failed for '{q_str}': {e}"
+                logger.error(err_msg)
+                yield json.dumps({"error": err_msg}) + "\n"
+                break
 
             chunk_results = []
             for resp in responses:

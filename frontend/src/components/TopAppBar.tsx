@@ -3,11 +3,15 @@
 import React from 'react';
 import { useNavigationStore } from '../store/navigationStore';
 import { useSearchStore } from '../store/searchStore';
-import { Search, Filter, Sliders, Settings2, Menu } from 'lucide-react';
+import { useNotificationStore } from '../store/notificationStore';
+import { Search, Filter, Sliders, Settings2, Menu, Bell } from 'lucide-react';
 
 export default function TopAppBar() {
   const { toggleCommandPalette, toggleMobileMenu, setActiveTab } = useNavigationStore();
   const { artist, track } = useSearchStore();
+  const { notifications, toggleDrawer } = useNotificationStore();
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const searchQueryDisplay = artist && track
     ? `${artist} - ${track}`
@@ -49,7 +53,25 @@ export default function TopAppBar() {
       </div>
 
       {/* Trailing Icon Actions */}
-      <div className="flex items-center gap-4 text-[#bbcabf]">
+      <div className="flex items-center gap-3 text-[#bbcabf]">
+        {/* Notification Bell Button */}
+        <button
+          onClick={toggleDrawer}
+          className="hover:text-[#10b981] transition-colors cursor-pointer relative group flex items-center justify-center p-1.5 text-[#bbcabf]"
+          title="Notifications"
+          aria-label={`Notifications ${unreadCount > 0 ? `(${unreadCount} unread)` : ''}`}
+        >
+          <Bell size={18} />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-[#10b981] text-[#0A0A0B] font-data-mono font-bold text-[9px] min-w-[16px] h-[16px] rounded-full flex items-center justify-center px-1 shadow-[0_0_8px_#10b981]">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#201f20] border border-[#27272a] px-1.5 py-0.5 font-data-mono text-[10px] text-[#e5e2e3] whitespace-nowrap pointer-events-none z-50">
+            N
+          </div>
+        </button>
+
         <button className="hover:text-[#10b981] transition-colors cursor-pointer relative group flex items-center justify-center p-1">
           <Filter size={18} />
           <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#201f20] border border-[#27272a] px-1.5 py-0.5 font-data-mono text-[10px] text-[#e5e2e3] whitespace-nowrap pointer-events-none z-50">

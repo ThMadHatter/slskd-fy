@@ -5,6 +5,7 @@ import SideNavBar from './SideNavBar';
 import TopAppBar from './TopAppBar';
 import CommandPalette from './CommandPalette';
 import MobileNavDrawer from './MobileNavDrawer';
+import NotificationDrawer from './NotificationDrawer';
 import { useHotkeys } from '../hooks/useHotkeys';
 import { useNavigationStore } from '../store/navigationStore';
 import { useAuthStore } from '../store/authStore';
@@ -49,6 +50,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         </div>
       </div>
       <CommandPalette />
+      <NotificationDrawer />
     </div>
   );
 }

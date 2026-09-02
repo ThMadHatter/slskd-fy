@@ -12,13 +12,39 @@ from app.services.slskd import SlskdClient
 def test_generate_queries():
     # Backward compatible call path test
     queries = SearchRankingService().generate_queries("Kendrick Lamar", "Not Like Us")
-    assert '"Kendrick Lamar" Not Like Us' in queries
     assert 'Kendrick Lamar Not Like Us' in queries
+    assert 'Kendrick Lamar' in queries
+    assert 'Not Like Us' in queries
 
     # Contract-based (Pydantic) call path test
     query = SearchQuery(artist="Kendrick Lamar", track="Not Like Us", mode="B")
     queries_b = SearchRankingService().generate_queries(query)
     assert queries_b == ['"Kendrick Lamar" "Not Like Us"']
+
+
+def test_search_variant_generator():
+    from app.services.search_ranking_service import SearchVariantGenerator
+
+    # Leet speak
+    pink_vars = SearchVariantGenerator.generate_artist_variants("P1nk")
+    assert "Pink" in pink_vars
+
+    # Diacritics / ASCII fold
+    beyonce_vars = SearchVariantGenerator.generate_artist_variants("Beyoncé")
+    assert "Beyonce" in beyonce_vars
+
+    # Punctuation & spacing
+    rem_vars = SearchVariantGenerator.generate_artist_variants("R.E.M.")
+    assert "REM" in rem_vars or "R E M" in rem_vars
+
+    acdc_vars = SearchVariantGenerator.generate_artist_variants("AC/DC")
+    assert "AC DC" in acdc_vars or "ACDC" in acdc_vars
+
+    # Prefix stripping & canonical seed
+    dre_vars = SearchVariantGenerator.generate_artist_variants("Dr Dre", canonical_artist="Dr. Dre")
+    assert "Dr Dre" in dre_vars
+    assert "Dr. Dre" in dre_vars
+    assert "Dre" in dre_vars
 
 
 def test_score_exact_match():
@@ -152,11 +178,8 @@ class FallbackMockSlskdClient(MockSlskdClient):
 
 @pytest.mark.asyncio
 async def test_fallback_executor_strict_success():
-    import os
-    from unittest.mock import patch
-    # Under STRICT strategy, we only run Artist + Track queries and merge/return results
-    mode_responses = {
-        "B": [{
+    responses_map = {
+        "Artist Track": [{
             "username": "peerB",
             "files": [{
                 "filename": "Artist - Track.flac",
@@ -164,17 +187,22 @@ async def test_fallback_executor_strict_success():
                 "bitRate": 1000,
                 "sampleRate": 44100
             }]
-        }],
-        "A": []
+        }]
     }
 
-    slskd = FallbackMockSlskdClient(mode_responses)
+    class MapSlskdClient(MockSlskdClient):
+        async def search(self, query: str) -> Dict[str, Any]:
+            return {"id": query}
+
+        async def get_search_responses(self, search_id: str) -> List[Dict[str, Any]]:
+            return responses_map.get(search_id, [])
+
+    slskd = MapSlskdClient()
     provider = SearchRankingService()
     executor = FallbackSearchExecutor(slskd_client=slskd, search_provider=provider)
 
     query = SearchQuery(artist="Artist", track="Track")
-    with patch.dict(os.environ, {"SEARCH_STRATEGY": "STRICT"}):
-        results = await executor.execute_search(query)
+    results = await executor.execute_search(query)
 
     assert len(results) == 1
     assert results[0].username == "peerB"
@@ -183,12 +211,9 @@ async def test_fallback_executor_strict_success():
 
 @pytest.mark.asyncio
 async def test_fallback_executor_strict_fails_balanced_success():
-    import os
-    from unittest.mock import patch
-    # Under BALANCED strategy, if STRICT queries return 0 files, it falls back to broader ones
-    mode_responses = {
-        "B": [],
-        "A": [{
+    responses_map = {
+        "Artist Track": [],
+        "Artist": [{
             "username": "peerA",
             "files": [{
                 "filename": "Artist - Track.flac",
@@ -199,13 +224,19 @@ async def test_fallback_executor_strict_fails_balanced_success():
         }]
     }
 
-    slskd = FallbackMockSlskdClient(mode_responses)
+    class MapSlskdClient(MockSlskdClient):
+        async def search(self, query: str) -> Dict[str, Any]:
+            return {"id": query}
+
+        async def get_search_responses(self, search_id: str) -> List[Dict[str, Any]]:
+            return responses_map.get(search_id, [])
+
+    slskd = MapSlskdClient()
     provider = SearchRankingService()
     executor = FallbackSearchExecutor(slskd_client=slskd, search_provider=provider)
 
     query = SearchQuery(artist="Artist", track="Track")
-    with patch.dict(os.environ, {"SEARCH_STRATEGY": "BALANCED"}):
-        results = await executor.execute_search(query)
+    results = await executor.execute_search(query)
 
     assert len(results) == 1
     assert results[0].username == "peerA"
@@ -213,23 +244,24 @@ async def test_fallback_executor_strict_fails_balanced_success():
 
 @pytest.mark.asyncio
 async def test_fallback_executor_graceful_degradation_on_exception():
-    # If a query throws an error, the executor recovers gracefully and falls back to next mode [RSL-003]
     class FaultySlskdClient(MockSlskdClient):
         async def search(self, query: str) -> Dict[str, Any]:
-            if '"' in query: # STRICT queries throw exception
+            if query == "Artist Track":
                 raise RuntimeError("Slskd timed out")
-            return {"id": "search_A"}
+            return {"id": query}
 
         async def get_search_responses(self, search_id: str) -> List[Dict[str, Any]]:
-            return [{
-                "username": "peerA",
-                "files": [{
-                    "filename": "Artist - Track.flac",
-                    "size": 30000000,
-                    "bitRate": 1000,
-                    "sampleRate": 44100
+            if search_id == "Artist":
+                return [{
+                    "username": "peerA",
+                    "files": [{
+                        "filename": "Artist - Track.flac",
+                        "size": 30000000,
+                        "bitRate": 1000,
+                        "sampleRate": 44100
+                    }]
                 }]
-            }]
+            return []
 
     slskd = FaultySlskdClient()
     provider = SearchRankingService()
@@ -273,33 +305,30 @@ def test_quote_sanitization():
 
 
 @pytest.mark.asyncio
-async def test_fallback_executor_polls_5_seconds_and_transitions():
+async def test_fallback_executor_polls_and_transitions():
     from unittest.mock import patch, AsyncMock
-    # If Mode B has 0 results, we poll for 5 seconds (5 calls to sleep, 5 calls to get_search_responses)
-    mode_responses = {
-        "B": [], # 0 files
-        "A": [{
+
+    responses_map = {
+        "Artist Track": [], # 0 files -> will poll 30 times (15s)
+        "Artist": [{
             "username": f"peerA_{i}",
             "files": [{
-                "filename": "Artist - Track.mp3",
+                "filename": f"Artist - Track_{i}.mp3",
                 "size": 8000000,
                 "bitRate": 320,
                 "sampleRate": 44100
             }]
-        } for i in range(8)]
+        } for i in range(10)]
     }
 
-    slskd = FallbackMockSlskdClient(mode_responses)
-    original_get_responses = slskd.get_search_responses
-    call_count = 0
-    async def spy_get_responses(search_id: str):
-        nonlocal call_count
-        if "B" in search_id:
-            call_count += 1
-        return await original_get_responses(search_id)
+    class MapSlskdClient(MockSlskdClient):
+        async def search(self, query: str) -> Dict[str, Any]:
+            return {"id": query}
 
-    slskd.get_search_responses = spy_get_responses
+        async def get_search_responses(self, search_id: str) -> List[Dict[str, Any]]:
+            return responses_map.get(search_id, [])
 
+    slskd = MapSlskdClient()
     provider = SearchRankingService()
     executor = FallbackSearchExecutor(slskd_client=slskd, search_provider=provider)
 
@@ -308,11 +337,9 @@ async def test_fallback_executor_polls_5_seconds_and_transitions():
     with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
         results = await executor.execute_search(query)
 
-        # Mode B (quoted queries) should have failed after 5 poll iterations each
-        assert call_count == 10
-        # And should have called asyncio.sleep at least 13 times due to progressive BALANCED merging
-        assert mock_sleep.call_count >= 13
+        # "Artist Track" query had 0 responses, so it polled for up to max timeout (30 x 0.5s)
+        assert mock_sleep.call_count >= 30
 
-        # Fallback should have transitioned and found A
-        assert len(results) == 8
+        # Transitioned to "Artist" query which yielded 10 results
+        assert len(results) == 10
         assert results[0].username == "peerA_0"

@@ -21,14 +21,12 @@ def test_query_generation():
     queries = SearchRankingService.generate_queries_progressive(artist, track)
 
     assert len(queries) > 0
-    # Strict / exact queries
+    # Tier 1 query
     assert "Kendrick Lamar Not Like Us" in queries
-    assert '"Kendrick Lamar" Not Like Us' in queries
-    assert '"Kendrick Lamar" "Not Like Us"' in queries
-    # Fallback track query
-    assert "Not Like Us" in queries
-    # Fallback artist query
+    # Tier 2 artist broad query
     assert "Kendrick Lamar" in queries
+    # Tier 3 track broad query
+    assert "Not Like Us" in queries
 
 
 def test_filename_parsing():
@@ -204,7 +202,7 @@ async def test_search_orchestration_e2e():
         return {"id": f"search_id_{query_str.replace(' ', '_')}"}
 
     async def mock_get_search_responses(search_id: str):
-        if "Kendrick_Lamar_\"Not_Like_Us\"" in search_id or "Kendrick_Lamar_Not_Like_Us" in search_id:
+        if search_id.endswith("_Kendrick_Lamar_Not_Like_Us") or search_id.endswith("_Kendrick_Lamar"):
             return []
 
         if "Not_Like_Us" in search_id:

@@ -32,10 +32,27 @@ class SlskdClient:
             try:
                 response = await client.get(url, timeout=10)
                 response.raise_for_status()
-                return response.json()
+                data = response.json()
+                return data if data is not None else []
             except Exception as e:
                 logger.error(f"Failed to retrieve searches from slskd: {e}")
                 return []
+
+    async def cancel_search(self, search_id: str) -> None:
+        """
+        Cancels an active slskd search.
+        PUT /api/v0/searches/{id}
+        """
+        url = f"{self.api_url}/searches/{search_id}"
+        async with self._get_client() as client:
+            try:
+                response = await client.put(url, timeout=10)
+                if response.status_code in [200, 204]:
+                    logger.info(f"Cancelled search {search_id} in slskd.")
+                else:
+                    logger.warning(f"Cancel search {search_id} returned status {response.status_code}")
+            except Exception as e:
+                logger.warning(f"Failed to cancel search {search_id} in slskd: {e}")
 
     async def clear_active_searches(self) -> None:
         """
@@ -44,8 +61,9 @@ class SlskdClient:
         try:
             searches = await self.get_searches()
             for s in searches:
-                s_id = s.get("id")
+                s_id = s.get("id") or s.get("Id")
                 if s_id:
+                    await self.cancel_search(s_id)
                     await self.delete_search(s_id)
         except Exception as e:
             logger.warning(f"Failed clearing active searches in slskd: {e}")
@@ -57,18 +75,15 @@ class SlskdClient:
         """
         url = f"{self.api_url}/searches"
 
-        # FIX 1: slskd expects searchTimeout in milliseconds.
-        timeout_ms = timeout_sec * 1000
-
-        # FIX 2: slskd uses camelCase for JSON keys. The snake_case keys are ignored.
         payload = {
             "searchText": query,
-            "searchTimeout": timeout_ms,
-            "filterResponses": False
+            "searchTimeout": timeout_sec,   # raw seconds, NOT milliseconds
+            "filterResponses": False,
+            "responseLimit": 100,
+            "fileLimit": 10000
         }
         print(f"[AUDIT] PAYLOAD - payload={payload}", flush=True)
 
-        # FIX 3: Secure your API key in logs so it isn't printed in plain text
         safe_api_key = f"{self.api_key[:4]}...{self.api_key[-4:]}" if self.api_key else "None"
         curl_cmd = (f"curl -X POST -H \"X-API-KEY: {safe_api_key}\" "
                     f"-H \"Content-Type: application/json\" -d '{payload}' {url}")
@@ -81,7 +96,8 @@ class SlskdClient:
                 response = await client.post(url, json=payload, timeout=20)
                 response.raise_for_status()
                 data = response.json()
-                logger.info(f"Successfully started search. Search ID: {data.get('id')}.")
+                s_id = data.get("id") or data.get("Id") if isinstance(data, dict) else None
+                logger.info(f"Successfully started search. Search ID: {s_id}.")
                 return data
             except httpx.HTTPStatusError as e:
                 logger.error(f"Search failed with status {e.response.status_code}: {e.response.text}")
@@ -96,7 +112,8 @@ class SlskdClient:
             try:
                 response = await client.get(url, timeout=10)
                 response.raise_for_status()
-                return response.json()
+                data = response.json()
+                return data if data is not None else {}
             except Exception as e:
                 logger.error(f"Failed to fetch search state for {search_id}: {e}")
                 raise
@@ -109,10 +126,15 @@ class SlskdClient:
                 response.raise_for_status()
                 data = response.json()
 
+                if data is None:
+                    logger.info(f"Search {search_id} returned null/empty peer responses.")
+                    return []
+
                 # Calculate response files count
                 total_files_count = 0
                 for resp in data:
-                    total_files_count += len(resp.get("files", []))
+                    files = resp.get("files") or resp.get("Files") or []
+                    total_files_count += len(files)
                 print(f"[AUDIT] SLSKD RESPONSE COUNT - search_id={search_id!r}, peer_responses={len(data)}, total_files={total_files_count}", flush=True)
 
                 logger.info(f"Search {search_id} returned {len(data)} peer responses.")

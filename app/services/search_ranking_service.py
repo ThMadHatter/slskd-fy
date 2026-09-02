@@ -16,6 +16,107 @@ JUNK_FILENAME_PATTERNS = [
     r"\b(password\s*protected|keygen|crack|unzip\s*me|read\s*me|readme|nfo\s*file|torrent)\b"
 ]
 
+class SearchVariantGenerator:
+    """
+    Generates variations of artist and track queries including leet decoding,
+    diacritic removal (ASCII folding), and spacing/punctuation variations.
+    """
+    LEET_MAP = str.maketrans({
+        '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's',
+        '7': 't', '8': 'b', '$': 's', '@': 'a', '!': 'i'
+    })
+
+    @classmethod
+    def ascii_fold(cls, text: str) -> str:
+        import unicodedata
+        return unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('ASCII')
+
+    @classmethod
+    def decode_leet(cls, text: str) -> str:
+        return text.translate(cls.LEET_MAP)
+
+    @classmethod
+    def generate_artist_variants(cls, artist: str, canonical_artist: Optional[str] = None) -> List[str]:
+        if not artist and not canonical_artist:
+            return []
+
+        seeds = []
+        if artist and artist.strip():
+            seeds.append(artist.strip())
+        if canonical_artist and canonical_artist.strip():
+            c_clean = canonical_artist.strip()
+            if not seeds or c_clean.lower() != seeds[0].lower():
+                seeds.append(c_clean)
+
+        raw_variants = []
+
+        for seed in seeds:
+            # 1. Base seed
+            raw_variants.append(seed)
+
+            # 2. ASCII fold
+            folded = cls.ascii_fold(seed)
+            raw_variants.append(folded)
+
+            # 3. Leet decode
+            leet = cls.decode_leet(seed)
+            raw_variants.append(leet)
+            raw_variants.append(cls.ascii_fold(leet))
+
+            # 4. Spacing / Punctuation variants
+            spaced = re.sub(r'[\.\-/\\]+', ' ', seed)
+            raw_variants.append(spaced)
+            raw_variants.append(cls.ascii_fold(spaced))
+
+            collapsed = re.sub(r'[\.\-/\\]+', '', seed)
+            raw_variants.append(collapsed)
+            raw_variants.append(cls.ascii_fold(collapsed))
+
+            # Strip leading common artist prefixes (Dr., Dr, DJ, MC, The)
+            prefix_match = re.match(r'^(dr\.?|dj\.?|mc\.?|the)\s+(.+)$', seed, re.IGNORECASE)
+            if prefix_match:
+                prefix_stripped = prefix_match.group(2)
+                raw_variants.append(prefix_stripped)
+                raw_variants.append(cls.ascii_fold(prefix_stripped))
+
+        seen = set()
+        deduped = []
+        for v in raw_variants:
+            v_clean = re.sub(r'\s+', ' ', v).strip()
+            if v_clean and v_clean.lower() not in seen:
+                seen.add(v_clean.lower())
+                deduped.append(v_clean)
+
+        return deduped[:8]
+
+    @classmethod
+    def generate_track_variants(cls, track: str) -> List[str]:
+        if not track or not track.strip():
+            return []
+
+        seed = track.strip()
+        raw_variants = [
+            seed,
+            cls.ascii_fold(seed),
+            cls.decode_leet(seed),
+            cls.ascii_fold(cls.decode_leet(seed)),
+            re.sub(r'[\.\-/\\]+', ' ', seed),
+            cls.ascii_fold(re.sub(r'[\.\-/\\]+', ' ', seed)),
+            re.sub(r'[\.\-/\\]+', '', seed),
+            cls.ascii_fold(re.sub(r'[\.\-/\\]+', '', seed))
+        ]
+
+        seen = set()
+        deduped = []
+        for v in raw_variants:
+            v_clean = re.sub(r'\s+', ' ', v).strip()
+            if v_clean and v_clean.lower() not in seen:
+                seen.add(v_clean.lower())
+                deduped.append(v_clean)
+
+        return deduped[:5]
+
+
 class SearchRankingService(SearchProviderContract):
     """
     SearchRankingService implements query generation, result filtering,
@@ -58,61 +159,62 @@ class SearchRankingService(SearchProviderContract):
         return False
 
     @classmethod
-    def generate_queries_progressive(cls, artist: str, track_or_album: str) -> List[str]:
+    def generate_queries_progressive(
+        cls,
+        artist: str,
+        track_or_album: str,
+        canonical_artist: Optional[str] = None
+    ) -> List[str]:
         """
-        Generates progressive, broad, and robust query permutations based on inputs.
+        Generates progressive, tiered queries using SearchVariantGenerator:
+        Tier 1 (precision): Top 3 artist variants + top 2 track variants combined
+        Tier 2 (artist broad): Top 3 artist variants alone
+        Tier 3 (track broad): Top 2 track variants alone
+        Tier 4 (last resort): First word of artist + track
         """
-        queries = []
         clean_artist = artist.replace('"', '').strip() if artist else ""
         clean_track = track_or_album.replace('"', '').strip() if track_or_album else ""
+        clean_canonical = canonical_artist.replace('"', '').strip() if canonical_artist else None
 
-        # Step 1: Broad Artist + Track combination
-        if clean_artist and clean_track:
-            queries.append(f"{clean_artist} {clean_track}")
-            # Step 2: Quoted Artist + Track
-            queries.append(f'"{clean_artist}" {clean_track}')
-            # Step 3: Quoted Artist + Quoted Track
-            queries.append(f'"{clean_artist}" "{clean_track}"')
+        artist_vars = SearchVariantGenerator.generate_artist_variants(clean_artist, clean_canonical)
+        track_vars = SearchVariantGenerator.generate_track_variants(clean_track)
 
-        # Step 4: Track/Album only
-        if clean_track:
-            queries.append(clean_track)
+        top_artist_vars = artist_vars[:3]
+        top_track_vars = track_vars[:2]
 
-        # Step 5: Artist only
-        if clean_artist:
-            queries.append(clean_artist)
-            # First word of artist
-            artist_words = clean_artist.split()
-            if len(artist_words) > 1:
-                queries.append(artist_words[0])
+        queries = []
 
-        # Step 6: Partials of Track
-        if clean_track:
-            track_words = clean_track.split()
-            if len(track_words) >= 2:
-                queries.append(" ".join(track_words[:2]))
-            if len(track_words) >= 1:
-                queries.append(track_words[0])
+        # Tier 1 (precision): Top 3 artist variants + top 2 track variants combined
+        if top_artist_vars and top_track_vars:
+            for a_var in top_artist_vars:
+                for t_var in top_track_vars:
+                    queries.append(f"{a_var} {t_var}")
 
-        # Unique values preserving order
+        # Tier 2 (artist broad): Top 3 artist variants alone
+        if top_artist_vars:
+            for a_var in top_artist_vars:
+                queries.append(a_var)
+
+        # Tier 3 (track broad): Top 2 track variants alone
+        if top_track_vars:
+            for t_var in top_track_vars:
+                queries.append(t_var)
+
+        # Tier 4 (last resort): First word of artist + track
+        if top_artist_vars and top_track_vars:
+            first_word_artist = top_artist_vars[0].split()[0]
+            queries.append(f"{first_word_artist} {top_track_vars[0]}")
+
+        # Deduplicate case-insensitively while preserving order
         seen = set()
-        raw_res = [q for q in queries if q and not (q in seen or seen.add(q))]
+        deduped = []
+        for q in queries:
+            q_clean = q.strip()
+            if q_clean and q_clean.lower() not in seen:
+                seen.add(q_clean.lower())
+                deduped.append(q_clean)
 
-        res = []
-        for q in raw_res:
-            # Check if query is short and consists of a single word (e.g. <= 4 characters like "Muse")
-            if len(q) <= 4 and len(q.split()) == 1:
-                # Add padded/expanded queries to bypass Soulseek short term / broad filters [Gap 22]
-                res.append(f"{q} flac")
-                res.append(f"{q} mp3")
-                res.append(f"{q} album")
-                res.append(q)
-            else:
-                res.append(q)
-
-        # De-duplicate the final list preserving order
-        final_seen = set()
-        return [q for q in res if q and not (q in final_seen or final_seen.add(q))]
+        return deduped
 
     @classmethod
     def score_candidate(

@@ -752,3 +752,15 @@ This section tracks incremental updates to this audit document.
   4. Refined `LoginView.tsx` card to remove redundant header block, leaving a sleek minimalist card with Username/Password inputs only.
   5. Implemented Global Notification Center with Zustand persistent state (`sonic_notifications_v1`), Bell icon unread badge trigger in TopAppBar, slide-over NotificationDrawer with history and tab navigation links, and automated event triggers in `downloadStore.ts` and `reviewQueueStore.ts`.
   6. Configured multi-stage Docker build pipeline (`Dockerfile`) with Node.js LTS stage for Next.js static export compilation, python-builder for dependencies, and lightweight runtime python container copying compiled artifacts directly into FastAPI `/app/templates/index.html` and `/app/static/_next/`. Added `.dockerignore` and updated `.gitignore` to prevent committing generated bundle artifacts.
+
+## 2026-09-02
+
+- Fixed and optimized slskd Python client (`slskd.py`), search variant generator (`search_ranking_service.py`), and fallback search executor (`fallback_search_executor.py`):
+  1. Preserved original user input for all slskd searches; treated MusicBrainz canonical names strictly as additional seed variants rather than replacements.
+  2. Created `SearchVariantGenerator` supporting leet decoding (`0134578$@!` -> `oieatsbsai`), diacritic removal (ASCII folding), spacing/punctuation variations, and deduplication (max 8 artist, max 5 track variants).
+  3. Implemented 4-tier progressive query generation (Tier 1 precision artist+track, Tier 2 artist broad, Tier 3 track broad, Tier 4 first word artist+track).
+  4. Refactored polling loop to wait up to max timeout (15.0s) with 0.5s intervals, checking search state (`GET /searches/{id}`) or a 10+ response threshold before stopping, and only deleting searches after polling completes.
+  5. Corrected `searchTimeout` payload unit to raw seconds (15) and added `responseLimit` (100) / `fileLimit` (10000).
+  6. Added null-safety for `get_search_responses` and robust camelCase/PascalCase fallback accessors across client and executor files.
+  7. Fixed candidate counting (`query_candidates_count`) to increment strictly inside deduplication block.
+  8. Implemented `cancel_search(search_id)` using `PUT /searches/{id}` so `clear_active_searches()` cancels searches prior to deletion.

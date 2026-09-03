@@ -13,6 +13,7 @@ import Kbd from './ui/Kbd';
 
 export default function HomeView() {
   const { setActiveTab } = useNavigationStore();
+  const { searchTimeoutSec, waitUntilComplete } = useSettingsStore();
   const {
     artist,
     artistMbid,
@@ -91,8 +92,6 @@ export default function HomeView() {
     setActiveTab('search');
 
     try {
-      const { searchTimeoutSec, waitUntilComplete } = useSettingsStore.getState();
-
       const response = await fetch('/api/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

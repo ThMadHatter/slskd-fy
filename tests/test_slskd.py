@@ -22,6 +22,22 @@ async def test_slskd_search_success():
         assert called_payload["fileLimit"] == 10000
 
 @pytest.mark.asyncio
+async def test_slskd_search_wait_until_complete():
+    client = SlskdClient(api_url="http://mock-slskd/api/v0", api_key="test-key")
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "search-uuid-456", "searchText": "Brunori Sas"}
+        mock_post.return_value = mock_response
+
+        res = await client.search("Brunori Sas", wait_until_complete=True)
+        assert res["id"] == "search-uuid-456"
+        called_payload = mock_post.call_args.kwargs["json"]
+        # Verify searchTimeout is omitted when wait_until_complete is True
+        assert "searchTimeout" not in called_payload
+
+@pytest.mark.asyncio
 async def test_slskd_get_search_responses_null():
     client = SlskdClient(api_url="http://mock-slskd/api/v0", api_key="test-key")
 

@@ -99,8 +99,6 @@ class SlskdClient:
             except Exception:
                 s_id = None
 
-        timeout_val = 120 if wait_until_complete else (timeout_sec or 15)
-
         payload = {
             "id": s_id,
             "fileLimit": file_limit,
@@ -110,8 +108,10 @@ class SlskdClient:
             "minimumResponseFileCount": min_response_file_count,
             "responseLimit": response_limit,
             "searchText": query,
-            "searchTimeout": timeout_val,
         }
+
+        if not wait_until_complete and timeout_sec is not None:
+            payload["searchTimeout"] = timeout_sec
         print(f"[AUDIT] PAYLOAD - payload={payload}", flush=True)
 
         safe_api_key = f"{self.api_key[:4]}...{self.api_key[-4:]}" if self.api_key else "None"

@@ -100,7 +100,7 @@ export default function HomeView() {
           track_or_album: searchTrack,
           mode: searchMode,
           artist_mbid: artistMbid,
-          timeout_sec: searchTimeoutSec,
+          timeout_sec: waitUntilComplete ? null : searchTimeoutSec,
           wait_until_complete: waitUntilComplete,
         }),
       });

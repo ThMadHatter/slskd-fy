@@ -323,20 +323,37 @@ async def api_search(
 async def api_download(
     payload: DownloadRequest,
     slskd_client: SlskdClientContract = Depends(get_slskd_client),
+    db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
     """
-    Enqueues a file download via slskd.
+    Enqueues a file download via slskd and records it in DownloadHistory.
     """
+    from app.models import DownloadHistory
     # Log exact required log keyword: DOWNLOAD_REQUESTED
     logger.info(f"DOWNLOAD_REQUESTED - Username: '{payload.username}', Filename: '{payload.filename}'")
 
     success = await slskd_client.enqueue_download(payload.username, payload.filename, payload.size)
 
     if success:
+        new_dl = DownloadHistory(
+            search_query=f"{payload.artist} {payload.track}".strip(),
+            artist=payload.artist,
+            track=payload.track,
+            album=payload.album or "",
+            filename=payload.filename,
+            source_user=payload.username,
+            format=payload.format or "",
+            bitrate=payload.bitrate or 0,
+            size_bytes=payload.size,
+            status="downloading",
+            downloaded_at=datetime.datetime.utcnow()
+        )
+        db.add(new_dl)
+        db.commit()
         # Log exact required log keyword: DOWNLOAD_COMPLETED (enqueue successful)
-        logger.info(f"DOWNLOAD_COMPLETED - Filename: '{payload.filename}'")
-        return {"status": "success", "message": "Download enqueued successfully"}
+        logger.info(f"DOWNLOAD_COMPLETED - Filename: '{payload.filename}' saved to DownloadHistory ID {new_dl.id}")
+        return {"status": "success", "message": "Download enqueued successfully", "id": new_dl.id}
     else:
         logger.error(f"Download request failed for file: '{payload.filename}'")
         raise HTTPException(status_code=500, detail="Failed to enqueue download in slskd")

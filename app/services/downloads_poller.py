@@ -54,6 +54,52 @@ def clean_empty_directories(base_dir: str):
             except Exception as e:
                 logger.debug(f"Could not delete directory {dir_path}: {e}")
 
+async def import_with_beets(src_path: str, target_dir: str) -> Optional[str]:
+    """
+    Parses and imports the downloaded file using Beets CLI ('beet import -q -y').
+    Moves the file to target_dir (/music).
+    Returns the final file path.
+    """
+    if not os.path.exists(src_path):
+        return None
+
+    logger.info(f"Triggering Beets import for downloaded file: '{src_path}'")
+    print(f"[AUDIT_POLLER] BEETS IMPORT START - src={src_path!r}", flush=True)
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "beet", "import", "-q", "-y", src_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        logger.info(f"Beets import completed with exit code {proc.returncode}. stdout={stdout.decode('utf-8', errors='ignore')!r}")
+        print(f"[AUDIT_POLLER] BEETS IMPORT COMPLETE - returncode={proc.returncode}", flush=True)
+    except FileNotFoundError:
+        logger.warning("Beets binary 'beet' not found in system PATH. Falling back to direct move.")
+    except Exception as e:
+        logger.error(f"Error executing Beets import process: {e}")
+
+    # Check if Beets moved the file to target_dir (/music)
+    filename = os.path.basename(src_path)
+    found_in_target = find_file_recursively(target_dir, filename)
+    if found_in_target and os.path.exists(found_in_target):
+        return found_in_target
+
+    # If file still exists at src_path, manually move it to target_dir
+    if os.path.exists(src_path):
+        os.makedirs(target_dir, exist_ok=True)
+        dest_file_path = os.path.join(target_dir, filename)
+        try:
+            logger.info(f"Moving completed track: {src_path} -> {dest_file_path}")
+            shutil.move(src_path, dest_file_path)
+            return dest_file_path
+        except Exception as e:
+            logger.error(f"Failed to move file to destination: {e}")
+            return src_path
+
+    return found_in_target or src_path
+
 async def _handle_stalled_download(download: DownloadHistory, db: Session):
     """
     [RSL-002] Autonomously cancels a stalled download and requests the next best choice seamlessly.
@@ -249,35 +295,28 @@ async def poll_downloads():
                             found_file_path = find_file_recursively(settings.DOWNLOADS_PATH, download.filename)
 
                             if found_file_path and os.path.exists(found_file_path):
-                                os.makedirs(settings.SINGLES_PATH, exist_ok=True)
-                                dest_file_path = os.path.join(settings.SINGLES_PATH, os.path.basename(found_file_path))
-
+                                target_music_repo = settings.MUSIC_LIBRARY_PATH
                                 try:
-                                    logger.info(f"Moving completed single track: {found_file_path} -> {dest_file_path}")
-                                    shutil.move(found_file_path, dest_file_path)
+                                    dest_file_path = await import_with_beets(found_file_path, target_music_repo)
+                                    if dest_file_path and os.path.exists(dest_file_path):
+                                        f_hash = calculate_file_hash(dest_file_path)
+                                        download.status = "completed"
+                                        download.downloaded_at = datetime.utcnow()
+                                        download.filename = os.path.basename(dest_file_path)
+                                        download.file_hash = f_hash
 
-                                    # Calculate file hash for duplicate detection
-                                    f_hash = calculate_file_hash(dest_file_path)
+                                        wishlist_item = db.query(Wishlist).filter(
+                                            Wishlist.artist == download.artist,
+                                            Wishlist.track == download.track,
+                                            Wishlist.status != "imported"
+                                        ).first()
+                                        if wishlist_item:
+                                            wishlist_item.status = "downloaded"
+                                            wishlist_item.fulfilled_at = datetime.utcnow()
 
-                                    # Update database state to 'completed'
-                                    download.status = "completed"
-                                    download.downloaded_at = datetime.utcnow()
-                                    download.filename = os.path.basename(dest_file_path)
-                                    download.file_hash = f_hash
-
-                                    # Update corresponding wishlist item status
-                                    wishlist_item = db.query(Wishlist).filter(
-                                        Wishlist.artist == download.artist,
-                                        Wishlist.track == download.track,
-                                        Wishlist.status != "imported"
-                                    ).first()
-                                    if wishlist_item:
-                                        wishlist_item.status = "downloaded"
-                                        wishlist_item.fulfilled_at = datetime.utcnow()
-
-                                    logger.info(f"Track '{download.track}' successfully organized and marked completed.")
+                                        logger.info(f"Track '{download.track}' successfully imported via Beets and marked completed at '{dest_file_path}'.")
                                 except Exception as e:
-                                    logger.error(f"Failed to move completed file {found_file_path}: {e}")
+                                    logger.error(f"Failed to process/import completed file {found_file_path}: {e}")
                             else:
                                 logger.warning(f"File {download.filename} completed in slskd, but could not be found under {settings.DOWNLOADS_PATH}")
 
@@ -296,28 +335,28 @@ async def poll_downloads():
                         # Fallback for finished orphaned files
                         found_file_path = find_file_recursively(settings.DOWNLOADS_PATH, download.filename)
                         if found_file_path and os.path.exists(found_file_path):
-                            os.makedirs(settings.SINGLES_PATH, exist_ok=True)
-                            dest_file_path = os.path.join(settings.SINGLES_PATH, os.path.basename(found_file_path))
+                            target_music_repo = settings.MUSIC_LIBRARY_PATH
                             try:
-                                logger.info(f"Found orphaned completed file on disk: {found_file_path}. Moving to singles.")
-                                shutil.move(found_file_path, dest_file_path)
-                                f_hash = calculate_file_hash(dest_file_path)
+                                logger.info(f"Found orphaned completed file on disk: {found_file_path}. Processing via Beets.")
+                                dest_file_path = await import_with_beets(found_file_path, target_music_repo)
+                                if dest_file_path and os.path.exists(dest_file_path):
+                                    f_hash = calculate_file_hash(dest_file_path)
 
-                                download.status = "completed"
-                                download.downloaded_at = datetime.utcnow()
-                                download.filename = os.path.basename(dest_file_path)
-                                download.file_hash = f_hash
+                                    download.status = "completed"
+                                    download.downloaded_at = datetime.utcnow()
+                                    download.filename = os.path.basename(dest_file_path)
+                                    download.file_hash = f_hash
 
-                                wishlist_item = db.query(Wishlist).filter(
-                                    Wishlist.artist == download.artist,
-                                    Wishlist.track == download.track,
-                                    Wishlist.status != "imported"
-                                ).first()
-                                if wishlist_item:
-                                    wishlist_item.status = "downloaded"
-                                    wishlist_item.fulfilled_at = datetime.utcnow()
+                                    wishlist_item = db.query(Wishlist).filter(
+                                        Wishlist.artist == download.artist,
+                                        Wishlist.track == download.track,
+                                        Wishlist.status != "imported"
+                                    ).first()
+                                    if wishlist_item:
+                                        wishlist_item.status = "downloaded"
+                                        wishlist_item.fulfilled_at = datetime.utcnow()
                             except Exception as e:
-                                logger.error(f"Failed to move orphaned file: {e}")
+                                logger.error(f"Failed to process orphaned file: {e}")
 
                 db.commit()
                 clean_empty_directories(settings.DOWNLOADS_PATH)

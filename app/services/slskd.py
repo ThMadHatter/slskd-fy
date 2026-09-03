@@ -1,6 +1,7 @@
 import logging
 import uuid
 from typing import List, Dict, Any, Optional
+from urllib.parse import quote
 import httpx
 from app.config import settings
 
@@ -191,13 +192,15 @@ class SlskdClient:
                 logger.error(f"Failed to delete search {search_id}: {e}")
 
     async def enqueue_download(self, username: str, filename: str, size: int) -> bool:
-        url = f"{self.api_url}/transfers/downloads/{username}"
+        quoted_username = quote(username, safe='')
+        url = f"{self.api_url}/transfers/downloads/{quoted_username}"
         payload = [{"filename": filename, "size": size}]
 
-        logger.info(f"Enqueuing slskd download: '{filename}' from '{username}'")
+        logger.info(f"Enqueuing slskd download: '{filename}' from '{username}' (quoted: '{quoted_username}')")
         async with self._get_client() as client:
             try:
                 response = await client.post(url, json=payload, timeout=15)
+                print(f"[AUDIT] ENQUEUE DOWNLOAD RESPONSE - status={response.status_code}, body={response.text!r}", flush=True)
                 if response.status_code in [200, 201, 204]:
                     logger.info("Successfully enqueued download.")
                     return True
@@ -215,16 +218,23 @@ class SlskdClient:
             try:
                 response = await client.get(url, params=params, timeout=15)
                 response.raise_for_status()
-                return response.json()
+                data = response.json()
+                res = data if data is not None else []
+                print(f"[AUDIT] GET DOWNLOADS RESPONSE - status={response.status_code}, retrieved_count={len(res) if isinstance(res, list) else 0}", flush=True)
+                logger.info(f"GET DOWNLOADS RESPONSE - status={response.status_code}, retrieved_count={len(res) if isinstance(res, list) else 0}")
+                return res
             except Exception as e:
                 logger.error(f"Failed to retrieve downloads from slskd: {e}")
                 return []
 
-    async def cancel_download(self, username: str, id_: str) -> bool:
-        url = f"{self.api_url}/transfers/downloads/{username}/{id_}"
+    async def cancel_download(self, username: str, id_: str, remove: bool = False) -> bool:
+        quoted_username = quote(username, safe='')
+        url = f"{self.api_url}/transfers/downloads/{quoted_username}/{id_}"
+        params = {"remove": str(remove).lower()}
         async with self._get_client() as client:
             try:
-                response = await client.delete(url, timeout=15)
+                response = await client.delete(url, params=params, timeout=15)
+                print(f"[AUDIT] CANCEL DOWNLOAD RESPONSE - status={response.status_code}, body={response.text!r}", flush=True)
                 if response.status_code in [200, 204]:
                     logger.info(f"Cancelled download ID: {id_} from user: {username}")
                     return True
@@ -233,4 +243,20 @@ class SlskdClient:
                     return False
             except Exception as e:
                 logger.error(f"Exception while cancelling download: {e}")
+                return False
+
+    async def remove_completed_downloads(self) -> bool:
+        url = f"{self.api_url}/transfers/downloads/all/completed"
+        async with self._get_client() as client:
+            try:
+                response = await client.delete(url, timeout=15)
+                print(f"[AUDIT] REMOVE COMPLETED DOWNLOADS RESPONSE - status={response.status_code}, body={response.text!r}", flush=True)
+                if response.status_code in [200, 204]:
+                    logger.info("Successfully removed completed downloads.")
+                    return True
+                else:
+                    logger.error(f"Remove completed downloads failed (Status {response.status_code}): {response.text}")
+                    return False
+            except Exception as e:
+                logger.error(f"Exception while removing completed downloads: {e}")
                 return False

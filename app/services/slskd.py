@@ -144,7 +144,13 @@ class SlskdClient:
                 response = await client.get(url, params=params, timeout=10)
                 response.raise_for_status()
                 data = response.json()
-                return data if data is not None else {}
+                res = data if data is not None else {}
+                state_str = res.get("state") or res.get("State") or ""
+                is_complete = res.get("isComplete") or res.get("IsComplete") or False
+                response_count = res.get("responseCount") or res.get("ResponseCount") or len(res.get("responses") or res.get("Responses") or [])
+                print(f"[AUDIT] SLSKD SEARCH STATE - search_id={search_id!r}, state={state_str!r}, isComplete={is_complete}, responseCount={response_count}", flush=True)
+                logger.info(f"SLSKD SEARCH STATE - search_id='{search_id}', state='{state_str}', isComplete={is_complete}, responseCount={response_count}")
+                return res
             except Exception as e:
                 logger.error(f"Failed to fetch search state for {search_id}: {e}")
                 raise

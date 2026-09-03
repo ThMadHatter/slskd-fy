@@ -228,8 +228,9 @@ async def api_search(
                             if hasattr(search_executor.slskd_client, "get_search_state"):
                                 state = await search_executor.slskd_client.get_search_state(search_id)
                                 state_str = (state.get("state") or state.get("State") or "").lower()
-                                if state_str in ("complete", "timed_out", "cancelled", "completed", "timedout"):
-                                    logger.info(f"Search {search_id} state reached final status '{state_str}' after {elapsed:.2f}s")
+                                is_complete = state.get("isComplete") or state.get("IsComplete") or False
+                                if state_str in ("complete", "timed_out", "cancelled", "completed", "timedout") or is_complete:
+                                    logger.info(f"Search {search_id} state reached final status '{state_str}' (isComplete={is_complete}) after {elapsed:.2f}s")
                                     break
                         except Exception as e:
                             logger.debug(f"Could not check search state for {search_id}: {e}")

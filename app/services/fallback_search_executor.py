@@ -56,6 +56,8 @@ class FallbackSearchExecutor(SearchExecutorContract):
         """
         original_artist = query.artist.strip()
         original_track = query.track.strip()
+        timeout_sec = query.timeout_sec or 15
+        wait_until_complete = bool(query.wait_until_complete)
         canonical_artist = None
 
         # Fetch canonical artist name from MusicBrainz for query seed generation (DO NOT replace original user artist)
@@ -102,15 +104,16 @@ class FallbackSearchExecutor(SearchExecutorContract):
             # Fire search to slskd
             responses = []
             search_id = None
+            start_time = time.time()
             try:
                 # Log exact required log keyword: QUERY_EXECUTED
-                logger.info(f"QUERY_EXECUTED - Executing query: '{q_str}'")
-                search_obj = await self.slskd_client.search(q_str)
+                logger.info(f"QUERY_EXECUTED - Executing query: '{q_str}' (timeout_sec={timeout_sec}, wait_until_complete={wait_until_complete})")
+                search_obj = await self.slskd_client.search(q_str, timeout_sec=timeout_sec)
                 search_id = search_obj.get("id") or search_obj.get("Id") if isinstance(search_obj, dict) else None
 
                 if search_id:
                     poll_interval = 0.5
-                    max_poll_time = 15.0
+                    max_poll_time = 120.0 if wait_until_complete else float(timeout_sec)
                     elapsed = 0.0
 
                     while elapsed < max_poll_time:
@@ -124,18 +127,22 @@ class FallbackSearchExecutor(SearchExecutorContract):
                         except Exception as e:
                             logger.warning(f"Error fetching search responses for {search_id}: {e}")
 
-                        if len(responses) >= 10:
-                            break
-
                         # Check search state
                         try:
                             if hasattr(self.slskd_client, "get_search_state"):
                                 state = await self.slskd_client.get_search_state(search_id)
                                 state_str = (state.get("state") or state.get("State") or "").lower()
                                 if state_str in ("complete", "timed_out", "cancelled", "completed", "timedout"):
+                                    logger.info(f"Search {search_id} state reached final status '{state_str}' after {elapsed:.2f}s")
                                     break
                         except Exception as e:
                             logger.debug(f"Could not check search state for {search_id}: {e}")
+
+                        if not wait_until_complete and len(responses) >= 10:
+                            break
+
+                    duration = time.time() - start_time
+                    logger.info(f"BENCHMARK - Query '{q_str}' search completed in {duration:.2f}s with {len(responses)} peer responses")
             except Exception as e:
                 logger.error(f"Error executing sequential query '{q_str}': {e}")
 

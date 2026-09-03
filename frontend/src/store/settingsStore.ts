@@ -3,6 +3,8 @@ import { create } from 'zustand';
 interface SettingsState {
   slskdUrl: string;
   slskdKey: string;
+  searchTimeoutSec: number;
+  waitUntilComplete: boolean;
   navidromeUrl: string;
   navidromeUser: string;
   navidromePass: string;
@@ -17,6 +19,8 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>((set) => ({
   slskdUrl: 'http://localhost:5030/api/v0',
   slskdKey: 'your_slskd_api_key_here',
+  searchTimeoutSec: 15,
+  waitUntilComplete: false,
   navidromeUrl: 'http://localhost:4533',
   navidromeUser: 'admin',
   navidromePass: 'navidrome_admin_password',

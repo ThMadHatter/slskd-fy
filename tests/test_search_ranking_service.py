@@ -158,7 +158,7 @@ class FallbackMockSlskdClient(MockSlskdClient):
         super().__init__()
         self.mode_responses = mode_responses
 
-    async def search(self, query: str) -> Dict[str, Any]:
+    async def search(self, query: str, *args, **kwargs) -> Dict[str, Any]:
         self.last_query = query
         # Determine mode from query formatting
         mode = "A"
@@ -191,7 +191,7 @@ async def test_fallback_executor_strict_success():
     }
 
     class MapSlskdClient(MockSlskdClient):
-        async def search(self, query: str) -> Dict[str, Any]:
+        async def search(self, query: str, *args, **kwargs) -> Dict[str, Any]:
             return {"id": query}
 
         async def get_search_responses(self, search_id: str) -> List[Dict[str, Any]]:
@@ -225,7 +225,7 @@ async def test_fallback_executor_strict_fails_balanced_success():
     }
 
     class MapSlskdClient(MockSlskdClient):
-        async def search(self, query: str) -> Dict[str, Any]:
+        async def search(self, query: str, *args, **kwargs) -> Dict[str, Any]:
             return {"id": query}
 
         async def get_search_responses(self, search_id: str) -> List[Dict[str, Any]]:
@@ -245,7 +245,7 @@ async def test_fallback_executor_strict_fails_balanced_success():
 @pytest.mark.asyncio
 async def test_fallback_executor_graceful_degradation_on_exception():
     class FaultySlskdClient(MockSlskdClient):
-        async def search(self, query: str) -> Dict[str, Any]:
+        async def search(self, query: str, *args, **kwargs) -> Dict[str, Any]:
             if query == "Artist Track":
                 raise RuntimeError("Slskd timed out")
             return {"id": query}
@@ -322,7 +322,7 @@ async def test_fallback_executor_polls_and_transitions():
     }
 
     class MapSlskdClient(MockSlskdClient):
-        async def search(self, query: str) -> Dict[str, Any]:
+        async def search(self, query: str, *args, **kwargs) -> Dict[str, Any]:
             return {"id": query}
 
         async def get_search_responses(self, search_id: str) -> List[Dict[str, Any]]:

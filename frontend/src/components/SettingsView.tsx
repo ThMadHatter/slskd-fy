@@ -10,6 +10,8 @@ export default function SettingsView() {
   const {
     slskdUrl,
     slskdKey,
+    searchTimeoutSec,
+    waitUntilComplete,
     navidromeUrl,
     navidromeUser,
     navidromePass,
@@ -23,6 +25,8 @@ export default function SettingsView() {
   const [formState, setFormState] = useState({
     slskdUrl,
     slskdKey,
+    searchTimeoutSec,
+    waitUntilComplete,
     navidromeUrl,
     navidromeUser,
     navidromePass,
@@ -86,6 +90,42 @@ export default function SettingsView() {
                 value={formState.slskdKey}
                 onChange={(e) => setFormState({ ...formState, slskdKey: e.target.value })}
               />
+            </div>
+
+            {/* Search Timeout & Wait Until Search Is Over */}
+            <div>
+              <label className="block font-label-caps text-[10px] text-[#bbcabf] mb-1.5 uppercase">
+                Search Timeout (seconds)
+              </label>
+              <Input
+                type="number"
+                min="5"
+                max="120"
+                value={formState.waitUntilComplete ? '' : formState.searchTimeoutSec}
+                disabled={formState.waitUntilComplete}
+                placeholder={formState.waitUntilComplete ? 'Unavailable (Wait Until Complete active)' : '15'}
+                onChange={(e) => setFormState({ ...formState, searchTimeoutSec: parseInt(e.target.value) || 15 })}
+                className={formState.waitUntilComplete ? 'opacity-50 cursor-not-allowed bg-[#18181b]' : ''}
+              />
+            </div>
+
+            <div className="flex flex-col justify-end">
+              <label className="flex items-center gap-3 cursor-pointer p-3 border border-[#27272a] bg-[#0a0a0b] hover:border-[#3f3f46] transition">
+                <input
+                  type="checkbox"
+                  checked={formState.waitUntilComplete}
+                  onChange={(e) => setFormState({ ...formState, waitUntilComplete: e.target.checked })}
+                  className="w-4 h-4 accent-[#10b981] bg-[#18181b] border-[#3f3f46] rounded-none cursor-pointer"
+                />
+                <div className="flex flex-col">
+                  <span className="font-label-caps text-[11px] font-bold text-[#e5e2e3] uppercase">
+                    Wait until search is over
+                  </span>
+                  <span className="font-data-mono text-[10px] text-[#bbcabf] opacity-75">
+                    Poll search state until complete; disables fixed search timeout
+                  </span>
+                </div>
+              </label>
             </div>
           </div>
         </div>

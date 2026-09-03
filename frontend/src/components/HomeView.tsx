@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchStore } from '../store/searchStore';
 import { useNavigationStore } from '../store/navigationStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { useQuery } from '@tanstack/react-query';
 import { Search, User, Music, HelpCircle, CornerDownLeft, Loader2, Compass } from 'lucide-react';
 import Button from './ui/Button';
@@ -90,6 +91,8 @@ export default function HomeView() {
     setActiveTab('search');
 
     try {
+      const { searchTimeoutSec, waitUntilComplete } = useSettingsStore.getState();
+
       const response = await fetch('/api/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -98,6 +101,8 @@ export default function HomeView() {
           track_or_album: searchTrack,
           mode: searchMode,
           artist_mbid: artistMbid,
+          timeout_sec: searchTimeoutSec,
+          wait_until_complete: waitUntilComplete,
         }),
       });
 

@@ -10,6 +10,8 @@ class SearchQuery(BaseModel):
     track: Optional[str] = Field(None, description="Target track name")
     album: Optional[str] = Field(None, description="Optional target album")
     mode: str = Field("A", description="Search query generation mode")
+    timeout_sec: Optional[int] = Field(15, description="Search timeout in seconds")
+    wait_until_complete: Optional[bool] = Field(False, description="Wait until search state complete")
 
     @field_validator("mode")
     @classmethod

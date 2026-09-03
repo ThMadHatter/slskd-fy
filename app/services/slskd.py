@@ -78,6 +78,7 @@ class SlskdClient:
         query: str,
         search_id: Optional[str] = None,
         timeout_sec: int = 15,
+        wait_until_complete: bool = False,
         file_limit: int = 10000,
         filter_responses: bool = False,
         max_peer_queue_length: int = 1000000,
@@ -98,6 +99,8 @@ class SlskdClient:
             except Exception:
                 s_id = None
 
+        timeout_val = 120 if wait_until_complete else (timeout_sec or 15)
+
         payload = {
             "id": s_id,
             "fileLimit": file_limit,
@@ -107,7 +110,7 @@ class SlskdClient:
             "minimumResponseFileCount": min_response_file_count,
             "responseLimit": response_limit,
             "searchText": query,
-            "searchTimeout": timeout_sec,
+            "searchTimeout": timeout_val,
         }
         print(f"[AUDIT] PAYLOAD - payload={payload}", flush=True)
 

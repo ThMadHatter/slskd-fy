@@ -108,7 +108,7 @@ class FallbackSearchExecutor(SearchExecutorContract):
             try:
                 # Log exact required log keyword: QUERY_EXECUTED
                 logger.info(f"QUERY_EXECUTED - Executing query: '{q_str}' (timeout_sec={timeout_sec}, wait_until_complete={wait_until_complete})")
-                search_obj = await self.slskd_client.search(q_str, timeout_sec=timeout_sec)
+                search_obj = await self.slskd_client.search(q_str, timeout_sec=timeout_sec, wait_until_complete=wait_until_complete)
                 search_id = search_obj.get("id") or search_obj.get("Id") if isinstance(search_obj, dict) else None
 
                 if search_id:

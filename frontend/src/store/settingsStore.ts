@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 interface SettingsState {
   slskdUrl: string;
@@ -16,18 +17,25 @@ interface SettingsState {
   updateSettings: (updates: Partial<Omit<SettingsState, 'updateSettings'>>) => void;
 }
 
-export const useSettingsStore = create<SettingsState>((set) => ({
-  slskdUrl: 'http://localhost:5030/api/v0',
-  slskdKey: 'your_slskd_api_key_here',
-  searchTimeoutSec: 15,
-  waitUntilComplete: false,
-  navidromeUrl: 'http://localhost:4533',
-  navidromeUser: 'admin',
-  navidromePass: 'navidrome_admin_password',
-  lastfmKey: 'lastfm_api_key',
-  lastfmSecret: 'lastfm_secret',
-  beetsPath: '/mnt/music/Music',
-  minScoreThreshold: 85,
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set) => ({
+      slskdUrl: 'http://localhost:5030/api/v0',
+      slskdKey: 'your_slskd_api_key_here',
+      searchTimeoutSec: 15,
+      waitUntilComplete: false,
+      navidromeUrl: 'http://localhost:4533',
+      navidromeUser: 'admin',
+      navidromePass: 'navidrome_admin_password',
+      lastfmKey: 'lastfm_api_key',
+      lastfmSecret: 'lastfm_secret',
+      beetsPath: '/mnt/music/Music',
+      minScoreThreshold: 85,
 
-  updateSettings: (updates) => set((state) => ({ ...state, ...updates })),
-}));
+      updateSettings: (updates) => set((state) => ({ ...state, ...updates })),
+    }),
+    {
+      name: 'sonic_settings_v1',
+    }
+  )
+);

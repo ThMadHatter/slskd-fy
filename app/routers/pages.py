@@ -205,7 +205,7 @@ async def api_search(
             start_time = time.time()
             try:
                 logger.info(f"Incremental Search - Executing query: '{q_str}' (timeout_sec={search_timeout}, wait_until_complete={wait_until_complete})")
-                search_obj = await search_executor.slskd_client.search(q_str, timeout_sec=search_timeout)
+                search_obj = await search_executor.slskd_client.search(q_str, timeout_sec=search_timeout, wait_until_complete=wait_until_complete)
                 search_id = search_obj.get("id") or search_obj.get("Id") if isinstance(search_obj, dict) else None
                 if search_id:
                     poll_interval = 0.5
@@ -849,7 +849,18 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
     If the table is empty, seeds high-fidelity sample items for immediate UX testing.
     """
     from app.models import BeetsReviewItem
-    items = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").order_by(BeetsReviewItem.created_at.desc()).all()
+    try:
+        items = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").order_by(BeetsReviewItem.created_at.desc()).all()
+    except Exception as e:
+        logger.error(f"Error querying BeetsReviewItem queue: {e}")
+        try:
+            from app.database import Base, engine
+            Base.metadata.create_all(bind=engine)
+            db.rollback()
+            items = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").order_by(BeetsReviewItem.created_at.desc()).all()
+        except Exception as inner_e:
+            logger.error(f"Failed creating beets review queue table or querying: {inner_e}")
+            return JSONResponse(content=[])
 
     if not items:
         # Seed 2 realistic sample items if queue is empty

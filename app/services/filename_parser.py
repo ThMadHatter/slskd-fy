@@ -203,8 +203,25 @@ def parse_filename(filepath: str) -> Dict[str, Any]:
             year = int(year_match.group(0))
 
     if artist == "Unknown" or not artist:
-        # Check if grandparent is valid artist folder
-        if len(parts_path) >= 3:
+        # First check if parent folder contains structured "Artist - Album" or "Year - Artist - Album"
+        if len(parts_path) >= 2:
+            parent = parts_path[-2]
+            parent_clean = clean_noise(parent)
+            p_splits = [p.strip() for p in re.split(r"\s+-\s+", parent_clean) if p.strip()]
+            if len(p_splits) >= 2 and parent_clean.lower() not in GENERIC_FOLDERS and not parent_clean.startswith("@@"):
+                if re.match(r"^\(?\b(19|20)\d{2}\b\)?$", p_splits[0]):
+                    if not year:
+                        year = int(re.search(r"\b(19|20)\d{2}\b", p_splits[0]).group(0))
+                    artist = p_splits[1]
+                    if not album and len(p_splits) >= 3:
+                        album = " - ".join(p_splits[2:])
+                else:
+                    artist = p_splits[0]
+                    if not album:
+                        album = " - ".join(p_splits[1:])
+
+        # Check if grandparent is valid artist folder if artist is still Unknown
+        if (artist == "Unknown" or not artist) and len(parts_path) >= 3:
             gp = parts_path[-3]
             parent = parts_path[-2]
 
@@ -216,7 +233,7 @@ def parse_filename(filepath: str) -> Dict[str, Any]:
                 if not album and parent_clean.lower() not in GENERIC_FOLDERS:
                     album = parent_clean
         # Alternatively, if only 1 parent directory exists
-        elif len(parts_path) >= 2:
+        elif (artist == "Unknown" or not artist) and len(parts_path) >= 2:
             parent = parts_path[-2]
             parent_clean = clean_noise(parent)
             if parent_clean.lower() not in GENERIC_FOLDERS and not parent_clean.startswith("@@"):

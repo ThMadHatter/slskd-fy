@@ -2,10 +2,10 @@
 
 ## 1. Executive Summary
 
-This document provides a comprehensive, evidence-based assessment of the current backend logging architecture in Track Portal (FastAPI backend). The assessment was conducted by examining application entry points, middleware, routers, background pollers, services, models, and configuration files across the codebase.
+This document provides a comprehensive, evidence-based assessment of the current backend logging architecture in Track Portal (FastAPI backend). The assessment was conducted by examining application entry points, middleware, routers, background pollers, services, models, configuration files, scripts, and test suites across the codebase.
 
 ### Key Assessment Findings
-* **Logging Framework:** The application exclusively uses Python standard library `logging` (`app/main.py:2`, `app/auth.py:2`, `app/routers/pages.py:2`). No third-party structured logging libraries such as `structlog` or `loguru` are currently present in `requirements.txt`.
+* **Logging Framework:** The application exclusively uses Python standard library `logging` (`app/main.py:2`, `app/auth.py:2`, `app/routers/pages.py:2`). No third-party structured logging libraries such as `structlog` or `loguru` are present in `requirements.txt`.
 * **Logger Hierarchy & Naming:** Loggers follow a hierarchical naming pattern rooted at `"track_portal"` (e.g., `"track_portal.auth"`, `"track_portal.pages"`, `"track_portal.poller"`), with one exception (`app/services/slskd.py:8`, which uses `logging.getLogger(__name__)`).
 * **Format & Output:** Logs are emitted as unformatted or simple string-formatted text (`"%(asctime)s [%(levelname)s] %(name)s: %(message)s"` in `app/main.py:38`). No JSON formatting or machine-parseable key-value formatting is implemented (`[OBS-001]` gap).
 * **Correlation & Context:** There is **zero request or correlation ID tracking** across the HTTP request lifecycle or background tasks (`[OBS-002]` gap). No middleware injects `X-Request-ID` or attaches trace context to `request.state`.
@@ -17,7 +17,7 @@ This document provides a comprehensive, evidence-based assessment of the current
 
 ## 2. Backend Architecture Relevant to Logging
 
-The backend architecture is built on FastAPI and organized into distinct layers:
+The backend architecture is built on FastAPI and organized into distinct runtime layers:
 
 ```
                   +-------------------------------+
@@ -70,17 +70,10 @@ The backend architecture is built on FastAPI and organized into distinct layers:
 ## 3. Current Logging Libraries and Configuration
 
 ### 3.1 Dependencies & Libraries
-Inspection of `requirements.txt:1-15` reveals the following:
-* `fastapi==0.139.0`
-* `uvicorn==0.51.0`
-* `sqlalchemy==2.0.51`
-* `pydantic==2.13.4`
-* `httpx==0.28.1`
+Inspection of `requirements.txt:1-15` reveals standard Python dependencies (`fastapi`, `uvicorn`, `sqlalchemy`, `pydantic`, `httpx`). No dedicated logging, tracing, or metrics frameworks (`structlog`, `loguru`, `opentelemetry-api`, `prometheus-client`) are present in `requirements.txt`. All logging relies strictly on standard Python `logging`.
 
-No dedicated logging, tracing, or metrics frameworks (`structlog`, `loguru`, `opentelemetry-api`, `prometheus-client`) are included in `requirements.txt`. All logging relies strictly on standard Python `logging`.
-
-### 3.2 Logger Initialization & Setup
-Application logging setup is centralized in `app/main.py:23-39`:
+### 3.2 Logger Setup
+Centralized logging setup occurs in `app/main.py:23-39`:
 
 ```python
 # app/main.py:23-39
@@ -104,7 +97,7 @@ def setup_app_logging():
     logger.propagate = False
 ```
 
-#### Key Characteristics of `setup_app_logging`:
+#### Key Characteristics:
 1. **Execution Timing:** Called during the FastAPI `lifespan` startup phase (`app/main.py:55`).
 2. **Handler Inheritance:** Checks `uvicorn.error` for existing handlers; if found, attaches Uvicorn's handlers to `track_portal`. Otherwise, creates a stdout `StreamHandler`.
 3. **Propagation:** Sets `logger.propagate = False` on the `"track_portal"` logger.
@@ -112,7 +105,6 @@ def setup_app_logging():
 5. **Inconsistency in `slskd.py`:** In `app/services/slskd.py:8`, the logger is declared as `logger = logging.getLogger(__name__)` (evaluating to `"app.services.slskd"`). Because `"app.services.slskd"` does not start with `"track_portal"`, it propagates to the root logger rather than `"track_portal"`, causing its formatting to bypass `setup_app_logging`.
 
 ### 3.3 Environment-Specific Configuration Analysis
-
 * **Local Development:** Uses `uvicorn` CLI command (`CMD ["uvicorn", "app.main:app", ...]`). Output goes to stdout.
 * **Automated Tests (`pytest`):** No custom logging configuration or `caplog` assertions exist in `tests/`. Pytest default log capturing intercepts output.
 * **CI / Containerized Deployments (`Dockerfile`, `docker-compose.yml`):** Log stream is routed directly to stdout/stderr. Docker logs captures human-readable strings.

@@ -5,6 +5,7 @@ alembic==1.18.5
 pydantic==2.13.4
 pydantic-settings==2.14.2
 mutagen==1.48.1
+beets>=2.13.1
 bcrypt==5.0.0
 httpx==0.28.1
 jinja2==3.1.6

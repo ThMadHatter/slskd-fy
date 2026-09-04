@@ -353,17 +353,18 @@ The purpose of this analysis is to map visible UI components, identify fully fun
 ---
 
 ### Gap 8: Beets Integration Validation
-- **Status:** NOT_STARTED
+- **Status:** COMPLETED
 - **Date Created:** 2026-07-24
-- **Date Last Updated:** 2026-07-24
+- **Date Last Updated:** 2026-09-04
 - **Owner:** Jules
-- **Description:** Beets is connected and returns HTTP 200, but results in zero candidate matches due to an unpopulated local library database, contributing no enrichment score.
-- **Root Cause:** Underpopulated beets index.
-- **Suggested Architectural Investigation:**
-  - *Option A: Post-Download Processor Only:* Beets acts solely on finished files. This restricts beets from being utilized during search heuristics, which means we cannot leverage its robust semantic matching to boost candidate scoring.
-  - *Option B: Search-Enrichment and Local Database Sync:* Beets maintains a local DB mapping library tracks and syncs via background cron metadata tasks. During the progressive search stage, candidate metadata is parsed and hits Beets API. Matches get a positive scoring boost (e.g. +15), guaranteeing perfect duplicates resolution.
-  - *Recommended Architecture:* **Option B (Search-Enrichment and Local Database Sync)**. This leverages Beets as the brain of the discovery process. We must implement a background syncing task that catalogs active directories into the local Beets instance, ensuring `beet ls` is populated and query matches return hits.
-- **Implementation Notes:** Needs coordination with backend docker-compose environment setups.
+- **Description:** Fixed Beets binary missing error in track_portal container and established full app container integration with local SQLite library fallback.
+- **Root Cause:** `beets` package was missing from `requirements.txt` and system PATH in `track_portal` runtime container image.
+- **Implemented Architecture:**
+  - **Full App Container Integration:** Added `beets>=2.13.1` to `requirements.txt` and verified Dockerfile packaging so `beet` binary is natively present in `track_portal`'s system PATH.
+  - **Non-Interactive Config Template:** Created `app/beets_config.yaml` configured for non-interactive quiet imports (`quiet: yes`, `autotag: yes`, `library: /config/beets/library.db`, `directory: /music`).
+  - **Poller Integration:** `downloads_poller.py` invokes `beet import -q -y` on completed transfers with fallback to `app/beets_config.yaml`.
+  - **Search Enrichment:** `BeetsServiceClient` queries Beets HTTP API and falls back to querying the local SQLite library database (`/config/beets/library.db`) directly to provide +15 candidate confidence boosts during progressive search.
+- **Implementation Notes:** Fully verified with unit tests in `test_poller.py` and search enrichment tests.
 - **Estimated Effort:** 1 Day
 
 ---

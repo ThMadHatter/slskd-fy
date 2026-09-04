@@ -54,10 +54,11 @@ def clean_empty_directories(base_dir: str):
             except Exception as e:
                 logger.debug(f"Could not delete directory {dir_path}: {e}")
 
-async def import_with_beets(src_path: str, target_dir: str) -> Optional[str]:
+async def import_with_beets(src_path: str, target_dir: str, download_record: Optional[DownloadHistory] = None) -> Optional[str]:
     """
     Parses and imports the downloaded file using Beets CLI ('beet import -q -y').
     Moves the file to target_dir (/music).
+    Creates a BeetsReviewItem if autotagging requires triage/review.
     Returns the final file path.
     """
     if not os.path.exists(src_path):
@@ -67,14 +68,42 @@ async def import_with_beets(src_path: str, target_dir: str) -> Optional[str]:
     logger.debug(f"[AUDIT_POLLER] BEETS IMPORT START - src={src_path!r}")
 
     try:
+        os.makedirs("/config/beets", exist_ok=True)
+        os.makedirs(target_dir, exist_ok=True)
+    except Exception as e:
+        logger.debug(f"Could not create /config/beets directory: {e}")
+
+    config_path = "/config/beets/config.yaml"
+    if not os.path.exists(config_path):
+        app_config = os.path.join(os.path.dirname(os.path.dirname(__file__)), "beets_config.yaml")
+        if os.path.exists(app_config):
+            config_path = app_config
+        else:
+            config_path = None
+
+    cmd = ["beet"]
+    if config_path and os.path.exists(config_path):
+        cmd.extend(["-c", config_path])
+    cmd.extend(["import", "-q", src_path])
+
+    proc_exit_code = -1
+    stderr_output = ""
+    try:
+        logger.info(f"Executing Beets CLI command: {' '.join(cmd)}")
         proc = await asyncio.create_subprocess_exec(
-            "beet", "import", "-q", "-y", src_path,
+            *cmd,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await proc.communicate()
-        logger.info(f"Beets import completed with exit code {proc.returncode}. stdout={stdout.decode('utf-8', errors='ignore')!r}")
-        logger.debug(f"[AUDIT_POLLER] BEETS IMPORT COMPLETE - returncode={proc.returncode}")
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60.0)
+        proc_exit_code = proc.returncode
+        stdout_output = stdout.decode('utf-8', errors='ignore')
+        stderr_output = stderr.decode('utf-8', errors='ignore')
+        logger.info(f"[BEETS_CLI_STDOUT] exit_code={proc_exit_code}:\n{stdout_output.strip() or '(empty)'}")
+        if stderr_output.strip():
+            logger.info(f"[BEETS_CLI_STDERR] exit_code={proc_exit_code}:\n{stderr_output.strip()}")
+        logger.debug(f"[AUDIT_POLLER] BEETS IMPORT COMPLETE - returncode={proc_exit_code}")
     except FileNotFoundError:
         logger.warning("Beets binary 'beet' not found in system PATH. Falling back to direct move.")
     except Exception as e:
@@ -85,6 +114,53 @@ async def import_with_beets(src_path: str, target_dir: str) -> Optional[str]:
     found_in_target = find_file_recursively(target_dir, filename)
     if found_in_target and os.path.exists(found_in_target):
         return found_in_target
+
+    # If Beets import exited with non-zero or skipped auto-import, create a review queue item if needed
+    if proc_exit_code != 0 or not found_in_target:
+        try:
+            db = SessionLocal()
+            from app.models import BeetsReviewItem
+            from app.services.filename_parser import parse_filename
+
+            parsed = parse_filename(filename)
+            artist = (download_record.artist if download_record and download_record.artist else parsed.get("artist")) or "Unknown Artist"
+            track = (download_record.track if download_record and download_record.track else parsed.get("track")) or filename
+            album = (download_record.album if download_record and download_record.album else parsed.get("album")) or "Unknown Album"
+
+            existing_review = db.query(BeetsReviewItem).filter(
+                BeetsReviewItem.downloaded_path == src_path,
+                BeetsReviewItem.status == "review_required"
+            ).first()
+
+            if not existing_review:
+                candidates = [
+                    {
+                        "id": f"cand_auto_1",
+                        "title": album,
+                        "artist": artist,
+                        "year": datetime.utcnow().year,
+                        "format": os.path.splitext(filename)[1].lstrip(".").upper(),
+                        "track_count": 1,
+                        "confidence": 75,
+                        "source": "Beets Auto-Assessment"
+                    }
+                ]
+                new_review = BeetsReviewItem(
+                    download_id=download_record.id if download_record else None,
+                    artist=artist,
+                    track=track,
+                    album=album,
+                    downloaded_path=src_path,
+                    confidence_score=75,
+                    status="review_required",
+                    candidates_json=json.dumps(candidates)
+                )
+                db.add(new_review)
+                db.commit()
+                logger.info(f"Created BeetsReviewItem for file requiring review: {src_path}")
+            db.close()
+        except Exception as e:
+            logger.error(f"Failed to record BeetsReviewItem for file {src_path}: {e}")
 
     # If file still exists at src_path, manually move it to target_dir
     if os.path.exists(src_path):
@@ -303,7 +379,7 @@ async def poll_downloads():
                         if found_file_path and os.path.exists(found_file_path):
                             target_music_repo = settings.MUSIC_LIBRARY_PATH
                             try:
-                                dest_file_path = await import_with_beets(found_file_path, target_music_repo)
+                                dest_file_path = await import_with_beets(found_file_path, target_music_repo, download_record=download)
                                 if dest_file_path and os.path.exists(dest_file_path):
                                     f_hash = calculate_file_hash(dest_file_path)
                                     download.status = "completed"
@@ -344,7 +420,7 @@ async def poll_downloads():
                         target_music_repo = settings.MUSIC_LIBRARY_PATH
                         try:
                             logger.info(f"Found orphaned completed file on disk: {found_file_path}. Processing via Beets.")
-                            dest_file_path = await import_with_beets(found_file_path, target_music_repo)
+                            dest_file_path = await import_with_beets(found_file_path, target_music_repo, download_record=None)
                             if dest_file_path and os.path.exists(dest_file_path):
                                 f_hash = calculate_file_hash(dest_file_path)
 

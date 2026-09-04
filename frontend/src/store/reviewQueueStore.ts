@@ -1,12 +1,17 @@
 import { create } from 'zustand';
-import { ReviewQueueItem, ReviewAction } from '../types/beets';
+import { ReviewQueueItem, ReviewAction, BeetsStatus } from '../types/beets';
 
 interface ReviewQueueState {
   items: ReviewQueueItem[];
   selectedItemId: number | null;
   loading: boolean;
+  scanning: boolean;
   error: string | null;
+  status: BeetsStatus | null;
   fetchQueue: () => Promise<void>;
+  fetchStatus: () => Promise<void>;
+  scanLibrary: () => Promise<void>;
+  seedTestItems: () => Promise<void>;
   selectItem: (id: number) => void;
   selectNext: () => void;
   selectPrev: () => void;
@@ -17,7 +22,9 @@ export const useReviewQueueStore = create<ReviewQueueState>((set, get) => ({
   items: [],
   selectedItemId: null,
   loading: false,
+  scanning: false,
   error: null,
+  status: null,
 
   fetchQueue: async () => {
     set({ loading: true, error: null });
@@ -34,6 +41,44 @@ export const useReviewQueueStore = create<ReviewQueueState>((set, get) => ({
       }
     } catch (err: any) {
       set({ loading: false, error: err?.message || 'Network error fetching review queue' });
+    }
+  },
+
+  fetchStatus: async () => {
+    try {
+      const res = await fetch('/api/beets/status');
+      if (res.ok) {
+        const data: BeetsStatus = await res.json();
+        set({ status: data });
+      }
+    } catch (err) {
+      // Non-critical
+    }
+  },
+
+  scanLibrary: async () => {
+    set({ scanning: true });
+    try {
+      await fetch('/api/beets/scan-library', { method: 'POST' });
+      await get().fetchQueue();
+      await get().fetchStatus();
+    } catch (err) {
+      // Non-critical
+    } finally {
+      set({ scanning: false });
+    }
+  },
+
+  seedTestItems: async () => {
+    set({ loading: true });
+    try {
+      await fetch('/api/beets/seed-test-items', { method: 'POST' });
+      await get().fetchQueue();
+      await get().fetchStatus();
+    } catch (err) {
+      // Non-critical
+    } finally {
+      set({ loading: false });
     }
   },
 
@@ -60,11 +105,9 @@ export const useReviewQueueStore = create<ReviewQueueState>((set, get) => ({
   },
 
   resolveAction: async (itemId: number, action: ReviewAction, candidateId?: string) => {
-    // Optimistic removal from queue
     const previousItems = get().items;
     const filteredItems = previousItems.filter((i) => i.id !== itemId);
 
-    // Calculate next selected item ID
     const currentIdx = previousItems.findIndex((i) => i.id === itemId);
     const nextItem = filteredItems[currentIdx] || filteredItems[currentIdx - 1] || null;
 
@@ -80,8 +123,9 @@ export const useReviewQueueStore = create<ReviewQueueState>((set, get) => ({
         body: JSON.stringify({ action, candidate_id: candidateId }),
       });
       if (!res.ok) {
-        // Revert on error
         set({ items: previousItems, selectedItemId: itemId });
+      } else {
+        await get().fetchStatus();
       }
     } catch (err) {
       set({ items: previousItems, selectedItemId: itemId });

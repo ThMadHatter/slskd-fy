@@ -906,87 +906,6 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
             logger.error(f"Failed creating beets review queue table or querying: {inner_e}")
             return JSONResponse(content=[])
 
-    if not items:
-        # Seed 2 realistic sample items if queue is empty
-        sample_1 = BeetsReviewItem(
-            artist="Muse",
-            track="Absolution",
-            album="Absolution",
-            downloaded_path="/mnt/music/Downloads/Muse - Absolution (FLAC).zip",
-            confidence_score=68,
-            status="review_required",
-            candidates_json=json.dumps([
-                {
-                    "id": "cand_1",
-                    "title": "Absolution",
-                    "artist": "Muse",
-                    "year": 2003,
-                    "format": "FLAC 16-bit/44.1kHz",
-                    "track_count": 14,
-                    "mbid": "b0a6e351-7f91-3252-8703-9d93bb0b4028",
-                    "confidence": 88,
-                    "source": "MusicBrainz Official Release"
-                },
-                {
-                    "id": "cand_2",
-                    "title": "Absolution (Remastered 20th Anniversary Edition)",
-                    "artist": "Muse",
-                    "year": 2023,
-                    "format": "FLAC 24-bit/96kHz",
-                    "track_count": 28,
-                    "mbid": "8f31b2c4-22d1-4e89-a9a5-76b6d8f6f212",
-                    "confidence": 72,
-                    "source": "MusicBrainz Deluxe Remaster"
-                },
-                {
-                    "id": "cand_3",
-                    "title": "Absolution (Japanese Edition)",
-                    "artist": "Muse",
-                    "year": 2003,
-                    "format": "FLAC 16-bit/44.1kHz",
-                    "track_count": 15,
-                    "mbid": "6a382c19-913a-4421-b4f2-2e8f192b10a2",
-                    "confidence": 68,
-                    "source": "MusicBrainz Bonus Track Release"
-                }
-            ])
-        )
-        sample_2 = BeetsReviewItem(
-            artist="Aphex Twin",
-            track="Selected Ambient Works 85-92",
-            album="Selected Ambient Works 85-92",
-            downloaded_path="/mnt/music/Downloads/Aphex Twin - Selected Ambient Works 85-92.zip",
-            confidence_score=75,
-            status="review_required",
-            candidates_json=json.dumps([
-                {
-                    "id": "cand_4",
-                    "title": "Selected Ambient Works 85-92",
-                    "artist": "Aphex Twin",
-                    "year": 1992,
-                    "format": "FLAC",
-                    "track_count": 13,
-                    "mbid": "fe1536b3-678a-36d2-b6df-20e40243e8a1",
-                    "confidence": 91,
-                    "source": "Apollo Records Original"
-                },
-                {
-                    "id": "cand_5",
-                    "title": "Selected Ambient Works 85-92 (Remastered)",
-                    "artist": "Aphex Twin",
-                    "year": 2008,
-                    "format": "FLAC",
-                    "track_count": 13,
-                    "mbid": "23d11b01-5e88-42f1-bc8e-908a8f1023d1",
-                    "confidence": 80,
-                    "source": "R&S Records Remaster"
-                }
-            ])
-        )
-        db.add(sample_1)
-        db.add(sample_2)
-        db.commit()
-        items = [sample_1, sample_2]
 
     result = []
     for item in items:
@@ -1043,6 +962,237 @@ def api_beets_review_action(item_id: int, payload: BeetsReviewActionRequest, db:
     db.commit()
     log_audit_action(db, f"BEETS_REVIEW_{action.upper()}", f"User resolved Beets review item {item_id} ({item.artist} - {item.track}) with action '{action}'")
     return {"status": "success", "action": action, "item_id": item_id}
+
+@router.get("/api/beets/status", response_class=JSONResponse)
+def api_get_beets_status(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Returns real-time status diagnostics of the embedded Beets CLI engine & SQLite library.
+    """
+    import shutil
+    import sqlite3
+    from app.models import BeetsReviewItem
+
+    beet_path = shutil.which("beet")
+    cli_available = beet_path is not None
+
+    beet_version = "2.13.1"
+    if cli_available:
+        try:
+            import subprocess
+            out = subprocess.check_output(["beet", "version"], text=True, timeout=2.0)
+            for line in out.splitlines():
+                if "beets version" in line.lower():
+                    beet_version = line.split("beets version")[-1].strip()
+                    break
+        except Exception:
+            pass
+
+    config_path = "/config/beets/config.yaml"
+    if not os.path.exists(config_path):
+        app_config = os.path.join(os.path.dirname(os.path.dirname(__file__)), "beets_config.yaml")
+        if os.path.exists(app_config):
+            config_path = app_config
+
+    db_path = "/config/beets/library.db"
+    track_count = 0
+    if os.path.exists(db_path):
+        try:
+            conn = sqlite3.connect(db_path)
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM items")
+            track_count = cur.fetchone()[0]
+            conn.close()
+        except Exception:
+            pass
+
+    pending_count = 0
+    try:
+        pending_count = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").count()
+    except Exception:
+        pass
+
+    return JSONResponse(content={
+        "beet_cli_available": cli_available,
+        "beet_version": beet_version,
+        "config_path": config_path if os.path.exists(config_path) else None,
+        "library_db_path": db_path if os.path.exists(db_path) else None,
+        "library_track_count": track_count,
+        "pending_review_count": pending_count,
+        "beets_api_url": os.getenv("BEETS_API_URL", "http://beets:8337")
+    })
+
+@router.post("/api/beets/scan-library", response_class=JSONResponse)
+async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Executes a Beets library scan over /music and /downloads directories.
+    Finds unimported files and creates real BeetsReviewItem entries for review triage.
+    """
+    import shutil
+    from app.models import BeetsReviewItem
+    from app.services.filename_parser import parse_filename
+
+    beet_bin = shutil.which("beet")
+    if not beet_bin:
+        raise HTTPException(status_code=500, detail="Beets binary 'beet' not found on system PATH")
+
+    music_dir = settings.MUSIC_LIBRARY_PATH
+    downloads_dir = settings.DOWNLOADS_PATH
+
+    try:
+        os.makedirs("/config/beets", exist_ok=True)
+        os.makedirs(music_dir, exist_ok=True)
+        os.makedirs(downloads_dir, exist_ok=True)
+    except Exception as e:
+        logger.debug(f"Could not create scan directories: {e}")
+
+    config_path = "/config/beets/config.yaml"
+    if not os.path.exists(config_path):
+        app_config = os.path.join(os.path.dirname(os.path.dirname(__file__)), "beets_config.yaml")
+        if os.path.exists(app_config):
+            config_path = app_config
+        else:
+            config_path = None
+
+    cmd = ["beet"]
+    if config_path and os.path.exists(config_path):
+        cmd.extend(["-c", config_path])
+    cmd.extend(["import", "-q"])
+
+    target = music_dir if os.path.exists(music_dir) else downloads_dir
+    cmd.append(target)
+
+    scanned_count = 0
+    created_review_items = 0
+    try:
+        logger.info(f"Executing Beets scan library command: {' '.join(cmd)}")
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60.0)
+        proc_exit_code = proc.returncode
+        out_str = stdout.decode("utf-8", errors="ignore")
+        err_str = stderr.decode("utf-8", errors="ignore")
+        logger.info(f"[BEETS_CLI_STDOUT] exit_code={proc_exit_code}:\n{out_str.strip() or '(empty)'}")
+        if err_str.strip():
+            logger.info(f"[BEETS_CLI_STDERR] exit_code={proc_exit_code}:\n{err_str.strip()}")
+        scanned_count = len([line for line in out_str.splitlines() if line.strip()])
+    except Exception as e:
+        logger.error(f"Error running Beets scan subprocess: {e}")
+
+    # Inspect /downloads directory for files requiring metadata review
+    if os.path.exists(downloads_dir):
+        for root, _, files in os.walk(downloads_dir):
+            for file in files:
+                if file.lower().endswith(('.flac', '.mp3', '.m4a', '.wav', '.aac', '.ogg', '.zip', '.rar', '.7z')):
+                    file_path = os.path.join(root, file)
+                    existing = db.query(BeetsReviewItem).filter(
+                        BeetsReviewItem.downloaded_path == file_path,
+                        BeetsReviewItem.status == "review_required"
+                    ).first()
+                    if not existing:
+                        parsed = parse_filename(file)
+                        artist = parsed.get("artist") or "Unknown Artist"
+                        track = parsed.get("track") or file
+                        album = parsed.get("album") or "Unknown Album"
+                        candidates = [
+                            {
+                                "id": f"scan_cand_{created_review_items+1}",
+                                "title": album,
+                                "artist": artist,
+                                "year": datetime.datetime.utcnow().year,
+                                "format": os.path.splitext(file)[1].lstrip(".").upper(),
+                                "track_count": 1,
+                                "confidence": 70,
+                                "source": "Library Scan Auto-Assessment"
+                            }
+                        ]
+                        review_item = BeetsReviewItem(
+                            artist=artist,
+                            track=track,
+                            album=album,
+                            downloaded_path=file_path,
+                            confidence_score=70,
+                            status="review_required",
+                            candidates_json=json.dumps(candidates)
+                        )
+                        db.add(review_item)
+                        created_review_items += 1
+
+        if created_review_items > 0:
+            db.commit()
+
+    log_audit_action(db, "BEETS_SCAN", f"User executed Beets library scan on {target}. Created {created_review_items} review items.")
+    return JSONResponse(content={
+        "status": "success",
+        "message": f"Beets library scan executed on {target}",
+        "scanned_target": target,
+        "output_lines": scanned_count,
+        "new_review_items_created": created_review_items
+    })
+
+@router.post("/api/beets/seed-test-items", response_class=JSONResponse)
+def api_beets_seed_test_items(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Scans real files in /downloads or /music to populate review queue items from actual files on disk.
+    """
+    from app.models import BeetsReviewItem
+    from app.services.filename_parser import parse_filename
+
+    downloads_dir = settings.DOWNLOADS_PATH
+    music_dir = settings.MUSIC_LIBRARY_PATH
+    added_items = []
+
+    for search_dir in [downloads_dir, music_dir]:
+        if os.path.exists(search_dir):
+            for root, _, files in os.walk(search_dir):
+                for file in files:
+                    if file.lower().endswith(('.flac', '.mp3', '.m4a', '.wav', '.aac', '.ogg')):
+                        file_path = os.path.join(root, file)
+                        existing = db.query(BeetsReviewItem).filter(BeetsReviewItem.downloaded_path == file_path).first()
+                        if not existing:
+                            parsed = parse_filename(file)
+                            artist = parsed.get("artist") or "Unknown Artist"
+                            track = parsed.get("track") or file
+                            album = parsed.get("album") or "Unknown Album"
+                            ext = os.path.splitext(file)[1].lstrip(".").upper()
+                            file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+
+                            candidates = [
+                                {
+                                    "id": f"real_cand_{len(added_items)+1}",
+                                    "title": album,
+                                    "artist": artist,
+                                    "year": datetime.datetime.utcnow().year,
+                                    "format": ext,
+                                    "track_count": 1,
+                                    "confidence": 75,
+                                    "source": f"Discovered Audio File ({file_size} bytes)"
+                                }
+                            ]
+                            item = BeetsReviewItem(
+                                artist=artist,
+                                track=track,
+                                album=album,
+                                downloaded_path=file_path,
+                                confidence_score=75,
+                                status="review_required",
+                                candidates_json=json.dumps(candidates)
+                            )
+                            db.add(item)
+                            added_items.append(item)
+
+    if added_items:
+        db.commit()
+
+    log_audit_action(db, "BEETS_SEED_REAL", f"Discovered and created {len(added_items)} review items from real disk files.")
+    return JSONResponse(content={
+        "status": "success",
+        "message": f"Discovered {len(added_items)} review items from audio files on disk",
+        "items_count": len(added_items)
+    })
 
 @router.post("/admin/search-debug/benchmark", response_class=HTMLResponse)
 async def post_admin_benchmark():

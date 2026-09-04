@@ -34,3 +34,13 @@ export interface ReviewQueueItem {
 }
 
 export type ReviewAction = 'accept' | 'select_candidate' | 'keep_original' | 'skip';
+
+export interface BeetsStatus {
+  beet_cli_available: boolean;
+  beet_version: string;
+  config_path?: string | null;
+  library_db_path?: string | null;
+  library_track_count: number;
+  pending_review_count: number;
+  beets_api_url: string;
+}

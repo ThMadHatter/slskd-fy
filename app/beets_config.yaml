@@ -1,0 +1,18 @@
+# Default non-interactive Beets configuration for Track Portal
+directory: /music
+library: ~/.config/beets/library.db
+
+import:
+  quiet: yes
+  timid: no
+  write: yes
+  move: yes
+  resume: no
+  incremental: yes
+  quiet_fallback: skip
+  log: ~/.config/beets/import.log
+
+plugins: musicbrainz
+
+musicbrainz:
+  searchlimit: 5

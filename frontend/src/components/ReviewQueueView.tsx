@@ -155,7 +155,7 @@ export default function ReviewQueueView() {
             className="flex items-center gap-2 bg-[#1c1b1c] hover:bg-[#27272a] text-[#e5e2e3] border border-[#27272a] px-3 py-1.5 font-data-mono text-xs font-bold transition-all cursor-pointer"
           >
             <PlusCircle size={14} />
-            SEED TEST ITEMS
+            DISCOVER DISK FILES
           </button>
         </div>
       </div>
@@ -217,7 +217,7 @@ export default function ReviewQueueView() {
               className="flex items-center gap-2 bg-[#1c1b1c] text-[#e5e2e3] border border-[#27272a] px-4 py-2 font-data-mono text-xs font-bold uppercase tracking-wider transition-all hover:bg-[#27272a] cursor-pointer"
             >
               <PlusCircle size={14} />
-              SEED SAMPLE REVIEW ITEMS
+              DISCOVER DISK FILES
             </button>
           </div>
         </div>

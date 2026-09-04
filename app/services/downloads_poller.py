@@ -67,6 +67,12 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
     logger.info(f"Triggering Beets import for downloaded file: '{src_path}'")
     logger.debug(f"[AUDIT_POLLER] BEETS IMPORT START - src={src_path!r}")
 
+    try:
+        os.makedirs("/config/beets", exist_ok=True)
+        os.makedirs(target_dir, exist_ok=True)
+    except Exception as e:
+        logger.debug(f"Could not create /config/beets directory: {e}")
+
     config_path = "/config/beets/config.yaml"
     if not os.path.exists(config_path):
         app_config = os.path.join(os.path.dirname(os.path.dirname(__file__)), "beets_config.yaml")
@@ -78,11 +84,12 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
     cmd = ["beet"]
     if config_path and os.path.exists(config_path):
         cmd.extend(["-c", config_path])
-    cmd.extend(["import", "-q", "-y", src_path])
+    cmd.extend(["import", "-q", src_path])
 
     proc_exit_code = -1
     stderr_output = ""
     try:
+        logger.info(f"Executing Beets CLI command: {' '.join(cmd)}")
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -90,8 +97,11 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
         )
         stdout, stderr = await proc.communicate()
         proc_exit_code = proc.returncode
+        stdout_output = stdout.decode('utf-8', errors='ignore')
         stderr_output = stderr.decode('utf-8', errors='ignore')
-        logger.info(f"Beets import completed with exit code {proc_exit_code}. stdout={stdout.decode('utf-8', errors='ignore')!r}")
+        logger.info(f"[BEETS_CLI_STDOUT] exit_code={proc_exit_code}:\n{stdout_output.strip() or '(empty)'}")
+        if stderr_output.strip():
+            logger.info(f"[BEETS_CLI_STDERR] exit_code={proc_exit_code}:\n{stderr_output.strip()}")
         logger.debug(f"[AUDIT_POLLER] BEETS IMPORT COMPLETE - returncode={proc_exit_code}")
     except FileNotFoundError:
         logger.warning("Beets binary 'beet' not found in system PATH. Falling back to direct move.")
@@ -409,7 +419,7 @@ async def poll_downloads():
                         target_music_repo = settings.MUSIC_LIBRARY_PATH
                         try:
                             logger.info(f"Found orphaned completed file on disk: {found_file_path}. Processing via Beets.")
-                            dest_file_path = await import_with_beets(found_file_path, target_music_repo, download_record=download)
+                            dest_file_path = await import_with_beets(found_file_path, target_music_repo, download_record=None)
                             if dest_file_path and os.path.exists(dest_file_path):
                                 f_hash = calculate_file_hash(dest_file_path)
 

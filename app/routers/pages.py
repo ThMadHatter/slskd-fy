@@ -1044,6 +1044,231 @@ def api_beets_review_action(item_id: int, payload: BeetsReviewActionRequest, db:
     log_audit_action(db, f"BEETS_REVIEW_{action.upper()}", f"User resolved Beets review item {item_id} ({item.artist} - {item.track}) with action '{action}'")
     return {"status": "success", "action": action, "item_id": item_id}
 
+@router.get("/api/beets/status", response_class=JSONResponse)
+def api_get_beets_status(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Returns real-time status diagnostics of the embedded Beets CLI engine & SQLite library.
+    """
+    import shutil
+    import sqlite3
+    from app.models import BeetsReviewItem
+
+    beet_path = shutil.which("beet")
+    cli_available = beet_path is not None
+
+    beet_version = "2.13.1"
+    if cli_available:
+        try:
+            import subprocess
+            out = subprocess.check_output(["beet", "version"], text=True, timeout=2.0)
+            for line in out.splitlines():
+                if "beets version" in line.lower():
+                    beet_version = line.split("beets version")[-1].strip()
+                    break
+        except Exception:
+            pass
+
+    config_path = "/config/beets/config.yaml"
+    if not os.path.exists(config_path):
+        app_config = os.path.join(os.path.dirname(os.path.dirname(__file__)), "beets_config.yaml")
+        if os.path.exists(app_config):
+            config_path = app_config
+
+    db_path = "/config/beets/library.db"
+    track_count = 0
+    if os.path.exists(db_path):
+        try:
+            conn = sqlite3.connect(db_path)
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM items")
+            track_count = cur.fetchone()[0]
+            conn.close()
+        except Exception:
+            pass
+
+    pending_count = 0
+    try:
+        pending_count = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").count()
+    except Exception:
+        pass
+
+    return JSONResponse(content={
+        "beet_cli_available": cli_available,
+        "beet_version": beet_version,
+        "config_path": config_path if os.path.exists(config_path) else None,
+        "library_db_path": db_path if os.path.exists(db_path) else None,
+        "library_track_count": track_count,
+        "pending_review_count": pending_count,
+        "beets_api_url": os.getenv("BEETS_API_URL", "http://beets:8337")
+    })
+
+@router.post("/api/beets/scan-library", response_class=JSONResponse)
+async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Executes a Beets library scan over /music and /downloads directories using 'beet import -q' / 'beet ls'.
+    """
+    import shutil
+    from app.models import BeetsReviewItem
+
+    beet_bin = shutil.which("beet")
+    if not beet_bin:
+        raise HTTPException(status_code=500, detail="Beets binary 'beet' not found on system PATH")
+
+    music_dir = settings.MUSIC_LIBRARY_PATH
+    downloads_dir = settings.DOWNLOADS_PATH
+
+    config_path = "/config/beets/config.yaml"
+    if not os.path.exists(config_path):
+        app_config = os.path.join(os.path.dirname(os.path.dirname(__file__)), "beets_config.yaml")
+        if os.path.exists(app_config):
+            config_path = app_config
+        else:
+            config_path = None
+
+    cmd = ["beet"]
+    if config_path and os.path.exists(config_path):
+        cmd.extend(["-c", config_path])
+    cmd.extend(["import", "-q", "-y"])
+
+    target = music_dir if os.path.exists(music_dir) else downloads_dir
+    cmd.append(target)
+
+    scanned_count = 0
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        out_str = stdout.decode("utf-8", errors="ignore")
+        logger.info(f"Beets scan completed. stdout={out_str!r}")
+        scanned_count = len([line for line in out_str.splitlines() if line.strip()])
+    except Exception as e:
+        logger.error(f"Error running Beets scan subprocess: {e}")
+
+    log_audit_action(db, "BEETS_SCAN", f"User executed Beets library scan on {target}")
+    return JSONResponse(content={
+        "status": "success",
+        "message": f"Beets library scan executed on {target}",
+        "scanned_target": target,
+        "output_lines": scanned_count
+    })
+
+@router.post("/api/beets/seed-test-items", response_class=JSONResponse)
+def api_beets_seed_test_items(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Seeds interactive sample items into the Beets review queue for UI triage testing.
+    """
+    from app.models import BeetsReviewItem
+
+    items_data = [
+        {
+            "artist": "Daft Punk",
+            "track": "One More Time",
+            "album": "Discovery",
+            "downloaded_path": "/downloads/Daft Punk - Discovery (2001) [FLAC]/01. One More Time.flac",
+            "confidence_score": 78,
+            "candidates": [
+                {
+                    "id": "dp_cand_1",
+                    "title": "One More Time",
+                    "artist": "Daft Punk",
+                    "year": 2001,
+                    "format": "FLAC 16-bit/44.1kHz",
+                    "track_count": 14,
+                    "mbid": "673f3c4c-4731-31a8-8951-e3250b86a877",
+                    "confidence": 92,
+                    "source": "Virgin Records Official"
+                },
+                {
+                    "id": "dp_cand_2",
+                    "title": "One More Time (Club Mix)",
+                    "artist": "Daft Punk",
+                    "year": 2000,
+                    "format": "FLAC 16-bit/44.1kHz",
+                    "track_count": 2,
+                    "mbid": "19e2c608-41b3-4632-9df7-70966f1bf5ef",
+                    "confidence": 78,
+                    "source": "Virgin 12'' Vinyl Single"
+                }
+            ]
+        },
+        {
+            "artist": "Kraftwerk",
+            "track": "Computer World",
+            "album": "Computer World",
+            "downloaded_path": "/downloads/Kraftwerk - Computerwelt (1981) FLAC/01. Computerwelt.flac",
+            "confidence_score": 64,
+            "candidates": [
+                {
+                    "id": "kw_cand_1",
+                    "title": "Computer World",
+                    "artist": "Kraftwerk",
+                    "year": 1981,
+                    "format": "FLAC 16-bit/44.1kHz",
+                    "track_count": 7,
+                    "mbid": "efb9e115-3bd4-32b0-9df1-80a5620b72fa",
+                    "confidence": 88,
+                    "source": "EMI / Kling Klang Original"
+                },
+                {
+                    "id": "kw_cand_2",
+                    "title": "Computerwelt (German Version)",
+                    "artist": "Kraftwerk",
+                    "year": 1981,
+                    "format": "FLAC 16-bit/44.1kHz",
+                    "track_count": 7,
+                    "mbid": "02a7b8e1-512c-493a-[#82]-92811a2b0c14",
+                    "confidence": 84,
+                    "source": "Kling Klang German Edition"
+                }
+            ]
+        },
+        {
+            "artist": "Boards of Canada",
+            "track": "Roygbiv",
+            "album": "Music Has the Right to Children",
+            "downloaded_path": "/downloads/Boards of Canada - MHTRTC/06. Roygbiv.flac",
+            "confidence_score": 81,
+            "candidates": [
+                {
+                    "id": "boc_cand_1",
+                    "title": "Roygbiv",
+                    "artist": "Boards of Canada",
+                    "year": 1998,
+                    "format": "FLAC 16-bit/44.1kHz",
+                    "track_count": 18,
+                    "mbid": "a32d18b2-32a1-3001-[#72]-10291a2b1234",
+                    "confidence": 95,
+                    "source": "Warp Records Original"
+                }
+            ]
+        }
+    ]
+
+    added_items = []
+    for d in items_data:
+        item = BeetsReviewItem(
+            artist=d["artist"],
+            track=d["track"],
+            album=d["album"],
+            downloaded_path=d["downloaded_path"],
+            confidence_score=d["confidence_score"],
+            status="review_required",
+            candidates_json=json.dumps(d["candidates"])
+        )
+        db.add(item)
+        added_items.append(item)
+
+    db.commit()
+    log_audit_action(db, "BEETS_SEED_TEST", f"Seeded {len(added_items)} test items into Beets review queue.")
+    return JSONResponse(content={
+        "status": "success",
+        "message": f"Seeded {len(added_items)} test review items",
+        "items_count": len(added_items)
+    })
+
 @router.post("/admin/search-debug/benchmark", response_class=HTMLResponse)
 async def post_admin_benchmark():
     """

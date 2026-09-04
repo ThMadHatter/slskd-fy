@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useReviewQueueStore } from '../store/reviewQueueStore';
 import { MatchCandidate } from '../types/beets';
-import { Check, Disc, HelpCircle, ArrowRight, ShieldAlert, Sparkles, X, ChevronRight, CornerDownLeft } from 'lucide-react';
+import { Check, Disc, HelpCircle, ArrowRight, ShieldAlert, Sparkles, X, ChevronRight, CornerDownLeft, RefreshCw, Terminal, PlusCircle, Database } from 'lucide-react';
 import Button from './ui/Button';
 import Card from './ui/Card';
 import SonicLoader from './ui/SonicLoader';
@@ -13,8 +13,13 @@ export default function ReviewQueueView() {
     items,
     selectedItemId,
     loading,
+    scanning,
     error,
+    status,
     fetchQueue,
+    fetchStatus,
+    scanLibrary,
+    seedTestItems,
     selectItem,
     selectNext,
     selectPrev,
@@ -26,7 +31,8 @@ export default function ReviewQueueView() {
 
   useEffect(() => {
     fetchQueue();
-  }, [fetchQueue]);
+    fetchStatus();
+  }, [fetchQueue, fetchStatus]);
 
   const activeItem = items.find((i) => i.id === selectedItemId) || items[0] || null;
 
@@ -133,22 +139,55 @@ export default function ReviewQueueView() {
           </div>
         </div>
 
-        {/* Hotkey legend pills */}
-        <div className="hidden lg:flex items-center gap-3 font-data-mono text-[11px] text-[#bbcabf]">
-          <span className="flex items-center gap-1.5 bg-[#131314] border border-[#27272a] px-2 py-1">
-            <kbd className="bg-[#201f20] border border-[#27272a] px-1 text-[#10b981] font-bold">A</kbd> Accept
-          </span>
-          <span className="flex items-center gap-1.5 bg-[#131314] border border-[#27272a] px-2 py-1">
-            <kbd className="bg-[#201f20] border border-[#27272a] px-1 text-[#e5e2e3] font-bold">K</kbd> Keep Original
-          </span>
-          <span className="flex items-center gap-1.5 bg-[#131314] border border-[#27272a] px-2 py-1">
-            <kbd className="bg-[#201f20] border border-[#27272a] px-1 text-[#fc7c78] font-bold">X</kbd> Skip
-          </span>
-          <span className="flex items-center gap-1.5 bg-[#131314] border border-[#27272a] px-2 py-1">
-            <kbd className="bg-[#201f20] border border-[#27272a] px-1 text-[#bbcabf] font-bold">↑/↓</kbd> Navigate
-          </span>
+        {/* Action Controls & Commands */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => scanLibrary()}
+            disabled={scanning}
+            className="flex items-center gap-2 bg-[#10b981]/20 hover:bg-[#10b981]/30 text-[#10b981] border border-[#10b981]/40 px-3 py-1.5 font-data-mono text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+          >
+            {scanning ? <SonicLoader size="small" /> : <RefreshCw size={14} />}
+            {scanning ? 'SCANNING...' : 'SCAN /MUSIC'}
+          </button>
+
+          <button
+            onClick={() => seedTestItems()}
+            className="flex items-center gap-2 bg-[#1c1b1c] hover:bg-[#27272a] text-[#e5e2e3] border border-[#27272a] px-3 py-1.5 font-data-mono text-xs font-bold transition-all cursor-pointer"
+          >
+            <PlusCircle size={14} />
+            SEED TEST ITEMS
+          </button>
         </div>
       </div>
+
+      {/* Embedded Beets Status Engine Bar */}
+      {status && (
+        <div className="bg-[#131314] border border-[#27272a] px-4 py-2 flex flex-wrap items-center justify-between text-xs font-data-mono text-[#bbcabf]">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5 text-[#10b981] font-bold">
+              <Terminal size={14} />
+              BEETS CLI: {status.beet_cli_available ? status.beet_version : 'OFFLINE'}
+            </span>
+            <span className="text-[#3f3f46]">|</span>
+            <span className="flex items-center gap-1.5 text-[#e5e2e3]">
+              <Database size={14} />
+              LIBRARY DB: {status.library_track_count} TRACKS
+            </span>
+            {status.config_path && (
+              <>
+                <span className="text-[#3f3f46]">|</span>
+                <span className="text-[#bbcabf]/70 truncate max-w-[280px]">
+                  CONFIG: {status.config_path}
+                </span>
+              </>
+            )}
+          </div>
+
+          <div className="text-[11px] text-[#bbcabf]/60">
+            AUTO-TAG CONFIDENCE THRESHOLD: &gt;85%
+          </div>
+        </div>
+      )}
 
       {items.length === 0 ? (
         /* Empty Queue State */
@@ -162,6 +201,25 @@ export default function ReviewQueueView() {
           <p className="font-data-mono text-xs text-[#bbcabf] max-w-md">
             All completed downloads have been cleanly processed with high confidence metadata matches. No ambiguous items require review.
           </p>
+
+          <div className="flex items-center gap-3 mt-4">
+            <button
+              onClick={() => scanLibrary()}
+              disabled={scanning}
+              className="flex items-center gap-2 bg-[#10b981] text-[#0a0a0b] px-4 py-2 font-data-mono text-xs font-bold uppercase tracking-wider transition-all hover:bg-[#10b981]/90 cursor-pointer"
+            >
+              <RefreshCw size={14} />
+              RUN BEETS LIBRARY SCAN
+            </button>
+
+            <button
+              onClick={() => seedTestItems()}
+              className="flex items-center gap-2 bg-[#1c1b1c] text-[#e5e2e3] border border-[#27272a] px-4 py-2 font-data-mono text-xs font-bold uppercase tracking-wider transition-all hover:bg-[#27272a] cursor-pointer"
+            >
+              <PlusCircle size={14} />
+              SEED SAMPLE REVIEW ITEMS
+            </button>
+          </div>
         </div>
       ) : (
         /* Main Linear-Style 2-Column Split View */

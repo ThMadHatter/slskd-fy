@@ -38,5 +38,5 @@ class BeetsServiceClient:
                     logger.warning(f"Beets query failed with status: {response.status_code}")
                     return []
             except Exception as e:
-                logger.error(f"Failed to communicate with beets service at {self.api_url}: {e}")
+                logger.exception(f"Failed to communicate with beets service at {self.api_url}: {e}")
                 return []

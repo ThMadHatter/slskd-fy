@@ -1,4 +1,7 @@
 import os
+import json
+import uuid
+import time
 import logging
 import asyncio
 from contextlib import asynccontextmanager
@@ -20,23 +23,36 @@ import sys
 
 logger = logging.getLogger("track_portal")
 
+class JSONFormatter(logging.Formatter):
+    """Structured JSON log formatter for machine-parseable log ingest."""
+    def format(self, record: logging.LogRecord) -> str:
+        log_obj = {
+            "timestamp": self.formatTime(record, self.datefmt),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage()
+        }
+        if hasattr(record, "correlation_id"):
+            log_obj["correlation_id"] = record.correlation_id
+        if record.exc_info:
+            log_obj["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_obj)
+
 def setup_app_logging():
     """
-    Set up Track Portal logging. Executed inside lifespan startup
-    to ensure Uvicorn does not overwrite our handlers.
+    Set up Track Portal logging using settings.LOG_LEVEL and settings.LOG_FORMAT.
     """
-    logger.setLevel(logging.INFO)
+    log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+    logger.setLevel(log_level)
     logger.handlers = []  # Clear to avoid duplicates
 
-    uvicorn_logger = logging.getLogger("uvicorn.error")
-    if uvicorn_logger.handlers:
-        for h in uvicorn_logger.handlers:
-            logger.addHandler(h)
+    sh = logging.StreamHandler(sys.stdout)
+    if settings.LOG_FORMAT.lower() == "json":
+        sh.setFormatter(JSONFormatter())
     else:
-        # Fallback console handler
-        sh = logging.StreamHandler(sys.stdout)
         sh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
-        logger.addHandler(sh)
+
+    logger.addHandler(sh)
     logger.propagate = False
 
 # Programmatically run Alembic migrations on startup
@@ -94,11 +110,22 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 os.makedirs("app/static/_next", exist_ok=True)
 app.mount("/_next", StaticFiles(directory="app/static/_next"), name="next_static")
 
-# Middleware to support request.state properties (like CSRF tokens)
+# Middleware to support request correlation IDs and state
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
+    correlation_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request.state.correlation_id = correlation_id
     request.state.user = None
+
+    start_time = time.time()
     response = await call_next(request)
+    duration_ms = round((time.time() - start_time) * 1000, 2)
+
+    response.headers["X-Request-ID"] = correlation_id
+    logger.info(
+        f"HTTP {request.method} {request.url.path} -> {response.status_code} ({duration_ms}ms)",
+        extra={"correlation_id": correlation_id}
+    )
     return response
 
 # Include page routes

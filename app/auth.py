@@ -91,9 +91,9 @@ def init_admin_user(db: Session):
 
             if not password:
                 password = secrets.token_urlsafe(12)
-                logger.critical("*" * 60)
-                logger.critical(f"NO ADMIN PASSWORD CONFIGURED. GENERATED RANDOM: {password}")
-                logger.critical("*" * 60)
+                logger.warning("*" * 60)
+                logger.warning("NO ADMIN PASSWORD CONFIGURED. Generated a secure random initial password for user 'admin'.")
+                logger.warning("*" * 60)
 
             hashed = hash_password(password)
             admin = User(

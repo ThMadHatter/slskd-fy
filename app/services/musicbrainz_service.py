@@ -113,7 +113,7 @@ class MusicBrainzService:
                         cls._register_failure()
                         return None
                     except Exception as e:
-                        logger.error(f"Exception during MusicBrainz request: {e}")
+                        logger.exception(f"Exception during MusicBrainz request: {e}")
                         cls._register_failure()
                         await asyncio.sleep(0.5)
                 return None

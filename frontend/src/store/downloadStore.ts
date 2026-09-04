@@ -43,29 +43,49 @@ export const useDownloadStore = create<DownloadState>((set, get) => ({
         const dirs = userDl.directories || [];
         const files = userDl.files || [];
 
-        const dirFiles = dirs.flatMap((d: any) => (d.files || []).map((f: any) => ({
-          id: f.id || `${username}-${f.filename}`,
-          filename: f.filename,
-          username: username,
-          status: (f.state === 'Completed' ? 'completed' : f.state === 'Downloading' ? 'downloading' : f.state === 'Failed' ? 'failed' : 'queued') as any,
-          size: f.size || 0,
-          bytesTransferred: f.bytesTransferred || 0,
-          speed: f.speed || 0,
-          eta: f.eta || 0,
-          progress: f.percentComplete || 0,
-        })));
+        const mapFileStatus = (f: any): 'completed' | 'downloading' | 'failed' | 'queued' => {
+          const rawState = (f.state || f.State || '').toString().toLowerCase();
+          if (rawState.includes('succeeded') || rawState === 'completed' || rawState.includes('complete')) {
+            return 'completed';
+          }
+          if (rawState.includes('downloading') || rawState.includes('inprogress') || rawState.includes('in_progress') || rawState.includes('initializing')) {
+            return 'downloading';
+          }
+          if (rawState.includes('failed') || rawState.includes('errored') || rawState.includes('cancelled') || rawState.includes('rejected') || rawState.includes('aborted')) {
+            return 'failed';
+          }
+          return 'queued';
+        };
 
-        const flatFiles = files.map((f: any) => ({
-          id: f.id || `${username}-${f.filename}`,
-          filename: f.filename,
-          username: username,
-          status: (f.state === 'Completed' ? 'completed' : f.state === 'Downloading' ? 'downloading' : f.state === 'Failed' ? 'failed' : 'queued') as any,
-          size: f.size || 0,
-          bytesTransferred: f.bytesTransferred || 0,
-          speed: f.speed || 0,
-          eta: f.eta || 0,
-          progress: f.percentComplete || 0,
+        const dirFiles = dirs.flatMap((d: any) => (d.files || []).map((f: any) => {
+          const status = mapFileStatus(f);
+          return {
+            id: f.id || `${username}-${f.filename}`,
+            filename: f.filename,
+            username: username,
+            status,
+            size: f.size || 0,
+            bytesTransferred: f.bytesTransferred || 0,
+            speed: f.speed || 0,
+            eta: f.eta || 0,
+            progress: f.percentComplete || (status === 'completed' ? 100 : 0),
+          };
         }));
+
+        const flatFiles = files.map((f: any) => {
+          const status = mapFileStatus(f);
+          return {
+            id: f.id || `${username}-${f.filename}`,
+            filename: f.filename,
+            username: username,
+            status,
+            size: f.size || 0,
+            bytesTransferred: f.bytesTransferred || 0,
+            speed: f.speed || 0,
+            eta: f.eta || 0,
+            progress: f.percentComplete || (status === 'completed' ? 100 : 0),
+          };
+        });
 
         return [...dirFiles, ...flatFiles];
       });

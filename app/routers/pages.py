@@ -2,6 +2,7 @@ import os
 import logging
 import asyncio
 import datetime
+import time
 from typing import Optional, List, Dict, Any, Union
 from fastapi import APIRouter, Depends, Request, HTTPException, status, Form
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
@@ -50,6 +51,8 @@ class SearchRequest(BaseModel):
     track_or_album: Optional[str] = ""
     mode: Optional[str] = "A"
     artist_mbid: Optional[str] = ""
+    timeout_sec: Optional[int] = 15
+    wait_until_complete: Optional[bool] = False
 
 class LoginRequest(BaseModel):
     username: str
@@ -149,7 +152,16 @@ async def api_search(
     if not artist and not track_or_album:
         raise HTTPException(status_code=400, detail="Artist or Track/Album must be provided")
 
-    query_obj = SearchQuery(artist=artist, track=track_or_album, mode=payload.mode or "A")
+    search_timeout = payload.timeout_sec or 15
+    wait_until_complete = bool(payload.wait_until_complete)
+
+    query_obj = SearchQuery(
+        artist=artist,
+        track=track_or_album,
+        mode=payload.mode or "A",
+        timeout_sec=search_timeout,
+        wait_until_complete=wait_until_complete
+    )
 
     async def event_generator():
         seen_keys = set()
@@ -186,19 +198,48 @@ async def api_search(
 
         # 2. Sequential fallback search loop matching & yielding chunks incrementally
         query_strings = search_executor.generate_progressive_queries(search_artist, track_or_album)
+        logger.info(f"BENCHMARK - Generated progressive queries for '{search_artist}' / '{track_or_album}': {query_strings}")
         for idx, q_str in enumerate(query_strings):
             responses = []
             search_id = None
+            start_time = time.time()
             try:
-                logger.info(f"Incremental Search - Executing query: '{q_str}'")
-                search_obj = await search_executor.slskd_client.search(q_str)
-                search_id = search_obj.get("id")
+                logger.info(f"Incremental Search - Executing query: '{q_str}' (timeout_sec={search_timeout}, wait_until_complete={wait_until_complete})")
+                search_obj = await search_executor.slskd_client.search(q_str, timeout_sec=search_timeout, wait_until_complete=wait_until_complete)
+                search_id = search_obj.get("id") or search_obj.get("Id") if isinstance(search_obj, dict) else None
                 if search_id:
-                    for _ in range(5):
-                        await asyncio.sleep(1.0)
-                        responses = await search_executor.slskd_client.get_search_responses(search_id)
-                        if len(responses) >= 8:
+                    poll_interval = 0.5
+                    max_poll_time = 120.0 if wait_until_complete else float(search_timeout)
+                    elapsed = 0.0
+
+                    while elapsed < max_poll_time:
+                        await asyncio.sleep(poll_interval)
+                        elapsed += poll_interval
+
+                        try:
+                            batch = await search_executor.slskd_client.get_search_responses(search_id)
+                            if batch:
+                                responses = batch
+                        except Exception as e:
+                            logger.warning(f"Error fetching search responses for {search_id}: {e}")
+
+                        # Check search state
+                        try:
+                            if hasattr(search_executor.slskd_client, "get_search_state"):
+                                state = await search_executor.slskd_client.get_search_state(search_id)
+                                state_str = (state.get("state") or state.get("State") or "").lower()
+                                is_complete = state.get("isComplete") or state.get("IsComplete") or False
+                                if state_str in ("complete", "timed_out", "cancelled", "completed", "timedout") or is_complete:
+                                    logger.info(f"Search {search_id} state reached final status '{state_str}' (isComplete={is_complete}) after {elapsed:.2f}s")
+                                    break
+                        except Exception as e:
+                            logger.debug(f"Could not check search state for {search_id}: {e}")
+
+                        if not wait_until_complete and len(responses) >= 10:
                             break
+
+                    duration = time.time() - start_time
+                    logger.info(f"BENCHMARK - Query '{q_str}' search completed in {duration:.2f}s with {len(responses)} peer responses")
             except Exception as e:
                 err_msg = f"slskd search failed for '{q_str}': {e}"
                 logger.error(err_msg)
@@ -282,20 +323,37 @@ async def api_search(
 async def api_download(
     payload: DownloadRequest,
     slskd_client: SlskdClientContract = Depends(get_slskd_client),
+    db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
     """
-    Enqueues a file download via slskd.
+    Enqueues a file download via slskd and records it in DownloadHistory.
     """
+    from app.models import DownloadHistory
     # Log exact required log keyword: DOWNLOAD_REQUESTED
     logger.info(f"DOWNLOAD_REQUESTED - Username: '{payload.username}', Filename: '{payload.filename}'")
 
     success = await slskd_client.enqueue_download(payload.username, payload.filename, payload.size)
 
     if success:
+        new_dl = DownloadHistory(
+            search_query=f"{payload.artist} {payload.track}".strip(),
+            artist=payload.artist,
+            track=payload.track,
+            album=payload.album or "",
+            filename=payload.filename,
+            source_user=payload.username,
+            format=payload.format or "",
+            bitrate=payload.bitrate or 0,
+            size_bytes=payload.size,
+            status="downloading",
+            downloaded_at=datetime.datetime.utcnow()
+        )
+        db.add(new_dl)
+        db.commit()
         # Log exact required log keyword: DOWNLOAD_COMPLETED (enqueue successful)
-        logger.info(f"DOWNLOAD_COMPLETED - Filename: '{payload.filename}'")
-        return {"status": "success", "message": "Download enqueued successfully"}
+        logger.info(f"DOWNLOAD_COMPLETED - Filename: '{payload.filename}' saved to DownloadHistory ID {new_dl.id}")
+        return {"status": "success", "message": "Download enqueued successfully", "id": new_dl.id}
     else:
         logger.error(f"Download request failed for file: '{payload.filename}'")
         raise HTTPException(status_code=500, detail="Failed to enqueue download in slskd")
@@ -809,7 +867,18 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
     If the table is empty, seeds high-fidelity sample items for immediate UX testing.
     """
     from app.models import BeetsReviewItem
-    items = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").order_by(BeetsReviewItem.created_at.desc()).all()
+    try:
+        items = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").order_by(BeetsReviewItem.created_at.desc()).all()
+    except Exception as e:
+        logger.error(f"Error querying BeetsReviewItem queue: {e}")
+        try:
+            from app.database import Base, engine
+            Base.metadata.create_all(bind=engine)
+            db.rollback()
+            items = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").order_by(BeetsReviewItem.created_at.desc()).all()
+        except Exception as inner_e:
+            logger.error(f"Failed creating beets review queue table or querying: {inner_e}")
+            return JSONResponse(content=[])
 
     if not items:
         # Seed 2 realistic sample items if queue is empty

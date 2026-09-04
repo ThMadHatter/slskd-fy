@@ -37,42 +37,51 @@ class FallbackSearchExecutor(SearchExecutorContract):
         self.cache_provider = cache_provider
         self.beets_client = BeetsServiceClient()
 
-    def generate_progressive_queries(self, artist: str, track: str, strategy: str = "BALANCED") -> List[str]:
+    def generate_progressive_queries(
+        self,
+        artist: str,
+        track: str,
+        canonical_artist: Optional[str] = None,
+        strategy: str = "BALANCED"
+    ) -> List[str]:
         """
-        Generates progressive, broad, and forgiving queries based on artist and track.
+        Generates progressive, broad, and forgiving queries based on artist, track, and optional canonical_artist.
         """
-        return SearchRankingService.generate_queries_progressive(artist, track)
+        return SearchRankingService.generate_queries_progressive(artist, track, canonical_artist=canonical_artist)
 
     async def execute_search(self, query: SearchQuery) -> List[SlskdResult]:
         """
         Sequentially triggers, polls, merges, enriches with beets, and ranks candidates.
         Guarantees that only ONE active slskd search operation is performed at any time to avoid HTTP 429.
         """
-        artist = query.artist.strip()
-        track = query.track.strip()
+        original_artist = query.artist.strip()
+        original_track = query.track.strip()
+        timeout_sec = query.timeout_sec or 15
+        wait_until_complete = bool(query.wait_until_complete)
+        canonical_artist = None
 
-        # Enforce dynamic artist name enrichment for robust P2P searching [Gap 22]
-        if artist:
+        # Fetch canonical artist name from MusicBrainz for query seed generation (DO NOT replace original user artist)
+        if original_artist:
             from app.database import SessionLocal
             from app.services.musicbrainz_service import MusicBrainzService
             db = SessionLocal()
             try:
-                artists = await MusicBrainzService.search_artists(artist, db)
+                artists = await MusicBrainzService.search_artists(original_artist, db)
                 if artists:
                     official_name = artists[0].get("name")
                     if official_name:
-                        logger.info(f"Enriching search executor artist '{artist}' -> '{official_name}' via MusicBrainz")
-                        artist = official_name
+                        logger.info(f"Canonical MusicBrainz artist found for '{original_artist}' -> '{official_name}'")
+                        canonical_artist = official_name
             except Exception as e:
-                logger.error(f"Error enriching executor artist: {e}")
+                logger.error(f"Error fetching canonical artist: {e}")
             finally:
                 db.close()
 
         # Log exact required log keyword: SEARCH_START
-        logger.info(f"SEARCH_START - Artist: '{artist}', Track: '{track}'")
+        logger.info(f"SEARCH_START - Artist: '{original_artist}', Track: '{original_track}'")
 
-        # 1. Generate progressive query permutations
-        query_strings = self.generate_progressive_queries(artist, track)
+        # 1. Generate progressive query permutations using original input and canonical seed
+        query_strings = self.generate_progressive_queries(original_artist, original_track, canonical_artist=canonical_artist)
 
         # Log exact required log keyword: GENERATED QUERIES
         logger.info(f"GENERATED QUERIES: {query_strings}")
@@ -95,19 +104,46 @@ class FallbackSearchExecutor(SearchExecutorContract):
             # Fire search to slskd
             responses = []
             search_id = None
+            start_time = time.time()
             try:
                 # Log exact required log keyword: QUERY_EXECUTED
-                logger.info(f"QUERY_EXECUTED - Executing query: '{q_str}'")
-                search_obj = await self.slskd_client.search(q_str)
-                search_id = search_obj.get("id")
+                logger.info(f"QUERY_EXECUTED - Executing query: '{q_str}' (timeout_sec={timeout_sec}, wait_until_complete={wait_until_complete})")
+                search_obj = await self.slskd_client.search(q_str, timeout_sec=timeout_sec, wait_until_complete=wait_until_complete)
+                search_id = search_obj.get("id") or search_obj.get("Id") if isinstance(search_obj, dict) else None
 
                 if search_id:
-                    # Poll responses sequentially
-                    for _ in range(5):
-                        await asyncio.sleep(1.0)
-                        responses = await self.slskd_client.get_search_responses(search_id)
-                        if len(responses) >= 8:
+                    poll_interval = 0.5
+                    max_poll_time = 120.0 if wait_until_complete else float(timeout_sec)
+                    elapsed = 0.0
+
+                    while elapsed < max_poll_time:
+                        await asyncio.sleep(poll_interval)
+                        elapsed += poll_interval
+
+                        try:
+                            batch = await self.slskd_client.get_search_responses(search_id)
+                            if batch:
+                                responses = batch
+                        except Exception as e:
+                            logger.warning(f"Error fetching search responses for {search_id}: {e}")
+
+                        # Check search state
+                        try:
+                            if hasattr(self.slskd_client, "get_search_state"):
+                                state = await self.slskd_client.get_search_state(search_id)
+                                state_str = (state.get("state") or state.get("State") or "").lower()
+                                is_complete = state.get("isComplete") or state.get("IsComplete") or False
+                                if state_str in ("complete", "timed_out", "cancelled", "completed", "timedout") or is_complete:
+                                    logger.info(f"Search {search_id} state reached final status '{state_str}' (isComplete={is_complete}) after {elapsed:.2f}s")
+                                    break
+                        except Exception as e:
+                            logger.debug(f"Could not check search state for {search_id}: {e}")
+
+                        if not wait_until_complete and len(responses) >= 10:
                             break
+
+                    duration = time.time() - start_time
+                    logger.info(f"BENCHMARK - Query '{q_str}' search completed in {duration:.2f}s with {len(responses)} peer responses")
             except Exception as e:
                 logger.error(f"Error executing sequential query '{q_str}': {e}")
 
@@ -117,15 +153,15 @@ class FallbackSearchExecutor(SearchExecutorContract):
             # Parse and merge files from this query
             query_candidates_count = 0
             for resp in responses:
-                username = resp.get("username", "")
-                queue_length = resp.get("queueLength", 0) or resp.get("queue_length", 0) or 0
-                files = resp.get("files", [])
+                username = resp.get("username") or resp.get("Username") or ""
+                queue_length = resp.get("queueLength") or resp.get("queue_length") or resp.get("QueueLength") or 0
+                files = resp.get("files") or resp.get("Files") or []
                 for f in files:
-                    filename = f.get("filename", "")
+                    filename = f.get("filename") or f.get("Filename") or ""
                     ext = os.path.splitext(filename)[1].lstrip(".").lower()
-                    size = f.get("size", 0)
-                    bitrate = f.get("bitRate", 0) or f.get("bitrate", 0) or 0
-                    sample_rate = f.get("sampleRate", 0) or f.get("sample_rate", 0) or 0
+                    size = f.get("size") or f.get("Size") or 0
+                    bitrate = f.get("bitRate") or f.get("bitrate") or f.get("BitRate") or 0
+                    sample_rate = f.get("sampleRate") or f.get("sample_rate") or f.get("SampleRate") or 0
 
                     # Reject obviously malformed/junk files
                     if SearchRankingService.should_reject_result(filename, ext):
@@ -135,6 +171,7 @@ class FallbackSearchExecutor(SearchExecutorContract):
                     key = (username, filename)
                     if key not in seen_files:
                         seen_files.add(key)
+                        query_candidates_count += 1
 
                         parsed = parse_filename(filename)
                         unique_candidates.append({
@@ -145,14 +182,13 @@ class FallbackSearchExecutor(SearchExecutorContract):
                             "bitrate": bitrate,
                             "sample_rate": sample_rate,
                             "queue_length": queue_length,
-                            "parsed_artist": parsed.get("artist") or artist or "Unknown",
-                            "parsed_track": parsed.get("track") or track or "Unknown",
+                            "parsed_artist": parsed.get("artist") or original_artist or "Unknown",
+                            "parsed_track": parsed.get("track") or original_track or "Unknown",
                             "parsed_album": parsed.get("album") or "",
                             "parsed_year": parsed.get("year") or None
                         })
-                    query_candidates_count += 1
 
-            # Clean up the search in slskd sequentially before initiating the next query
+            # Clean up the search in slskd sequentially AFTER polling finishes
             if search_id:
                 try:
                     await self.slskd_client.delete_search(search_id)
@@ -180,9 +216,9 @@ class FallbackSearchExecutor(SearchExecutorContract):
         # Sort initially by raw match heuristics to get the top results (e.g. up to 20 candidates)
         for cand in unique_candidates:
             temp_score = 0
-            if cand["parsed_artist"].lower() == artist.lower():
+            if cand["parsed_artist"].lower() == original_artist.lower():
                 temp_score += 40
-            if cand["parsed_track"].lower() == track.lower():
+            if cand["parsed_track"].lower() == original_track.lower():
                 temp_score += 30
             cand["temp_score"] = temp_score
 
@@ -192,19 +228,22 @@ class FallbackSearchExecutor(SearchExecutorContract):
         # Log exact required log keyword: BEETS ENRICHMENT
         logger.info("BEETS ENRICHMENT - Querying beets service API for top results")
         for cand in top_candidates:
-            beets_matches = await self.beets_client.search_items(f'artist:"{cand["parsed_artist"]}" title:"{cand["parsed_track"]}"')
             cand["beets_confidence"] = False
-            if beets_matches:
-                # We have a high confidence match! Enrich metadata
-                best_match = beets_matches[0]
-                cand["parsed_artist"] = best_match.get("artist") or cand["parsed_artist"]
-                cand["parsed_track"] = best_match.get("title") or cand["parsed_track"]
-                cand["parsed_album"] = best_match.get("album") or cand["parsed_album"]
-                cand["parsed_year"] = best_match.get("year") or cand["parsed_year"]
-                cand["beets_confidence"] = True
+            try:
+                beets_matches = await self.beets_client.search_items(f'artist:"{cand["parsed_artist"]}" title:"{cand["parsed_track"]}"')
+                if beets_matches:
+                    # We have a high confidence match! Enrich metadata
+                    best_match = beets_matches[0]
+                    cand["parsed_artist"] = best_match.get("artist") or cand["parsed_artist"]
+                    cand["parsed_track"] = best_match.get("title") or cand["parsed_track"]
+                    cand["parsed_album"] = best_match.get("album") or cand["parsed_album"]
+                    cand["parsed_year"] = best_match.get("year") or cand["parsed_year"]
+                    cand["beets_confidence"] = True
 
-                # Log exact required log keyword: ENRICHMENT_APPLIED
-                logger.info(f"ENRICHMENT_APPLIED - Filename: '{cand['filename']}', Beets Artist: '{best_match.get('artist')}', Beets Track: '{best_match.get('title')}'")
+                    # Log exact required log keyword: ENRICHMENT_APPLIED
+                    logger.info(f"ENRICHMENT_APPLIED - Filename: '{cand['filename']}', Beets Artist: '{best_match.get('artist')}', Beets Track: '{best_match.get('title')}'")
+            except Exception as e:
+                logger.warning(f"Failed beets enrichment for candidate '{cand['filename']}': {e}")
 
         # 4. Final Ranking and Scoring
         # Log exact required log keyword: RANKING DECISIONS

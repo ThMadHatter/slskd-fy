@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # Can be STRICT, BALANCED, or AGGRESSIVE
     SEARCH_STRATEGY: str = "BALANCED"
 
+    # Observability & Logging settings
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "text"
+
     # Dynamic build versioning and metadata injected at container build-time
     APP_VERSION: str = "0.4.7"
     GIT_COMMIT: str = "unknown"

@@ -114,6 +114,10 @@ async def test_slskd_cancel_download():
         assert success is True
         mock_delete.assert_called_once()
 
+def test_slskd_logger_name():
+    from app.services.slskd import logger
+    assert logger.name == "track_portal.slskd"
+
 @pytest.mark.asyncio
 async def test_slskd_clear_active_searches():
     client = SlskdClient(api_url="http://mock-slskd/api/v0", api_key="test-key")

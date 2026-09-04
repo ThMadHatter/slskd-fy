@@ -64,7 +64,7 @@ async def import_with_beets(src_path: str, target_dir: str) -> Optional[str]:
         return None
 
     logger.info(f"Triggering Beets import for downloaded file: '{src_path}'")
-    print(f"[AUDIT_POLLER] BEETS IMPORT START - src={src_path!r}", flush=True)
+    logger.debug(f"[AUDIT_POLLER] BEETS IMPORT START - src={src_path!r}")
 
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -74,7 +74,7 @@ async def import_with_beets(src_path: str, target_dir: str) -> Optional[str]:
         )
         stdout, stderr = await proc.communicate()
         logger.info(f"Beets import completed with exit code {proc.returncode}. stdout={stdout.decode('utf-8', errors='ignore')!r}")
-        print(f"[AUDIT_POLLER] BEETS IMPORT COMPLETE - returncode={proc.returncode}", flush=True)
+        logger.debug(f"[AUDIT_POLLER] BEETS IMPORT COMPLETE - returncode={proc.returncode}")
     except FileNotFoundError:
         logger.warning("Beets binary 'beet' not found in system PATH. Falling back to direct move.")
     except Exception as e:
@@ -105,7 +105,7 @@ async def _handle_stalled_download(download: DownloadHistory, db: Session):
     [RSL-002] Autonomously cancels a stalled download and requests the next best choice seamlessly.
     """
     logger.warning(f"Ghost Peer detected! Download for '{download.track}' is stalled (0 bytes or queue not moving). Autonomously cancelling.")
-    print(f"[AUDIT_POLLER] STALLED TRIGGERED! {download.track}", flush=True)
+    logger.debug(f"[AUDIT_POLLER] STALLED TRIGGERED! {download.track}")
 
     slskd_client = SlskdClient()
     try:
@@ -221,7 +221,7 @@ async def poll_downloads():
             active_downloads = db.query(DownloadHistory).filter(
                 DownloadHistory.status == "downloading"
             ).all()
-            print(f"[AUDIT_POLLER] Loop Step: active downloads found count={len(active_downloads)}", flush=True)
+            logger.debug(f"[AUDIT_POLLER] Loop Step: active downloads found count={len(active_downloads)}")
 
             slskd_downloads = await slskd_client.get_downloads()
 
@@ -268,7 +268,7 @@ async def poll_downloads():
                         matching_transfer = t
                         break
 
-                print(f"[AUDIT_POLLER] download={download.track}, matching transfer={matching_transfer is not None}", flush=True)
+                logger.debug(f"[AUDIT_POLLER] download={download.track}, matching transfer={matching_transfer is not None}")
 
                 if matching_transfer:
                     # [RSL-002] Monitor stalled transfers
@@ -378,7 +378,7 @@ async def poll_downloads():
             clean_empty_directories(settings.DOWNLOADS_PATH)
             db.close()
         except Exception as e:
-            logger.error(f"Error in background polling task: {e}")
+            logger.exception(f"Error in background polling task: {e}")
 
         await asyncio.sleep(10)
 

@@ -87,17 +87,22 @@ def test_logout_flow():
     cookie = response.cookies.get(COOKIE_NAME)
     assert cookie is None or cookie == ""
 
-def test_init_admin_user_db_empty():
+def test_init_admin_user_db_empty(caplog):
+    import logging
     db = TestingSessionLocal()
     db.query(User).delete()
     db.commit()
 
-    # Run init_admin_user
-    init_admin_user(db)
+    with caplog.at_level(logging.WARNING):
+        init_admin_user(db)
 
     admin = db.query(User).filter(User.username == settings.ADMIN_USERNAME).first()
     assert admin is not None
     assert admin.is_admin is True
+    # Ensure generated random password is NOT present in any log record
+    messages = [record.message for record in caplog.records]
+    assert any("NO ADMIN PASSWORD CONFIGURED. Generated a secure random initial password" in msg for msg in messages)
+    assert not any("GENERATED RANDOM:" in msg for msg in messages)
     db.close()
 
 def test_log_audit_action():

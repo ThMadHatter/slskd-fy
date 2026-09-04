@@ -5,7 +5,7 @@ import datetime
 import time
 from typing import Optional, List, Dict, Any, Union
 from fastapi import APIRouter, Depends, Request, HTTPException, status, Form
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse
 import json
 from app.services.filename_parser import parse_filename
 from app.services.search_ranking_service import SearchRankingService
@@ -187,7 +187,7 @@ async def api_search(
             try:
                 catalog = await MusicBrainzService.fetch_artist_releases(artist_mbid, db)
             except Exception as e:
-                logger.error(f"Error pre-fetching artist releases catalog: {e}")
+                logger.exception(f"Error pre-fetching artist releases catalog: {e}")
 
         # Clear any active/stuck slskd searches first
         try:
@@ -221,7 +221,7 @@ async def api_search(
                             if batch:
                                 responses = batch
                         except Exception as e:
-                            logger.warning(f"Error fetching search responses for {search_id}: {e}")
+                            logger.warning(f"Error fetching search responses for {search_id}: {e}", exc_info=True)
 
                         # Check search state
                         try:
@@ -440,6 +440,32 @@ def api_auth_me(user: Optional[User] = Depends(get_current_user)):
         "is_admin": user.is_admin,
         "two_factor_enabled": user.two_factor_enabled
     }
+
+@router.post("/login")
+def form_login(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    client_ip = request.client.host if request.client else "unknown"
+    user = db.query(User).filter(User.username == username.strip()).first()
+    if not user or not verify_password(password, user.password_hash):
+        log_audit_action(db, "LOGIN_FAILED", f"Failed login attempt for user '{username}'", client_ip)
+        return HTMLResponse(content="Invalid credentials", status_code=200)
+
+    token = create_access_token({"sub": user.username})
+    response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        max_age=12 * 3600
+    )
+    log_audit_action(db, "LOGIN_SUCCESS", f"User '{username}' logged in successfully via form.", client_ip)
+    return response
 
 @router.post("/api/auth/login", response_class=JSONResponse)
 def api_auth_login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):

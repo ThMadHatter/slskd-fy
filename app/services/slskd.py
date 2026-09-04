@@ -5,7 +5,7 @@ from urllib.parse import quote
 import httpx
 from app.config import settings
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("track_portal.slskd")
 
 def start_background_poller():
     logger.info("Background poller started...")
@@ -113,7 +113,7 @@ class SlskdClient:
 
         if not wait_until_complete and timeout_sec is not None:
             payload["searchTimeout"] = timeout_sec
-        print(f"[AUDIT] PAYLOAD - payload={payload}", flush=True)
+        logger.debug(f"[AUDIT] PAYLOAD - payload={payload}")
 
         safe_api_key = f"{self.api_key[:4]}...{self.api_key[-4:]}" if self.api_key else "None"
         curl_cmd = (f"curl -X POST -H \"X-API-KEY: {safe_api_key}\" "
@@ -149,7 +149,7 @@ class SlskdClient:
                 state_str = res.get("state") or res.get("State") or ""
                 is_complete = res.get("isComplete") or res.get("IsComplete") or False
                 response_count = res.get("responseCount") or res.get("ResponseCount") or len(res.get("responses") or res.get("Responses") or [])
-                print(f"[AUDIT] SLSKD SEARCH STATE - search_id={search_id!r}, state={state_str!r}, isComplete={is_complete}, responseCount={response_count}", flush=True)
+                logger.debug(f"[AUDIT] SLSKD SEARCH STATE - search_id={search_id!r}, state={state_str!r}, isComplete={is_complete}, responseCount={response_count}")
                 logger.info(f"SLSKD SEARCH STATE - search_id='{search_id}', state='{state_str}', isComplete={is_complete}, responseCount={response_count}")
                 return res
             except Exception as e:
@@ -173,7 +173,7 @@ class SlskdClient:
                 for resp in data:
                     files = resp.get("files") or resp.get("Files") or []
                     total_files_count += len(files)
-                print(f"[AUDIT] SLSKD RESPONSE COUNT - search_id={search_id!r}, peer_responses={len(data)}, total_files={total_files_count}", flush=True)
+                logger.debug(f"[AUDIT] SLSKD RESPONSE COUNT - search_id={search_id!r}, peer_responses={len(data)}, total_files={total_files_count}")
 
                 logger.info(f"Search {search_id} returned {len(data)} peer responses.")
                 return data
@@ -200,7 +200,7 @@ class SlskdClient:
         async with self._get_client() as client:
             try:
                 response = await client.post(url, json=payload, timeout=15)
-                print(f"[AUDIT] ENQUEUE DOWNLOAD RESPONSE - status={response.status_code}, body={response.text!r}", flush=True)
+                logger.debug(f"[AUDIT] ENQUEUE DOWNLOAD RESPONSE - status={response.status_code}, body={response.text!r}")
                 if response.status_code in [200, 201, 204]:
                     logger.info("Successfully enqueued download.")
                     return True
@@ -220,7 +220,7 @@ class SlskdClient:
                 response.raise_for_status()
                 data = response.json()
                 res = data if data is not None else []
-                print(f"[AUDIT] GET DOWNLOADS RESPONSE - status={response.status_code}, retrieved_count={len(res) if isinstance(res, list) else 0}", flush=True)
+                logger.debug(f"[AUDIT] GET DOWNLOADS RESPONSE - status={response.status_code}, retrieved_count={len(res) if isinstance(res, list) else 0}")
                 logger.info(f"GET DOWNLOADS RESPONSE - status={response.status_code}, retrieved_count={len(res) if isinstance(res, list) else 0}")
                 return res
             except Exception as e:
@@ -234,7 +234,7 @@ class SlskdClient:
         async with self._get_client() as client:
             try:
                 response = await client.delete(url, params=params, timeout=15)
-                print(f"[AUDIT] CANCEL DOWNLOAD RESPONSE - status={response.status_code}, body={response.text!r}", flush=True)
+                logger.debug(f"[AUDIT] CANCEL DOWNLOAD RESPONSE - status={response.status_code}, body={response.text!r}")
                 if response.status_code in [200, 204]:
                     logger.info(f"Cancelled download ID: {id_} from user: {username}")
                     return True
@@ -250,7 +250,7 @@ class SlskdClient:
         async with self._get_client() as client:
             try:
                 response = await client.delete(url, timeout=15)
-                print(f"[AUDIT] REMOVE COMPLETED DOWNLOADS RESPONSE - status={response.status_code}, body={response.text!r}", flush=True)
+                logger.debug(f"[AUDIT] REMOVE COMPLETED DOWNLOADS RESPONSE - status={response.status_code}, body={response.text!r}")
                 if response.status_code in [200, 204]:
                     logger.info("Successfully removed completed downloads.")
                     return True

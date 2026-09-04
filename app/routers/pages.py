@@ -1067,10 +1067,11 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
         logger.info(f"Executing Beets scan library command: {' '.join(cmd)}")
         proc = await asyncio.create_subprocess_exec(
             *cmd,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await proc.communicate()
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60.0)
         proc_exit_code = proc.returncode
         out_str = stdout.decode("utf-8", errors="ignore")
         err_str = stderr.decode("utf-8", errors="ignore")

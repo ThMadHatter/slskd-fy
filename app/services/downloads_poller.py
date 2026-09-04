@@ -92,10 +92,11 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
         logger.info(f"Executing Beets CLI command: {' '.join(cmd)}")
         proc = await asyncio.create_subprocess_exec(
             *cmd,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await proc.communicate()
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60.0)
         proc_exit_code = proc.returncode
         stdout_output = stdout.decode('utf-8', errors='ignore')
         stderr_output = stderr.decode('utf-8', errors='ignore')

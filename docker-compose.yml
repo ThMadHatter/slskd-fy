@@ -22,7 +22,7 @@ services:
       - DATABASE_URL=$DATABASE_URL
 
       # Beets service URL
-      - BEETS_API_URL=http://beets:8337
+      - BEETS_API_URL=${BEETS_API_URL:-http://beets:8337}
 
       # Administration security & auth
       - SECRET_KEY=$SECRET_KEY

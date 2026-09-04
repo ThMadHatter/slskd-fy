@@ -66,9 +66,22 @@ async def import_with_beets(src_path: str, target_dir: str) -> Optional[str]:
     logger.info(f"Triggering Beets import for downloaded file: '{src_path}'")
     logger.debug(f"[AUDIT_POLLER] BEETS IMPORT START - src={src_path!r}")
 
+    config_path = "/config/beets/config.yaml"
+    if not os.path.exists(config_path):
+        app_config = os.path.join(os.path.dirname(os.path.dirname(__file__)), "beets_config.yaml")
+        if os.path.exists(app_config):
+            config_path = app_config
+        else:
+            config_path = None
+
+    cmd = ["beet"]
+    if config_path and os.path.exists(config_path):
+        cmd.extend(["-c", config_path])
+    cmd.extend(["import", "-q", "-y", src_path])
+
     try:
         proc = await asyncio.create_subprocess_exec(
-            "beet", "import", "-q", "-y", src_path,
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )

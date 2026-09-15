@@ -122,10 +122,10 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
             from app.models import BeetsReviewItem
             from app.services.filename_parser import parse_filename
 
-            parsed = parse_filename(filename)
-            artist = (download_record.artist if download_record and download_record.artist else parsed.get("artist")) or "Unknown Artist"
-            track = (download_record.track if download_record and download_record.track else parsed.get("track")) or filename
-            album = (download_record.album if download_record and download_record.album else parsed.get("album")) or "Unknown Album"
+            parsed = parse_filename(src_path)
+            artist = (download_record.artist if download_record and download_record.artist and download_record.artist != "Unknown" else parsed.get("artist")) or "Unknown Artist"
+            track = (download_record.track if download_record and download_record.track and download_record.track != "Unknown" else parsed.get("track")) or filename
+            album = (download_record.album if download_record and download_record.album and download_record.album != "Unknown Album" else parsed.get("album")) or "Unknown Album"
 
             existing_review = db.query(BeetsReviewItem).filter(
                 BeetsReviewItem.downloaded_path == src_path,

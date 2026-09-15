@@ -890,9 +890,10 @@ class BeetsReviewActionRequest(BaseModel):
 def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """
     Returns pending items requiring human review for ambiguous Beets matches.
-    If the table is empty, seeds high-fidelity sample items for immediate UX testing.
+    Re-parses full file path if existing items have 'Unknown' artist or album.
     """
     from app.models import BeetsReviewItem
+    from app.services.filename_parser import parse_filename
     try:
         items = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").order_by(BeetsReviewItem.created_at.desc()).all()
     except Exception as e:
@@ -906,9 +907,33 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
             logger.error(f"Failed creating beets review queue table or querying: {inner_e}")
             return JSONResponse(content=[])
 
-
+    updated_any = False
     result = []
     for item in items:
+        if item.downloaded_path and (item.artist in ("Unknown", "Unknown Artist") or item.album in ("Unknown", "Unknown Album", "")):
+            parsed = parse_filename(item.downloaded_path)
+            if parsed.get("artist") and parsed.get("artist") != "Unknown":
+                item.artist = parsed["artist"]
+                updated_any = True
+            if parsed.get("track") and parsed.get("track") != "Unknown":
+                item.track = parsed["track"]
+                updated_any = True
+            if parsed.get("album") and parsed.get("album") != "Unknown Album":
+                item.album = parsed["album"]
+                updated_any = True
+
+            if updated_any and item.candidates_json:
+                try:
+                    cands = json.loads(item.candidates_json)
+                    for c in cands:
+                        if c.get("artist") in ("Unknown", "Unknown Artist") and parsed.get("artist"):
+                            c["artist"] = parsed["artist"]
+                        if c.get("title") in ("Unknown", "Unknown Album") and parsed.get("album"):
+                            c["title"] = parsed["album"]
+                    item.candidates_json = json.dumps(cands)
+                except Exception:
+                    pass
+
         result.append({
             "id": item.id,
             "download_id": item.download_id,
@@ -922,6 +947,13 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
             "selected_match": json.loads(item.selected_match_json) if item.selected_match_json else None,
             "created_at": item.created_at.isoformat() if item.created_at else None
         })
+
+    if updated_any:
+        try:
+            db.commit()
+        except Exception as e:
+            logger.error(f"Error saving updated review item metadata: {e}")
+
     return JSONResponse(content=result)
 
 @router.post("/api/beets/review-queue/{item_id}/action", response_class=JSONResponse)
@@ -1093,7 +1125,7 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
                         BeetsReviewItem.status == "review_required"
                     ).first()
                     if not existing:
-                        parsed = parse_filename(file)
+                        parsed = parse_filename(file_path)
                         artist = parsed.get("artist") or "Unknown Artist"
                         track = parsed.get("track") or file
                         album = parsed.get("album") or "Unknown Album"
@@ -1153,7 +1185,7 @@ def api_beets_seed_test_items(db: Session = Depends(get_db), user: User = Depend
                         file_path = os.path.join(root, file)
                         existing = db.query(BeetsReviewItem).filter(BeetsReviewItem.downloaded_path == file_path).first()
                         if not existing:
-                            parsed = parse_filename(file)
+                            parsed = parse_filename(file_path)
                             artist = parsed.get("artist") or "Unknown Artist"
                             track = parsed.get("track") or file
                             album = parsed.get("album") or "Unknown Album"

@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -52,3 +53,34 @@ class Settings(BaseSettings):
     BUILD_DATE: str = "unknown"
 
 settings = Settings()
+
+def resolve_beets_config_path() -> Optional[str]:
+    """
+    Robustly resolves valid beets_config.yaml across docker mounts and app directories.
+    Checks volume mounts first (/config/beets/config.yaml), then local app defaults.
+    Ensures the config file exists and contains valid YAML syntax.
+    """
+    import yaml
+    import logging
+    logger = logging.getLogger("track_portal.config")
+
+    candidates = [
+        "/config/beets/config.yaml",
+        "/config/beets_config.yaml",
+        "/config/config.yaml",
+        "/app/beets_config.yaml",
+        "/app/app/beets_config.yaml",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "beets_config.yaml"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "beets_config.yaml")
+    ]
+
+    for path in candidates:
+        if os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    yaml.safe_load(f)
+                return path
+            except Exception as e:
+                logger.warning(f"Beets configuration file at '{path}' invalid YAML or unreadable: {e}")
+
+    return None

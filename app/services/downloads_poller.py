@@ -73,13 +73,8 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
     except Exception as e:
         logger.debug(f"Could not create /config/beets directory: {e}")
 
-    config_path = "/config/beets/config.yaml"
-    if not os.path.exists(config_path):
-        app_config = os.path.join(os.path.dirname(os.path.dirname(__file__)), "beets_config.yaml")
-        if os.path.exists(app_config):
-            config_path = app_config
-        else:
-            config_path = None
+    from app.config import resolve_beets_config_path
+    config_path = resolve_beets_config_path()
 
     cmd = ["beet"]
     if config_path and os.path.exists(config_path):

@@ -1019,11 +1019,8 @@ def api_get_beets_status(db: Session = Depends(get_db), user: User = Depends(get
         except Exception:
             pass
 
-    config_path = "/config/beets/config.yaml"
-    if not os.path.exists(config_path):
-        app_config = os.path.join(os.path.dirname(os.path.dirname(__file__)), "beets_config.yaml")
-        if os.path.exists(app_config):
-            config_path = app_config
+    from app.config import resolve_beets_config_path
+    config_path = resolve_beets_config_path()
 
     db_path = "/config/beets/library.db"
     track_count = 0
@@ -1077,13 +1074,8 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
     except Exception as e:
         logger.debug(f"Could not create scan directories: {e}")
 
-    config_path = "/config/beets/config.yaml"
-    if not os.path.exists(config_path):
-        app_config = os.path.join(os.path.dirname(os.path.dirname(__file__)), "beets_config.yaml")
-        if os.path.exists(app_config):
-            config_path = app_config
-        else:
-            config_path = None
+    from app.config import resolve_beets_config_path
+    config_path = resolve_beets_config_path()
 
     cmd = ["beet"]
     if config_path and os.path.exists(config_path):

@@ -355,16 +355,17 @@ The purpose of this analysis is to map visible UI components, identify fully fun
 ### Gap 8: Beets Integration Validation
 - **Status:** COMPLETED
 - **Date Created:** 2026-07-24
-- **Date Last Updated:** 2026-09-04
+- **Date Last Updated:** 2026-09-15
 - **Owner:** Jules
-- **Description:** Fixed Beets binary missing error in track_portal container and established full app container integration with local SQLite library fallback.
-- **Root Cause:** `beets` package was missing from `requirements.txt` and system PATH in `track_portal` runtime container image.
+- **Description:** Fixed Beets binary missing error in track_portal container, established full app container integration with local SQLite library fallback, and added dynamic path resolution for `beets_config.yaml`.
+- **Root Cause:** `beets` package was missing from `requirements.txt` and system PATH in `track_portal` runtime container image. Configuration file path resolution hardcoded relative paths that failed depending on current working directory.
 - **Implemented Architecture:**
   - **Full App Container Integration:** Added `beets>=2.13.1` to `requirements.txt` and verified Dockerfile packaging so `beet` binary is natively present in `track_portal`'s system PATH.
-  - **Non-Interactive Config Template:** Created `app/beets_config.yaml` configured for non-interactive quiet imports (`quiet: yes`, `autotag: yes`, `library: /config/beets/library.db`, `directory: /music`).
-  - **Poller Integration:** `downloads_poller.py` invokes `beet import -q -y` on completed transfers with fallback to `app/beets_config.yaml`.
+  - **Dynamic Config Resolution:** Added `resolve_beets_config_path()` in `app/config.py` that checks `/config/beets/config.yaml`, `/config/beets_config.yaml`, `/app/beets_config.yaml`, and `/app/app/beets_config.yaml`, verifying file existence and valid YAML syntax.
+  - **Non-Interactive Config Template:** Created `app/beets_config.yaml` configured for non-interactive quiet imports (`quiet: yes`, `library: ~/.config/beets/library.db`, `directory: /music`).
+  - **Poller Integration:** `downloads_poller.py` invokes `beet import -q` on completed transfers using non-interactive stdin redirection (`DEVNULL`), falling back to direct move if necessary.
   - **Search Enrichment:** `BeetsServiceClient` queries Beets HTTP API and falls back to querying the local SQLite library database (`/config/beets/library.db`) directly to provide +15 candidate confidence boosts during progressive search.
-- **Implementation Notes:** Fully verified with unit tests in `test_poller.py` and search enrichment tests.
+- **Implementation Notes:** Fully verified with unit tests in `test_filename_parser.py` and Beets CLI config parsing tests.
 - **Estimated Effort:** 1 Day
 
 ---

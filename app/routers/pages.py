@@ -1043,8 +1043,8 @@ def api_get_beets_status(db: Session = Depends(get_db), user: User = Depends(get
     return JSONResponse(content={
         "beet_cli_available": cli_available,
         "beet_version": beet_version,
-        "config_path": config_path if os.path.exists(config_path) else None,
-        "library_db_path": db_path if os.path.exists(db_path) else None,
+        "config_path": config_path if (config_path and os.path.exists(config_path)) else None,
+        "library_db_path": db_path if (db_path and os.path.exists(db_path)) else None,
         "library_track_count": track_count,
         "pending_review_count": pending_count,
         "beets_api_url": os.getenv("BEETS_API_URL", "http://beets:8337")

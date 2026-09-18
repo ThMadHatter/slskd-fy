@@ -57,11 +57,20 @@ def setup_app_logging():
 
 # Programmatically run Alembic migrations on startup
 def run_migrations():
+    logger.info(f"Effective DATABASE_URL: {settings.DATABASE_URL}")
     logger.info("Running database migrations via Alembic...")
     try:
         alembic_cfg = Config("alembic.ini")
         command.upgrade(alembic_cfg, "head")
-        logger.info("Database migrations completed successfully!")
+
+        # Safely log current migration revision
+        from alembic.migration import MigrationContext
+        from sqlalchemy import create_engine
+        engine = create_engine(settings.DATABASE_URL)
+        with engine.connect() as conn:
+            context = MigrationContext.configure(conn)
+            current_rev = context.get_current_revision()
+            logger.info(f"Database migrations completed successfully! Current revision: {current_rev}")
     except Exception as e:
         logger.error(f"Error running database migrations: {e}")
 

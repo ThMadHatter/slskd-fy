@@ -995,19 +995,26 @@ def api_get_beets_jobs(db: Session = Depends(get_db), user: User = Depends(get_c
     Returns list of recent Beets import jobs.
     """
     from app.models import BeetsImportJob
-    jobs = db.query(BeetsImportJob).order_by(BeetsImportJob.created_at.desc()).limit(20).all()
-    return JSONResponse(content=[{
-        "id": j.id,
-        "job_id": j.job_id,
-        "source_path": j.source_path,
-        "status": j.status,
-        "total_items": j.total_items,
-        "imported_items": j.imported_items,
-        "conflicts_count": j.conflicts_count,
-        "error_message": j.error_message,
-        "created_at": j.created_at.isoformat() if j.created_at else None,
-        "updated_at": j.updated_at.isoformat() if j.updated_at else None
-    } for j in jobs])
+    try:
+        jobs = db.query(BeetsImportJob).order_by(BeetsImportJob.created_at.desc()).limit(20).all()
+        return JSONResponse(content=[{
+            "id": j.id,
+            "job_id": j.job_id,
+            "source_path": j.source_path,
+            "status": j.status,
+            "total_items": j.total_items,
+            "imported_items": j.imported_items,
+            "conflicts_count": j.conflicts_count,
+            "error_message": j.error_message,
+            "created_at": j.created_at.isoformat() if j.created_at else None,
+            "updated_at": j.updated_at.isoformat() if j.updated_at else None
+        } for j in jobs])
+    except Exception as e:
+        logger.exception(f"Error querying Beets import jobs: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "DATABASE_ERROR", "message": "Failed to query import jobs"}
+        )
 
 @router.get("/api/beets/jobs/{job_id}", response_class=JSONResponse)
 def api_get_beets_job_detail(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -1015,21 +1022,30 @@ def api_get_beets_job_detail(job_id: str, db: Session = Depends(get_db), user: U
     Returns details for a specific Beets import job.
     """
     from app.models import BeetsImportJob
-    job = db.query(BeetsImportJob).filter(BeetsImportJob.job_id == job_id).first()
-    if not job:
-        raise HTTPException(status_code=404, detail="Import job not found")
-    return JSONResponse(content={
-        "id": job.id,
-        "job_id": job.job_id,
-        "source_path": job.source_path,
-        "status": job.status,
-        "total_items": job.total_items,
-        "imported_items": job.imported_items,
-        "conflicts_count": job.conflicts_count,
-        "error_message": job.error_message,
-        "created_at": job.created_at.isoformat() if job.created_at else None,
-        "updated_at": job.updated_at.isoformat() if job.updated_at else None
-    })
+    try:
+        job = db.query(BeetsImportJob).filter(BeetsImportJob.job_id == job_id).first()
+        if not job:
+            raise HTTPException(status_code=404, detail="Import job not found")
+        return JSONResponse(content={
+            "id": job.id,
+            "job_id": job.job_id,
+            "source_path": job.source_path,
+            "status": job.status,
+            "total_items": job.total_items,
+            "imported_items": job.imported_items,
+            "conflicts_count": job.conflicts_count,
+            "error_message": job.error_message,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "updated_at": job.updated_at.isoformat() if job.updated_at else None
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error querying Beets import job '{job_id}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "DATABASE_ERROR", "message": "Failed to query import job details"}
+        )
 
 @router.get("/api/beets/review-queue", response_class=JSONResponse)
 def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -1040,17 +1056,15 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
     from app.models import BeetsReviewItem
     from app.services.filename_parser import parse_filename
     try:
-        items = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").order_by(BeetsReviewItem.created_at.desc()).all()
+        items = db.query(BeetsReviewItem).filter(
+            BeetsReviewItem.status.in_(["open", "review_required"])
+        ).order_by(BeetsReviewItem.created_at.desc()).all()
     except Exception as e:
-        logger.error(f"Error querying BeetsReviewItem queue: {e}")
-        try:
-            from app.database import Base, engine
-            Base.metadata.create_all(bind=engine)
-            db.rollback()
-            items = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").order_by(BeetsReviewItem.created_at.desc()).all()
-        except Exception as inner_e:
-            logger.error(f"Failed creating beets review queue table or querying: {inner_e}")
-            return JSONResponse(content=[])
+        logger.exception(f"Error querying BeetsReviewItem queue: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "DATABASE_ERROR", "message": "Database query error fetching review queue"}
+        )
 
     updated_any = False
     result = []
@@ -1081,7 +1095,11 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
 
         result.append({
             "id": item.id,
+            "conflict_id": item.conflict_id,
+            "fingerprint": item.fingerprint,
+            "job_id": item.job_id,
             "download_id": item.download_id,
+            "item_type": item.item_type,
             "artist": item.artist,
             "track": item.track,
             "album": item.album,
@@ -1090,6 +1108,9 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
             "status": item.status,
             "candidates": json.loads(item.candidates_json) if item.candidates_json else [],
             "selected_match": json.loads(item.selected_match_json) if item.selected_match_json else None,
+            "differences": json.loads(item.differences_json) if item.differences_json else None,
+            "recommendation": item.recommendation_text,
+            "retry_count": item.retry_count,
             "created_at": item.created_at.isoformat() if item.created_at else None
         })
 
@@ -1111,7 +1132,17 @@ def api_beets_review_action(item_id: int, payload: BeetsReviewActionRequest, db:
     - skip: skips item for later review
     """
     from app.models import BeetsReviewItem
-    item = db.query(BeetsReviewItem).filter(BeetsReviewItem.id == item_id).first()
+    try:
+        item = db.query(BeetsReviewItem).filter(
+            (BeetsReviewItem.id == item_id) | (BeetsReviewItem.conflict_id == str(item_id))
+        ).first()
+    except Exception as e:
+        logger.exception(f"Error querying review item {item_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "DATABASE_ERROR", "message": "Database query error finding review item"}
+        )
+
     if not item:
         raise HTTPException(status_code=404, detail="Review item not found")
 
@@ -1136,7 +1167,15 @@ def api_beets_review_action(item_id: int, payload: BeetsReviewActionRequest, db:
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported action '{action}'")
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        logger.exception(f"Error committing review item action: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "DATABASE_ERROR", "message": "Failed to save review action"}
+        )
+
     log_audit_action(db, f"BEETS_REVIEW_{action.upper()}", f"User resolved Beets review item {item_id} ({item.artist} - {item.track}) with action '{action}'")
     return {"status": "success", "action": action, "item_id": item_id}
 
@@ -1181,9 +1220,11 @@ def api_get_beets_status(db: Session = Depends(get_db), user: User = Depends(get
 
     pending_count = 0
     try:
-        pending_count = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").count()
-    except Exception:
-        pass
+        pending_count = db.query(BeetsReviewItem).filter(
+            BeetsReviewItem.status.in_(["open", "review_required"])
+        ).count()
+    except Exception as e:
+        logger.warning(f"Error checking pending review items count: {e}")
 
     return JSONResponse(content={
         "beet_cli_available": cli_available,

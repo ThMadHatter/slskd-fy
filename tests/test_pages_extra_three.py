@@ -118,3 +118,33 @@ def test_metadata_save_with_cover(mock_write_tags):
     )
     assert response.status_code == 200  # Followed redirect successfully
     mock_write_tags.assert_called_once()
+
+def test_beets_status_endpoint():
+    client = get_auth_client()
+    response = client.get("/api/beets/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert "beet_cli_available" in data
+    assert "beet_version" in data
+    assert "library_track_count" in data
+
+def test_beets_seed_test_items_endpoint():
+    client = get_auth_client()
+    response = client.post("/api/beets/seed-test-items")
+    assert response.status_code == 200
+    data = response.json()
+    assert data.get("status") == "success"
+    assert "items_count" in data
+
+@patch("asyncio.create_subprocess_exec", new_callable=AsyncMock)
+def test_beets_scan_library_endpoint(mock_subprocess):
+    client = get_auth_client()
+
+    mock_proc = AsyncMock()
+    mock_proc.communicate.return_value = (b"Scanning /music...\nDone", b"")
+    mock_subprocess.return_value = mock_proc
+
+    response = client.post("/api/beets/scan-library")
+    assert response.status_code == 200
+    data = response.json()
+    assert data.get("status") == "success"

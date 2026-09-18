@@ -47,6 +47,7 @@ async def test_poll_downloads_loop_completed(mock_sleep, mock_get_downloads, moc
     from app.config import settings
     settings.DOWNLOADS_PATH = str(download_dir)
     settings.SINGLES_PATH = str(singles_dir)
+    settings.MUSIC_LIBRARY_PATH = str(singles_dir)
 
     mock_db = MagicMock()
     mock_session_local.return_value = mock_db
@@ -99,6 +100,7 @@ async def test_poll_downloads_loop_failed(mock_sleep, mock_get_downloads, mock_s
     from app.config import settings
     settings.DOWNLOADS_PATH = str(download_dir)
     settings.SINGLES_PATH = str(singles_dir)
+    settings.MUSIC_LIBRARY_PATH = str(singles_dir)
 
     mock_db = MagicMock()
     mock_session_local.return_value = mock_db
@@ -144,6 +146,7 @@ async def test_poll_downloads_loop_with_directories(mock_sleep, mock_get_downloa
     from app.config import settings
     settings.DOWNLOADS_PATH = str(download_dir)
     settings.SINGLES_PATH = str(singles_dir)
+    settings.MUSIC_LIBRARY_PATH = str(singles_dir)
 
     mock_db = MagicMock()
     mock_session_local.return_value = mock_db

@@ -49,7 +49,11 @@ def test_validate_beets_config_endpoint(auth_client):
     assert data_inv["valid"] is False
 
 
-def test_save_beets_config_endpoint(auth_client, tmp_path):
+def test_save_beets_config_endpoint(auth_client, tmp_path, monkeypatch):
+    target_config = tmp_path / "beets_config.yaml"
+    from app.services.beets_config_service import BeetsConfigService
+    monkeypatch.setattr(BeetsConfigService, "resolve_config_path", lambda override_path=None: str(target_config))
+
     valid_payload = {"yaml_text": "directory: /tmp/music\nlibrary: /tmp/library.db\n"}
     response = auth_client.post("/api/beets/config", json=valid_payload)
     assert response.status_code == 200

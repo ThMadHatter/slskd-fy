@@ -6,6 +6,15 @@ from app.services.beets_collector import ConflictCollector
 from app.services.beets_service import BeetsServiceClient
 
 
+class MockItem:
+    def __init__(self, artist, title, album):
+        self.artist = artist
+        self.title = title
+        self.album = album
+        self.year = 2001
+        self.format = "FLAC"
+
+
 class MockBeetsTask:
     def __init__(self, path="/music/artist/track.flac", artist="Daft Punk", track="One More Time", album="Discovery"):
         self.path = path
@@ -13,6 +22,7 @@ class MockBeetsTask:
         self.cur_track = track
         self.cur_album = album
         self.is_singleton = False
+        self.items = [MockItem(artist, track, album)]
         self.candidates = [
             MockCandidate(cand_id="mb_discovery_1", artist="Daft Punk", album="Discovery", year=2001, distance=0.1)
         ]

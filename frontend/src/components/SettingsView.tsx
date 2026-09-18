@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSettingsStore } from '../store/settingsStore';
-import { Server, Cloud, Info, Terminal, CheckCircle2, AlertTriangle, RefreshCw, Save, RotateCcw, ShieldCheck, Database, FileCode, Sliders } from 'lucide-react';
+import { Server, Cloud, Info, Terminal, CheckCircle2, AlertTriangle, RefreshCw, Save, RotateCcw, ShieldCheck, Database, FileCode, Sliders, Layers, PlugZap, AlertOctagon, Radio } from 'lucide-react';
 import Button from './ui/Button';
 import Input from './ui/Input';
 import SonicLoader from './ui/SonicLoader';
@@ -287,24 +287,98 @@ paths:
             </div>
 
             {beetsRuntimeStatus ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-data-mono text-xs">
-                <div className="bg-[#0a0a0b] p-3 border border-[#27272a]">
-                  <span className="text-[#bbcabf]/60 block text-[10px] uppercase">CLI Version</span>
-                  <span className="text-[#10b981] font-bold">
-                    {beetsRuntimeStatus.beet_version || 'v2.14.1'}
-                  </span>
+              <div className="flex flex-col gap-4 font-data-mono text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-[#0a0a0b] p-3 border border-[#27272a]">
+                    <span className="text-[#bbcabf]/60 block text-[10px] uppercase">CLI Version</span>
+                    <span className="text-[#10b981] font-bold">
+                      {beetsRuntimeStatus.beet_version || 'v2.14.1'}
+                    </span>
+                  </div>
+                  <div className="bg-[#0a0a0b] p-3 border border-[#27272a]">
+                    <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Effective Config File</span>
+                    <span className="text-[#e5e2e3] font-bold truncate block" title={beetsRuntimeStatus.config_path}>
+                      {beetsRuntimeStatus.config_path || '/app/app/beets_config.yaml'}
+                    </span>
+                  </div>
+                  <div className="bg-[#0a0a0b] p-3 border border-[#27272a]">
+                    <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Target Music Library</span>
+                    <span className="text-[#e5e2e3] font-bold truncate block" title={beetsRuntimeStatus.library_db_path}>
+                      {beetsRuntimeStatus.library_db_path || '/config/beets/library.db'}
+                    </span>
+                  </div>
                 </div>
-                <div className="bg-[#0a0a0b] p-3 border border-[#27272a]">
-                  <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Effective Config File</span>
-                  <span className="text-[#e5e2e3] font-bold truncate block" title={beetsRuntimeStatus.config_path}>
-                    {beetsRuntimeStatus.config_path || '/app/app/beets_config.yaml'}
-                  </span>
-                </div>
-                <div className="bg-[#0a0a0b] p-3 border border-[#27272a]">
-                  <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Target Music Library</span>
-                  <span className="text-[#e5e2e3] font-bold truncate block" title={beetsRuntimeStatus.library_db_path}>
-                    {beetsRuntimeStatus.library_db_path || '/config/beets/library.db'}
-                  </span>
+
+                {/* Plugin Diagnostics Grid (Configured, Loaded, Failed, Metadata Sources) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+                  {/* Configured Plugins */}
+                  <div className="bg-[#0a0a0b] p-3 border border-[#27272a] flex flex-col gap-2">
+                    <span className="font-bold text-[11px] text-[#e5e2e3] flex items-center gap-1.5 uppercase">
+                      <Layers size={13} className="text-[#bbcabf]" />
+                      Configured Plugins ({beetsRuntimeStatus.configured_plugins?.length || 0})
+                    </span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {beetsRuntimeStatus.configured_plugins?.map((p: string) => (
+                        <span key={p} className="bg-[#1c1b1c] text-[#bbcabf] border border-[#27272a] text-[10px] px-1.5 py-0.5 font-bold">
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Loaded Plugins */}
+                  <div className="bg-[#0a0a0b] p-3 border border-[#27272a] flex flex-col gap-2">
+                    <span className="font-bold text-[11px] text-[#10b981] flex items-center gap-1.5 uppercase">
+                      <PlugZap size={13} />
+                      Loaded Plugins ({beetsRuntimeStatus.loaded_plugins?.length || 0})
+                    </span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {beetsRuntimeStatus.loaded_plugins?.map((p: string) => (
+                        <span key={p} className="bg-[#10b981]/15 text-[#10b981] border border-[#10b981]/30 text-[10px] px-1.5 py-0.5 font-bold">
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Failed Plugins */}
+                  <div className="bg-[#0a0a0b] p-3 border border-[#27272a] flex flex-col gap-2">
+                    <span className="font-bold text-[11px] text-[#fc7c78] flex items-center gap-1.5 uppercase">
+                      <AlertOctagon size={13} />
+                      Failed Plugins ({beetsRuntimeStatus.failed_plugins?.length || 0})
+                    </span>
+                    {beetsRuntimeStatus.failed_plugins?.length > 0 ? (
+                      <div className="flex flex-col gap-1 mt-1 text-[10px]">
+                        {beetsRuntimeStatus.failed_plugins.map((fp: any) => (
+                          <div key={fp.name} className="text-[#fc7c78] bg-[#fc7c78]/10 p-1 border border-[#fc7c78]/20">
+                            <strong>{fp.name}:</strong> {fp.reason}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-[#bbcabf]/60 italic mt-1">None (All configured plugins loaded)</span>
+                    )}
+                  </div>
+
+                  {/* Metadata Sources */}
+                  <div className="bg-[#0a0a0b] p-3 border border-[#27272a] flex flex-col gap-2">
+                    <span className="font-bold text-[11px] text-[#e5e2e3] flex items-center gap-1.5 uppercase">
+                      <Radio size={13} className="text-[#10b981]" />
+                      Metadata Sources
+                    </span>
+                    <div className="flex flex-col gap-1 mt-1 text-[10px]">
+                      {beetsRuntimeStatus.metadata_sources?.map((src: any) => (
+                        <div key={src.name} className="flex items-center justify-between">
+                          <span className="text-[#e5e2e3]">{src.name}</span>
+                          <span className={`px-1 py-0.2 font-bold ${src.active ? 'text-[#10b981]' : 'text-[#fc7c78]'}`}>
+                            {src.active ? 'ACTIVE' : 'INACTIVE'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                 </div>
               </div>
             ) : (

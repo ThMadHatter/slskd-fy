@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useReviewQueueStore } from '../store/reviewQueueStore';
 import { MatchCandidate } from '../types/beets';
-import { Check, Disc, HelpCircle, ArrowRight, ShieldAlert, Sparkles, X, ChevronRight, CornerDownLeft, RefreshCw, Terminal, PlusCircle, Database } from 'lucide-react';
+import { Check, Disc, HelpCircle, ArrowRight, ShieldAlert, Sparkles, X, ChevronRight, CornerDownLeft, RefreshCw, Terminal, PlusCircle, Database, FileText, Code2, Tag, Layers } from 'lucide-react';
 import Button from './ui/Button';
 import Card from './ui/Card';
 import SonicLoader from './ui/SonicLoader';
@@ -28,6 +28,7 @@ export default function ReviewQueueView() {
 
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
+  const [showDevDiagnostics, setShowDevDiagnostics] = useState<boolean>(false);
 
   useEffect(() => {
     fetchQueue();
@@ -48,9 +49,7 @@ export default function ReviewQueueView() {
   // Keyboard navigation hotkeys (Linear issue workflow style)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
-
       if (!activeItem) return;
 
       if (e.key === 'a' || e.key === 'A') {
@@ -253,9 +252,14 @@ export default function ReviewQueueView() {
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-label-caps text-[10px] text-[#bbcabf]/70 truncate max-w-[180px]">
-                        {item.artist}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-label-caps text-[10px] text-[#bbcabf]/70 truncate max-w-[140px]">
+                          {item.artist}
+                        </span>
+                        <span className="bg-[#1c1b1c] text-[#10b981] border border-[#27272a] font-data-mono text-[9px] px-1 uppercase font-bold">
+                          {item.item_type || 'ALBUM'}
+                        </span>
+                      </div>
                       <span className="bg-[#fc7c78]/15 text-[#fc7c78] border border-[#fc7c78]/30 font-data-mono text-[10px] px-1.5 py-0.5 font-bold">
                         {item.confidence_score}% Match
                       </span>
@@ -285,9 +289,14 @@ export default function ReviewQueueView() {
                 {/* Active Item Title Header */}
                 <div className="flex flex-col gap-1 border-b border-[#27272a] pb-4">
                   <div className="flex items-center justify-between">
-                    <span className="font-label-caps text-xs text-[#10b981] uppercase font-bold tracking-widest">
-                      AMBIGUOUS METADATA RESOLUTION
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-label-caps text-xs text-[#10b981] uppercase font-bold tracking-widest">
+                        AMBIGUOUS METADATA RESOLUTION
+                      </span>
+                      <span className="bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/40 font-data-mono text-[10px] px-2 py-0.5 font-bold uppercase">
+                        TASK TYPE: {activeItem.item_type || 'ALBUM'}
+                      </span>
+                    </div>
                     <span className="font-data-mono text-xs text-[#bbcabf]/50">
                       ID: #{activeItem.id}
                     </span>
@@ -300,37 +309,50 @@ export default function ReviewQueueView() {
                   </p>
                 </div>
 
-                {/* Side-by-side or comparison grid */}
+                {/* Provenance & Confidence Assessment Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                  {/* Card 1: Original Downloaded File */}
+                  {/* Provenance Card */}
                   <div className="border border-[#27272a] bg-[#0a0a0b] p-4 flex flex-col gap-3">
                     <div className="flex items-center justify-between border-b border-[#27272a] pb-2">
-                      <span className="font-label-caps text-xs text-[#bbcabf] uppercase font-bold">
-                        Raw Download Tags
+                      <span className="font-label-caps text-xs text-[#bbcabf] uppercase font-bold flex items-center gap-1.5">
+                        <Tag size={12} className="text-[#10b981]" />
+                        Metadata Provenance
                       </span>
                       <span className="bg-[#201f20] text-[#bbcabf] font-data-mono text-[10px] px-1.5 py-0.5 border border-[#27272a]">
-                        Original File
+                        Source Layers
                       </span>
                     </div>
 
                     <div className="flex flex-col gap-2 font-data-mono text-xs">
                       <div>
-                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Artist</span>
-                        <span className="text-[#e5e2e3] font-bold">{activeItem.artist}</span>
+                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Embedded Audio Tags</span>
+                        <span className="text-[#e5e2e3] font-bold">
+                          {activeItem.provenance?.embedded_tags?.artist || activeItem.artist} — {activeItem.provenance?.embedded_tags?.album || activeItem.album || 'No Album Tag'}
+                        </span>
                       </div>
                       <div>
-                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Track</span>
-                        <span className="text-[#e5e2e3] font-bold">{activeItem.track}</span>
+                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Filename Inferred</span>
+                        <span className="text-[#e5e2e3]">
+                          {activeItem.provenance?.filename_inferred?.artist || activeItem.artist} — {activeItem.provenance?.filename_inferred?.track || activeItem.track}
+                        </span>
                       </div>
                       <div>
-                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Album</span>
-                        <span className="text-[#e5e2e3] font-bold">{activeItem.album || 'Unknown'}</span>
+                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Parent Directory Inferred</span>
+                        <span className="text-[#bbcabf]">
+                          {activeItem.provenance?.parent_dir_inferred?.album || 'None'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Technical Properties</span>
+                        <span className="text-[#10b981] font-bold">
+                          {activeItem.provenance?.technical_props?.format || 'FLAC'}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Card 2: Confidence Evaluation */}
+                  {/* Autotag Assessment Card */}
                   <div className="border border-[#27272a] bg-[#0a0a0b] p-4 flex flex-col gap-3">
                     <div className="flex items-center justify-between border-b border-[#27272a] pb-2">
                       <span className="font-label-caps text-xs text-[#bbcabf] uppercase font-bold">
@@ -342,10 +364,30 @@ export default function ReviewQueueView() {
                     </div>
 
                     <p className="font-data-mono text-xs text-[#bbcabf] leading-relaxed">
-                      Beets detected multiple candidate releases with sub-threshold similarity scores. Manual triage is required to confirm the canonical MusicBrainz release.
+                      {activeItem.recommendation || "Beets autotagger evaluated candidates with sub-threshold similarity scores. Manual triage is required."}
                     </p>
+
+                    <button
+                      onClick={() => setShowDevDiagnostics(!showDevDiagnostics)}
+                      className="text-[11px] font-data-mono text-[#10b981] flex items-center gap-1 hover:underline cursor-pointer mt-auto pt-2"
+                    >
+                      <Code2 size={12} /> {showDevDiagnostics ? 'Hide Dev Diagnostics' : 'Show Dev Diagnostics & Raw DTO'}
+                    </button>
                   </div>
                 </div>
+
+                {/* Dev Diagnostics Drawer */}
+                {showDevDiagnostics && (
+                  <div className="bg-[#0a0a0b] border border-[#27272a] p-4 font-data-mono text-xs text-[#bbcabf] flex flex-col gap-2">
+                    <div className="flex items-center justify-between border-b border-[#27272a] pb-2 text-[#e5e2e3] font-bold">
+                      <span>Developer Raw DTO Inspection</span>
+                      <span className="text-[10px] text-[#10b981]">Sanitized Output</span>
+                    </div>
+                    <pre className="text-[11px] text-[#10b981] overflow-x-auto max-h-48 p-2 bg-[#131314]">
+                      {JSON.stringify(activeItem, null, 2)}
+                    </pre>
+                  </div>
+                )}
 
                 {/* Candidate Matches Selector list */}
                 <div className="flex flex-col gap-3">
@@ -353,55 +395,67 @@ export default function ReviewQueueView() {
                     Select Best Beets Match Candidate ({activeItem.candidates.length} Found)
                   </h4>
 
-                  <div className="flex flex-col gap-2">
-                    {activeItem.candidates.map((cand) => {
-                      const isCandSelected = cand.id === selectedCandidateId;
-                      return (
-                        <div
-                          key={cand.id}
-                          onClick={() => setSelectedCandidateId(cand.id)}
-                          className={`p-4 border cursor-pointer transition-all flex flex-col gap-2 ${
-                            isCandSelected
-                              ? 'bg-[#1c1b1c] border-[#10b981] shadow-lg'
-                              : 'bg-[#0a0a0b] border-[#27272a] hover:border-[#bbcabf]/50'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                                isCandSelected ? 'border-[#10b981] bg-[#10b981]' : 'border-[#3f3f46]'
-                              }`}>
-                                {isCandSelected && <div className="w-1.5 h-1.5 rounded-full bg-[#0a0a0b]" />}
+                  {activeItem.candidates.length === 0 ? (
+                    <div className="p-6 bg-[#0a0a0b] border border-[#27272a] text-center font-data-mono text-xs text-[#bbcabf]">
+                      No external MusicBrainz candidate matches returned for this item. You may keep raw original tags or skip item.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {activeItem.candidates.map((cand) => {
+                        const isCandSelected = cand.id === selectedCandidateId;
+                        const score = cand.ui_similarity_score ?? cand.confidence ?? 70;
+                        return (
+                          <div
+                            key={cand.id}
+                            onClick={() => setSelectedCandidateId(cand.id)}
+                            className={`p-4 border cursor-pointer transition-all flex flex-col gap-2 ${
+                              isCandSelected
+                                ? 'bg-[#1c1b1c] border-[#10b981] shadow-lg'
+                                : 'bg-[#0a0a0b] border-[#27272a] hover:border-[#bbcabf]/50'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                  isCandSelected ? 'border-[#10b981] bg-[#10b981]' : 'border-[#3f3f46]'
+                                }`}>
+                                  {isCandSelected && <div className="w-1.5 h-1.5 rounded-full bg-[#0a0a0b]" />}
+                                </div>
+                                <span className="font-body-md font-bold text-[#e5e2e3]">
+                                  {cand.title}
+                                </span>
                               </div>
-                              <span className="font-body-md font-bold text-[#e5e2e3]">
-                                {cand.title}
+
+                              <span className={`font-data-mono text-xs font-bold px-2 py-0.5 ${
+                                score >= 85
+                                  ? 'bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/40'
+                                  : 'bg-[#fc7c78]/20 text-[#fc7c78] border border-[#fc7c78]/40'
+                              }`}>
+                                {score}% Match
                               </span>
                             </div>
 
-                            <span className={`font-data-mono text-xs font-bold px-2 py-0.5 ${
-                              cand.confidence >= 85
-                                ? 'bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/40'
-                                : 'bg-[#fc7c78]/20 text-[#fc7c78] border border-[#fc7c78]/40'
-                            }`}>
-                              {cand.confidence}% Match
-                            </span>
+                            <div className="flex flex-wrap items-center gap-4 text-xs font-data-mono text-[#bbcabf] ml-6">
+                              <span>Source: <strong className="text-[#10b981]">{cand.source || 'MusicBrainz'}</strong></span>
+                              <span>Artist: <strong className="text-[#e5e2e3]">{cand.artist}</strong></span>
+                              <span>Year: <strong className="text-[#e5e2e3]">{cand.year || 'N/A'}</strong></span>
+                              <span>Tracks: <strong className="text-[#e5e2e3]">{cand.track_count}</strong></span>
+                              {cand.release_id && (
+                                <span className="text-[10px] opacity-70 truncate">
+                                  Release MBID: <a href={cand.url} target="_blank" rel="noreferrer" className="text-[#10b981] underline">{cand.release_id}</a>
+                                </span>
+                              )}
+                              {cand.recording_id && (
+                                <span className="text-[10px] opacity-70 truncate">
+                                  Recording MBID: <a href={cand.url} target="_blank" rel="noreferrer" className="text-[#10b981] underline">{cand.recording_id}</a>
+                                </span>
+                              )}
+                            </div>
                           </div>
-
-                          <div className="flex flex-wrap items-center gap-4 text-xs font-data-mono text-[#bbcabf] ml-6">
-                            <span>Artist: <strong className="text-[#e5e2e3]">{cand.artist}</strong></span>
-                            <span>Year: <strong className="text-[#e5e2e3]">{cand.year}</strong></span>
-                            <span>Format: <strong className="text-[#10b981]">{cand.format}</strong></span>
-                            <span>Tracks: <strong className="text-[#e5e2e3]">{cand.track_count}</strong></span>
-                            {cand.mbid && (
-                              <span className="text-[10px] opacity-60 truncate">
-                                MBID: {cand.mbid}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 

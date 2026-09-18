@@ -211,8 +211,8 @@ class BeetsConfigService:
             return [str(p).strip() for p in plugins_val if str(p).strip()]
 
         if isinstance(plugins_val, str):
-            # Split by whitespace / newlines
-            return [p.strip() for p in plugins_val.split() if p.strip()]
+            # Split by whitespace or newlines
+            return [p.strip() for p in plugins_val.replace("\n", " ").split() if p.strip()]
 
         return []
 

@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import hashlib
 import logging
@@ -7,10 +8,34 @@ from typing import List, Dict, Any, Optional
 logger = logging.getLogger("track_portal.beets_collector")
 
 
+def clean_query_hint(raw_hint: str) -> str:
+    """
+    Sanitizes search query hints by stripping technical format/uploader noise
+    (e.g., '[Flac 24-44] AtM', '[WEB FLAC]', '[24bit-96kHz]') while preserving
+    meaningful edition text like '(Deluxe Edition)'.
+    Does NOT mutate raw tags on disk.
+    """
+    if not raw_hint:
+        return ""
+
+    text = raw_hint
+    # Remove bracketed technical noise
+    text = re.sub(r'\[(FLAC|MP3|WEB|24bit|16bit|24-44|24-96|24-192|AAC|WAV|Ogg|Lossless)[^\]]*\]', '', text, flags=re.IGNORECASE)
+    # Remove standalone format descriptors when surrounded by brackets or spaces
+    text = re.sub(r'(?<=\s)(24bit-96kHz|24bit|16bit|24-44|24-96|24-192)(?=\s|$)', '', text, flags=re.IGNORECASE)
+    # Remove trailing uploader handles (e.g., ' AtM')
+    text = re.sub(r'\s+[A-Z][a-zA-Z0-9]{1,3}\s*$', '', text)
+
+    # Collapse multiple spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text or raw_hint
+
+
 class ConflictCollector:
     """
     Intercepts ambiguous, sub-threshold, or skipped Beets import tasks and converts
-    them into JSON-safe Data Transfer Objects (DTOs) with stable UUIDs and deterministic fingerprints.
+    them into JSON-safe Data Transfer Objects (DTOs) with metadata provenance,
+    rich MusicBrainz candidate info, and exact Beets distance breakdowns.
     """
 
     @staticmethod
@@ -28,15 +53,15 @@ class ConflictCollector:
         cls, task: Any, session: Any = None, job_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Safely extracts metadata, candidates, and differences from a Beets ImportTask or
-        file path into a pure JSON-serializable dictionary.
+        Safely extracts metadata provenance, rich external candidates, and differences
+        from a Beets ImportTask or file path into a pure JSON-serializable dictionary.
         """
         conflict_id = str(uuid.uuid4())
 
         # Determine item_type (album vs singleton)
         item_type = "singleton" if getattr(task, "is_singleton", False) else "album"
 
-        # Safe extraction of current path and tags
+        # Safe extraction of current path
         downloaded_path = ""
         if hasattr(task, "to_import_path"):
             downloaded_path = str(task.to_import_path())
@@ -47,108 +72,152 @@ class ConflictCollector:
         else:
             downloaded_path = "Unknown Path"
 
-        artist = "Unknown Artist"
-        track = "Unknown Track"
-        album = "Unknown Album"
+        # Initialize Provenance Tracking
+        embedded_tags = {"artist": None, "track": None, "album": None, "year": None}
+        filename_inferred = {"artist": None, "track": None, "album": None}
+        parent_dir_inferred = {"artist": None, "album": None, "year": None}
+        technical_props = {"format": "FLAC", "bitrate": None, "sample_rate": None, "channels": None}
 
-        # Extract tags from task items
         items = getattr(task, "items", []) or ([task.item] if hasattr(task, "item") and task.item else [])
         if items and len(items) > 0:
             first_item = items[0]
-            artist = str(getattr(first_item, "artist", "") or getattr(first_item, "albumartist", "") or artist)
-            track = str(getattr(first_item, "title", "") or track)
-            album = str(getattr(first_item, "album", "") or album)
-        else:
-            if hasattr(task, "cur_artist") and task.cur_artist:
-                artist = str(task.cur_artist)
-            if hasattr(task, "cur_album") and task.cur_album:
-                album = str(task.cur_album)
-            if hasattr(task, "cur_track") and task.cur_track:
-                track = str(task.cur_track)
+            embedded_tags["artist"] = getattr(first_item, "artist", None) or getattr(first_item, "albumartist", None)
+            embedded_tags["track"] = getattr(first_item, "title", None)
+            embedded_tags["album"] = getattr(first_item, "album", None)
+            embedded_tags["year"] = getattr(first_item, "year", None)
 
-            # Fallback filename parsing if track or artist is unknown
-            if downloaded_path and (artist == "Unknown Artist" or track == "Unknown Track"):
-                try:
-                    from app.services.filename_parser import parse_filename
-                    parsed = parse_filename(downloaded_path)
-                    if parsed.get("artist") and parsed["artist"] != "Unknown":
-                        artist = parsed["artist"]
-                    if parsed.get("track") and parsed["track"] != "Unknown":
-                        track = parsed["track"]
-                    if parsed.get("album") and parsed["album"] != "Unknown Album":
-                        album = parsed["album"]
-                except Exception:
-                    pass
+            technical_props["format"] = getattr(first_item, "format", "FLAC") or "FLAC"
+            technical_props["bitrate"] = getattr(first_item, "bitrate", None)
+            technical_props["sample_rate"] = getattr(first_item, "samplerate", None)
+
+        # Inferred metadata from filename & parent folder
+        if downloaded_path:
+            try:
+                from app.services.filename_parser import parse_filename
+                parsed = parse_filename(downloaded_path)
+                filename_inferred["artist"] = parsed.get("artist")
+                filename_inferred["track"] = parsed.get("track")
+                filename_inferred["album"] = parsed.get("album")
+
+                parent_dir = os.path.basename(os.path.dirname(downloaded_path))
+                if parent_dir:
+                    parent_dir_inferred["album"] = parent_dir
+            except Exception:
+                pass
+
+        # Final active local tags (prioritizing valid embedded tags)
+        artist = embedded_tags["artist"] or filename_inferred["artist"] or "Unknown Artist"
+        track = embedded_tags["track"] or filename_inferred["track"] or "Unknown Track"
+        raw_album = embedded_tags["album"] or "Unknown Album"
+        album = raw_album
+
+        # Derive search hint by cleaning query hints without altering raw embedded tags
+        clean_album_hint = clean_query_hint(raw_album) if raw_album != "Unknown Album" else ""
 
         fingerprint = cls.calculate_fingerprint(downloaded_path, artist, track)
 
-        # Candidates extraction
+        # Candidate Extraction from Beets Match Candidates
         candidates_list: List[Dict[str, Any]] = []
         raw_candidates = getattr(task, "candidates", []) or []
 
-        best_confidence = 50
-        recommendation_text = "Multiple candidate matches found with sub-threshold confidence"
+        best_confidence = 0
+        raw_distance = None
 
         for idx, cand in enumerate(raw_candidates[:10]):
-            cand_id = getattr(cand, "id", None) or getattr(cand, "album_id", None) or f"cand_{idx+1}"
+            # Extract rich MusicBrainz metadata
             cand_artist = str(getattr(cand, "artist", "") or getattr(cand, "albumartist", "") or artist)
             cand_title = str(getattr(cand, "album", "") or getattr(cand, "title", "") or track)
             cand_year = int(getattr(cand, "year", 0) or 0)
-            cand_mbid = str(getattr(cand, "album_id", "") or getattr(cand, "track_id", "") or "")
 
-            # Beets distance calculation -> confidence percentage
-            distance = getattr(cand, "distance", None)
-            confidence = 75
-            if distance is not None:
+            release_id = str(getattr(cand, "album_id", "") or getattr(cand, "release_id", "") or getattr(cand, "id", "") or "")
+            recording_id = str(getattr(cand, "track_id", "") or getattr(cand, "recording_id", "") or "")
+            release_group_id = str(getattr(cand, "releasegroup_id", "") or getattr(cand, "release_group_id", "") or "")
+
+            country = str(getattr(cand, "country", "") or "US")
+            label = str(getattr(cand, "label", "") or "")
+            catalog_num = str(getattr(cand, "catalognum", "") or "")
+            media = str(getattr(cand, "media", "") or "Digital Media")
+
+            # Beets distance calculation -> UI similarity score
+            distance_obj = getattr(cand, "distance", None)
+            cand_dist_val = 0.5
+            dist_penalties = {}
+
+            if distance_obj is not None:
                 try:
-                    # Distance is 0.0 (exact match) to 1.0 (no match)
-                    dist_float = float(distance)
-                    confidence = max(0, min(100, int((1.0 - dist_float) * 100)))
+                    cand_dist_val = float(distance_obj)
+                    if hasattr(distance_obj, "penalties"):
+                        dist_penalties = {p: float(v) for p, v in distance_obj.penalties().items()}
                 except Exception:
                     pass
 
+            # Explicit UI similarity score calculation formula: (1.0 - raw_distance) * 100
+            ui_similarity_score = max(0, min(100, int((1.0 - cand_dist_val) * 100)))
+
             if idx == 0:
-                best_confidence = confidence
-                recommendation_text = f"Top suggested candidate: '{cand_artist} - {cand_title}' ({confidence}% confidence)"
+                best_confidence = ui_similarity_score
+                raw_distance = cand_dist_val
 
-            candidates_list.append(
-                {
-                    "id": str(cand_id),
-                    "artist": cand_artist,
-                    "title": cand_title,
-                    "year": cand_year,
-                    "format": "FLAC/MP3",
-                    "track_count": len(items) if items else 1,
-                    "confidence": confidence,
-                    "mbid": cand_mbid,
-                    "source": "MusicBrainz Autotag",
-                    "url": f"https://musicbrainz.org/release/{cand_mbid}" if cand_mbid else "",
-                }
-            )
+            cand_mbid = release_id if item_type == "album" else recording_id
+            cand_url = ""
+            if release_id:
+                cand_url = f"https://musicbrainz.org/release/{release_id}"
+            elif recording_id:
+                cand_url = f"https://musicbrainz.org/recording/{recording_id}"
 
-        # Fallback candidate if no candidate array was found
-        if not candidates_list:
-            candidates_list.append(
-                {
-                    "id": f"cand_fallback_1",
-                    "artist": artist,
-                    "title": album if album != "Unknown Album" else track,
-                    "year": 0,
-                    "format": "FLAC/MP3",
-                    "track_count": len(items) if items else 1,
-                    "confidence": 60,
-                    "source": "Disk File Analysis",
-                }
-            )
+            candidates_list.append({
+                "id": str(getattr(cand, "id", None) or cand_mbid or f"cand_{idx+1}"),
+                "source": "MusicBrainz",
+                "candidate_type": item_type,
+                "artist": cand_artist,
+                "title": cand_title,
+                "year": cand_year,
+                "release_id": release_id,
+                "recording_id": recording_id,
+                "release_group_id": release_group_id,
+                "country": country,
+                "label": label,
+                "catalog_num": catalog_num,
+                "media": media,
+                "format": technical_props["format"],
+                "track_count": len(getattr(cand, "tracks", [])) or (len(items) if items else 1),
+                "ui_similarity_score": ui_similarity_score,
+                "raw_distance": cand_dist_val,
+                "penalties": dist_penalties,
+                "mbid": cand_mbid,
+                "url": cand_url,
+            })
 
-        # Differences calculation between current local tags and top candidate
+        # Dynamic Assessment Text Generation based on true candidate counts and confidence
+        candidate_count = len(candidates_list)
+        if candidate_count == 0:
+            recommendation_text = "No external MusicBrainz match found for this release."
+        elif candidate_count == 1:
+            top = candidates_list[0]
+            if top["ui_similarity_score"] >= 85:
+                recommendation_text = f"Strong match candidate found: '{top['artist']} — {top['title']}' ({top['ui_similarity_score']}% match)."
+            else:
+                recommendation_text = f"One low-confidence match candidate found: '{top['artist']} — {top['title']}' ({top['ui_similarity_score']}% match)."
+        else:
+            top = candidates_list[0]
+            recommendation_text = f"Ambiguous candidates found ({candidate_count} matches). Top match: '{top['artist']} — {top['title']}' ({top['ui_similarity_score']}% match)."
+
+        # Field Differences Calculation
         differences = {}
         if candidates_list:
             top_cand = candidates_list[0]
-            if artist != top_cand["artist"]:
+            if artist.lower() != top_cand["artist"].lower():
                 differences["artist"] = {"current": artist, "candidate": top_cand["artist"]}
-            if album != top_cand["title"]:
+            if album.lower() != top_cand["title"].lower():
                 differences["album"] = {"current": album, "candidate": top_cand["title"]}
+
+        provenance_dto = {
+            "embedded_tags": embedded_tags,
+            "filename_inferred": filename_inferred,
+            "parent_dir_inferred": parent_dir_inferred,
+            "technical_props": technical_props,
+            "clean_album_hint": clean_album_hint,
+        }
 
         return {
             "conflict_id": conflict_id,
@@ -160,7 +229,9 @@ class ConflictCollector:
             "album": album,
             "downloaded_path": downloaded_path,
             "confidence_score": best_confidence,
+            "raw_distance": raw_distance,
             "status": "open",
+            "provenance": provenance_dto,
             "candidates": candidates_list,
             "differences": differences,
             "recommendation_text": recommendation_text,

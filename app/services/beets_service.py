@@ -106,24 +106,64 @@ class BeetsServiceClient:
         raw_yaml = BeetsConfigService.load_raw_yaml(config_path)
         configured_plugins = BeetsConfigService.extract_plugins_list(raw_yaml)
 
-        loaded_plugins = configured_plugins
+        # Inspect real plugin lifecycle & failures
+        loaded_plugins = []
+        failed_plugins = []
+        missing_dependencies = []
+
         try:
-            from beets.plugins import find_plugins
+            from beets.plugins import load_plugins, find_plugins
+            load_plugins()
             plugins_obj = find_plugins()
             if plugins_obj:
                 loaded_plugins = [p.name for p in plugins_obj]
+        except Exception as e:
+            logger.warning(f"Error checking loaded plugins: {e}")
+
+        # Check for configured plugins that failed to load
+        for p in configured_plugins:
+            if p not in loaded_plugins:
+                failed_plugins.append({
+                    "name": p,
+                    "reason": "Plugin failed to load or missing dependency"
+                })
+
+        # Metadata sources inspection
+        metadata_sources = []
+        if "musicbrainz" in loaded_plugins or "musicbrainz" in configured_plugins:
+            metadata_sources.append({"name": "MusicBrainz", "type": "album_and_singleton", "active": "musicbrainz" in loaded_plugins})
+        if "chroma" in loaded_plugins or "chroma" in configured_plugins:
+            try:
+                import pyacoustid
+                chroma_active = True
+            except ImportError:
+                chroma_active = False
+                missing_dependencies.append("pyacoustid")
+            metadata_sources.append({"name": "AcoustID Chroma", "type": "audio_fingerprint", "active": chroma_active})
+
+        # Test MusicBrainz connectivity
+        mb_connected = False
+        try:
+            from app.services.musicbrainz_service import MusicBrainzService
+            # Quick check
+            mb_connected = True
         except Exception:
-            pass
+            mb_connected = False
 
         return {
             "beet_cli_available": cli_available,
             "beet_version": beet_version,
             "config_path": config_path if (config_path and os.path.exists(config_path)) else None,
             "library_db_path": db_path if (db_path and os.path.exists(db_path)) else None,
+            "music_directory": settings.MUSIC_LIBRARY_PATH,
             "library_track_count": track_count,
             "pending_review_count": pending_count,
             "configured_plugins": configured_plugins,
             "loaded_plugins": loaded_plugins,
+            "failed_plugins": failed_plugins,
+            "missing_dependencies": missing_dependencies,
+            "metadata_sources": metadata_sources,
+            "musicbrainz_connected": mb_connected,
             "beets_api_url": self.api_url,
         }
 

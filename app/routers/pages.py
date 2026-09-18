@@ -882,9 +882,154 @@ def api_get_version(user: User = Depends(get_current_user)):
         "beets_version": "1.6.0"
     })
 
+class BeetsConfigSaveRequest(BaseModel):
+    yaml_text: str
+
+class BeetsImportRequest(BaseModel):
+    source_path: str
+    search_ids: Optional[List[str]] = None
+
+class BeetsManualSearchRequest(BaseModel):
+    query: str
+    artist: Optional[str] = None
+    album: Optional[str] = None
+    track: Optional[str] = None
+    mbid: Optional[str] = None
+
 class BeetsReviewActionRequest(BaseModel):
-    action: str  # accept, select_candidate, keep_original, skip
+    action: str  # accept, select_candidate, keep_original, skip, ignore, retry
     candidate_id: Optional[str] = None
+    candidate_mbid: Optional[str] = None
+
+@router.get("/api/beets/config", response_class=JSONResponse)
+def api_get_beets_config(user: User = Depends(get_current_user)):
+    """
+    Returns the app-dedicated Beets YAML configuration text and effective settings metadata.
+    """
+    from app.services.beets_config_service import BeetsConfigService
+    path = BeetsConfigService.resolve_config_path()
+    raw_yaml = BeetsConfigService.load_raw_yaml(path)
+    is_valid, err, parsed = BeetsConfigService.validate_beets_structure(raw_yaml)
+    effective = BeetsConfigService.compute_effective_config(parsed) if is_valid else {}
+    configured_plugins = BeetsConfigService.extract_plugins_list(raw_yaml)
+
+    loaded_plugins = configured_plugins
+    try:
+        from beets.plugins import find_plugins
+        plugins_obj = find_plugins()
+        if plugins_obj:
+            loaded_plugins = [p.name for p in plugins_obj]
+    except Exception:
+        pass
+
+    return JSONResponse(content={
+        "config_path": path,
+        "yaml_text": raw_yaml,
+        "is_valid": is_valid,
+        "error_message": err,
+        "effective_config": effective,
+        "configured_plugins": configured_plugins,
+        "loaded_plugins": loaded_plugins,
+        "database_path": effective.get("library", "/config/beets/library.db"),
+        "music_directory": effective.get("directory", "/music")
+    })
+
+@router.post("/api/beets/config/validate", response_class=JSONResponse)
+def api_validate_beets_config(payload: BeetsConfigSaveRequest, user: User = Depends(get_current_user)):
+    """
+    Validates YAML configuration syntax and Beets structure without saving to disk.
+    """
+    from app.services.beets_config_service import BeetsConfigService
+    is_valid, err, line, col = BeetsConfigService.validate_yaml_syntax(payload.yaml_text)
+    if not is_valid:
+        return JSONResponse(content={
+            "valid": False,
+            "error": err,
+            "line": line,
+            "column": col
+        })
+
+    struct_valid, struct_err, parsed = BeetsConfigService.validate_beets_structure(payload.yaml_text)
+    plugins = BeetsConfigService.extract_plugins_list(payload.yaml_text) if struct_valid else []
+
+    return JSONResponse(content={
+        "valid": struct_valid,
+        "error": struct_err,
+        "plugins": plugins
+    })
+
+@router.post("/api/beets/config", response_class=JSONResponse)
+def api_save_beets_config(payload: BeetsConfigSaveRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Validates and atomically saves the app-dedicated Beets configuration YAML.
+    """
+    from app.services.beets_config_service import BeetsConfigService
+    success, err, path_saved = BeetsConfigService.save_config_atomic(payload.yaml_text)
+    if not success:
+        raise HTTPException(status_code=400, detail=err or "Failed to save configuration")
+
+    log_audit_action(db, "BEETS_CONFIG_SAVE", f"User saved Beets YAML configuration to '{path_saved}'.")
+    return JSONResponse(content={
+        "status": "success",
+        "message": f"Configuration saved atomically to {path_saved}",
+        "config_path": path_saved,
+        "runtime_restart_required": True
+    })
+
+@router.post("/api/beets/import", response_class=JSONResponse)
+def api_trigger_beets_import(payload: BeetsImportRequest, user: User = Depends(get_current_user)):
+    """
+    Spawns an asynchronous background import job on source_path without blocking the main GUI loop.
+    """
+    from app.services.beets_service import BeetsServiceClient
+    job_id = BeetsServiceClient().start_import_job(source_path=payload.source_path)
+    return JSONResponse(content={
+        "status": "success",
+        "job_id": job_id,
+        "message": f"Import job {job_id} queued for path '{payload.source_path}'"
+    })
+
+@router.get("/api/beets/jobs", response_class=JSONResponse)
+def api_get_beets_jobs(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Returns list of recent Beets import jobs.
+    """
+    from app.models import BeetsImportJob
+    jobs = db.query(BeetsImportJob).order_by(BeetsImportJob.created_at.desc()).limit(20).all()
+    return JSONResponse(content=[{
+        "id": j.id,
+        "job_id": j.job_id,
+        "source_path": j.source_path,
+        "status": j.status,
+        "total_items": j.total_items,
+        "imported_items": j.imported_items,
+        "conflicts_count": j.conflicts_count,
+        "error_message": j.error_message,
+        "created_at": j.created_at.isoformat() if j.created_at else None,
+        "updated_at": j.updated_at.isoformat() if j.updated_at else None
+    } for j in jobs])
+
+@router.get("/api/beets/jobs/{job_id}", response_class=JSONResponse)
+def api_get_beets_job_detail(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Returns details for a specific Beets import job.
+    """
+    from app.models import BeetsImportJob
+    job = db.query(BeetsImportJob).filter(BeetsImportJob.job_id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Import job not found")
+    return JSONResponse(content={
+        "id": job.id,
+        "job_id": job.job_id,
+        "source_path": job.source_path,
+        "status": job.status,
+        "total_items": job.total_items,
+        "imported_items": job.imported_items,
+        "conflicts_count": job.conflicts_count,
+        "error_message": job.error_message,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "updated_at": job.updated_at.isoformat() if job.updated_at else None
+    })
 
 @router.get("/api/beets/review-queue", response_class=JSONResponse)
 def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depends(get_current_user)):

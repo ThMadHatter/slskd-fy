@@ -91,18 +91,41 @@ class CacheMetric(Base):
     hits = Column(Integer, default=0, nullable=False)
     misses = Column(Integer, default=0, nullable=False)
 
+class BeetsImportJob(Base):
+    __tablename__ = "beets_import_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(String, unique=True, index=True, nullable=False)
+    source_path = Column(String, nullable=False)
+    status = Column(String, default="queued", nullable=False) # queued, running, completed, completed_with_conflicts, failed, cancelled
+    total_items = Column(Integer, default=0, nullable=False)
+    imported_items = Column(Integer, default=0, nullable=False)
+    conflicts_count = Column(Integer, default=0, nullable=False)
+    error_message = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
 class BeetsReviewItem(Base):
     __tablename__ = "beets_review_items"
 
     id = Column(Integer, primary_key=True, index=True)
+    conflict_id = Column(String, unique=True, index=True, nullable=True)
+    fingerprint = Column(String, index=True, nullable=True)
+    job_id = Column(String, nullable=True)
     download_id = Column(Integer, nullable=True)
+    item_type = Column(String, default="album", nullable=False) # album or singleton
     artist = Column(String, nullable=False)
     track = Column(String, nullable=False)
     album = Column(String, nullable=True)
     downloaded_path = Column(String, nullable=False)
     confidence_score = Column(Integer, default=50) # e.g. 50-89% confidence
-    status = Column(String, default="review_required") # review_required, imported, skipped, kept_original
+    status = Column(String, default="open", nullable=False) # open (review_required), resolving, resolved (imported), skipped, ignored (kept_original), failed, stale
     candidates_json = Column(String, nullable=False) # JSON list of match candidates
     selected_match_json = Column(String, nullable=True)
+    differences_json = Column(String, nullable=True)
+    recommendation_text = Column(String, nullable=True)
+    error_message = Column(String, nullable=True)
+    retry_count = Column(Integer, default=0, nullable=False)
+    resolution_audit = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)

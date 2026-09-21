@@ -968,6 +968,19 @@ def api_reload_beets_plugins(user: User = Depends(get_current_user)):
     result = BeetsServiceClient().force_reload_plugins()
     return JSONResponse(content=result)
 
+@router.post("/api/beets/migrate-database", response_class=JSONResponse)
+def api_migrate_database(user: User = Depends(get_current_user)):
+    """
+    Runs database schema migrations and auto-healing on demand from the GUI.
+    """
+    from app.main import run_migrations
+    logs = run_migrations()
+    return JSONResponse(content={
+        "status": "success",
+        "message": "Database migration and schema verification completed",
+        "logs": logs
+    })
+
 @router.post("/api/beets/config", response_class=JSONResponse)
 def api_save_beets_config(payload: BeetsConfigSaveRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """

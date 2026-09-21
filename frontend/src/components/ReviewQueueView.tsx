@@ -29,6 +29,8 @@ export default function ReviewQueueView() {
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
   const [showDevDiagnostics, setShowDevDiagnostics] = useState<boolean>(false);
+  const [migratingDb, setMigratingDb] = useState<boolean>(false);
+  const [migrationLog, setMigrationLog] = useState<string | null>(null);
 
   useEffect(() => {
     fetchQueue();
@@ -141,6 +143,32 @@ export default function ReviewQueueView() {
         {/* Action Controls & Commands */}
         <div className="flex items-center gap-3">
           <button
+            onClick={async () => {
+              setMigratingDb(true);
+              setMigrationLog(null);
+              try {
+                const res = await fetch('/api/beets/migrate-database', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                  setMigrationLog(data.logs || 'Database repair executed.');
+                  fetchQueue();
+                } else {
+                  setMigrationLog(`Migration error: ${data.message || 'Unknown error'}`);
+                }
+              } catch (e: any) {
+                setMigrationLog(`Failed to connect to backend: ${e.message}`);
+              } finally {
+                setMigratingDb(false);
+              }
+            }}
+            disabled={migratingDb}
+            className="flex items-center gap-2 bg-[#10b981]/20 hover:bg-[#10b981]/30 text-[#10b981] border border-[#10b981]/40 px-3 py-1.5 font-data-mono text-xs font-bold transition-all cursor-pointer disabled:opacity-50 uppercase"
+          >
+            {migratingDb ? <SonicLoader size="small" /> : <Database size={14} />}
+            {migratingDb ? 'MIGRATING...' : 'MIGRATE SCHEMA'}
+          </button>
+
+          <button
             onClick={() => scanLibrary()}
             disabled={scanning}
             className="flex items-center gap-2 bg-[#10b981]/20 hover:bg-[#10b981]/30 text-[#10b981] border border-[#10b981]/40 px-3 py-1.5 font-data-mono text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
@@ -158,6 +186,17 @@ export default function ReviewQueueView() {
           </button>
         </div>
       </div>
+
+      {/* Migration Log Banner */}
+      {migrationLog && (
+        <div className="bg-[#0a0a0b] border border-[#10b981]/40 p-3 font-data-mono text-xs text-[#10b981] flex flex-col gap-1">
+          <div className="flex items-center justify-between border-b border-[#27272a] pb-1 font-bold">
+            <span>Database Schema Auto-Healing Output</span>
+            <button onClick={() => setMigrationLog(null)} className="text-[10px] text-[#bbcabf] hover:text-[#e5e2e3]">CLOSE</button>
+          </div>
+          <pre className="text-[11px] text-[#bbcabf] whitespace-pre-wrap">{migrationLog}</pre>
+        </div>
+      )}
 
       {/* Embedded Beets Status Engine Bar */}
       {status && (

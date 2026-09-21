@@ -52,6 +52,7 @@ export default function SettingsView() {
   const [beetsRuntimeStatus, setBeetsRuntimeStatus] = useState<any>(null);
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
   const [reloadingPlugins, setReloadingPlugins] = useState<boolean>(false);
+  const [migratingDb, setMigratingDb] = useState<boolean>(false);
   const [pluginLogOutput, setPluginLogOutput] = useState<string | null>(null);
 
   const hasUnsavedYaml = yamlContent !== originalYaml;
@@ -311,6 +312,34 @@ paths:
                 </h3>
               </div>
               <div className="flex items-center gap-3">
+                <button
+                  onClick={async () => {
+                    setMigratingDb(true);
+                    setPluginLogOutput(null);
+                    try {
+                      const res = await fetch('/api/beets/migrate-database', { method: 'POST' });
+                      const data = await res.json();
+                      if (res.ok) {
+                        setPluginLogOutput(data.logs || 'Database migration completed.');
+                        setYamlMessage({ type: 'success', text: 'Database Schema Migration & Verification Success!' });
+                        fetchBeetsStatus();
+                      } else {
+                        setPluginLogOutput(data.logs || data.message || 'Error migrating database.');
+                        setYamlMessage({ type: 'error', text: `Migration Failed: ${data.message || 'Unknown error'}` });
+                      }
+                    } catch (e: any) {
+                      setPluginLogOutput(e.message || 'Failed to connect to backend.');
+                      setYamlMessage({ type: 'error', text: 'Migration request failed.' });
+                    } finally {
+                      setMigratingDb(false);
+                    }
+                  }}
+                  disabled={migratingDb}
+                  className="text-xs font-data-mono bg-[#1c1b1c] hover:bg-[#10b981] text-[#10b981] hover:text-[#0a0a0b] border border-[#10b981]/40 px-2.5 py-1 font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 uppercase"
+                >
+                  {migratingDb ? <SonicLoader size="small" /> : <Database size={12} />}
+                  MIGRATE / REPAIR DB SCHEMA
+                </button>
                 <button
                   onClick={handleForceReloadPlugins}
                   disabled={reloadingPlugins}

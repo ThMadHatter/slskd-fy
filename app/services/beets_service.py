@@ -44,9 +44,12 @@ class BeetsServiceClient:
 
         try:
             import beets
+            import beets.plugins
             from beets.plugins import load_plugins, find_plugins
             if os.path.isfile(active_config_path):
                 beets.config.set_file(active_config_path)
+            if hasattr(beets.plugins, "_instances"):
+                beets.plugins._instances.clear()
             load_plugins()
             loaded_plugins = [p.name for p in find_plugins()]
         except Exception as e:
@@ -116,9 +119,12 @@ class BeetsServiceClient:
 
         try:
             import beets
+            import beets.plugins
             from beets.plugins import load_plugins, find_plugins
             if config_path and os.path.isfile(config_path):
                 beets.config.set_file(config_path)
+            if hasattr(beets.plugins, "_instances"):
+                beets.plugins._instances.clear()
             load_plugins()
             plugins_obj = find_plugins()
             if plugins_obj:
@@ -202,8 +208,12 @@ class BeetsServiceClient:
         failed_plugins = []
 
         try:
+            import beets.plugins
             if os.path.isfile(active_config):
                 beets.config.set_file(active_config)
+
+            if hasattr(beets.plugins, "_instances"):
+                beets.plugins._instances.clear()
 
             load_plugins()
             loaded = find_plugins()

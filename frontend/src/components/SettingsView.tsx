@@ -51,6 +51,8 @@ export default function SettingsView() {
   const [yamlMessage, setYamlMessage] = useState<{ type: 'success' | 'error'; text: string; line?: number; column?: number } | null>(null);
   const [beetsRuntimeStatus, setBeetsRuntimeStatus] = useState<any>(null);
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
+  const [reloadingPlugins, setReloadingPlugins] = useState<boolean>(false);
+  const [pluginLogOutput, setPluginLogOutput] = useState<string | null>(null);
 
   const hasUnsavedYaml = yamlContent !== originalYaml;
 
@@ -90,6 +92,36 @@ export default function SettingsView() {
       }
     } catch (e) {
       console.error('Failed to fetch Beets engine status:', e);
+    }
+  };
+
+  const handleForceReloadPlugins = async () => {
+    setReloadingPlugins(true);
+    setPluginLogOutput(null);
+    try {
+      const res = await fetch('/api/beets/plugins/reload', {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok && data.status === 'success') {
+        setPluginLogOutput(data.logs || 'Plugins reloaded successfully.');
+        setYamlMessage({
+          type: 'success',
+          text: `Forced Beets Plugin Reload Success! Loaded ${data.loaded_plugins?.length || 0} plugins into runtime memory.`,
+        });
+        fetchBeetsStatus();
+      } else {
+        setPluginLogOutput(data.logs || data.message || 'Error reloading plugins.');
+        setYamlMessage({
+          type: 'error',
+          text: `Plugin Reload Failed: ${data.message || 'Error executing load sequence'}`,
+        });
+      }
+    } catch (err: any) {
+      setPluginLogOutput(err.message || 'Failed to connect to backend.');
+      setYamlMessage({ type: 'error', text: err.message || 'Reload request failed.' });
+    } finally {
+      setReloadingPlugins(false);
     }
   };
 
@@ -278,12 +310,22 @@ paths:
                   Beets Engine Runtime Diagnostics
                 </h3>
               </div>
-              <button
-                onClick={fetchBeetsStatus}
-                className="text-xs font-data-mono text-[#bbcabf] hover:text-[#10b981] flex items-center gap-1 cursor-pointer"
-              >
-                <RefreshCw size={12} /> RELOAD RUNTIME STATUS
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleForceReloadPlugins}
+                  disabled={reloadingPlugins}
+                  className="text-xs font-data-mono bg-[#1c1b1c] hover:bg-[#10b981] text-[#10b981] hover:text-[#0a0a0b] border border-[#10b981]/40 px-2.5 py-1 font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 uppercase"
+                >
+                  {reloadingPlugins ? <SonicLoader size="small" /> : <PlugZap size={12} />}
+                  FORCE RELOAD PLUGINS
+                </button>
+                <button
+                  onClick={fetchBeetsStatus}
+                  className="text-xs font-data-mono text-[#bbcabf] hover:text-[#10b981] flex items-center gap-1 cursor-pointer"
+                >
+                  <RefreshCw size={12} /> RELOAD STATUS
+                </button>
+              </div>
             </div>
 
             {beetsRuntimeStatus ? (
@@ -308,6 +350,27 @@ paths:
                     </span>
                   </div>
                 </div>
+
+                {/* Plugin Execution Log Viewer Drawer */}
+                {pluginLogOutput && (
+                  <div className="bg-[#0a0a0b] border border-[#10b981]/40 p-3 flex flex-col gap-2 font-data-mono text-xs">
+                    <div className="flex items-center justify-between border-b border-[#27272a] pb-1.5 text-[#10b981] font-bold">
+                      <span className="flex items-center gap-1.5 uppercase text-[11px]">
+                        <Terminal size={13} />
+                        Plugin Load Execution Logs
+                      </span>
+                      <button
+                        onClick={() => setPluginLogOutput(null)}
+                        className="text-[10px] text-[#bbcabf] hover:text-[#e5e2e3] cursor-pointer"
+                      >
+                        CLOSE LOGS
+                      </button>
+                    </div>
+                    <pre className="bg-[#131314] p-3 text-[11px] text-[#bbcabf] overflow-x-auto whitespace-pre-wrap max-h-48 border border-[#27272a] leading-relaxed">
+                      {pluginLogOutput}
+                    </pre>
+                  </div>
+                )}
 
                 {/* Plugin Diagnostics Grid (Configured, Loaded, Failed, Metadata Sources) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

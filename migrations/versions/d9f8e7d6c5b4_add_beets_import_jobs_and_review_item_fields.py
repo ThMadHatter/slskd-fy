@@ -57,6 +57,8 @@ def upgrade() -> None:
                 batch_op.add_column(sa.Column('item_type', sa.String(), server_default='album', nullable=False))
             if 'differences_json' not in columns:
                 batch_op.add_column(sa.Column('differences_json', sa.String(), nullable=True))
+            if 'provenance_json' not in columns:
+                batch_op.add_column(sa.Column('provenance_json', sa.String(), nullable=True))
             if 'recommendation_text' not in columns:
                 batch_op.add_column(sa.Column('recommendation_text', sa.String(), nullable=True))
             if 'error_message' not in columns:
@@ -117,6 +119,7 @@ def upgrade() -> None:
             sa.Column('candidates_json', sa.String(), nullable=False),
             sa.Column('selected_match_json', sa.String(), nullable=True),
             sa.Column('differences_json', sa.String(), nullable=True),
+            sa.Column('provenance_json', sa.String(), nullable=True),
             sa.Column('recommendation_text', sa.String(), nullable=True),
             sa.Column('error_message', sa.String(), nullable=True),
             sa.Column('retry_count', sa.Integer(), nullable=False, server_default='0'),
@@ -145,7 +148,7 @@ def downgrade() -> None:
                 batch_op.drop_index('ix_beets_review_items_fingerprint')
 
             for col in ['conflict_id', 'fingerprint', 'job_id', 'item_type', 'differences_json',
-                        'recommendation_text', 'error_message', 'retry_count', 'resolution_audit']:
+                        'provenance_json', 'recommendation_text', 'error_message', 'retry_count', 'resolution_audit']:
                 if col in columns:
                     batch_op.drop_column(col)
 

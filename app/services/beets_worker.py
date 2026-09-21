@@ -134,6 +134,7 @@ def run_beets_import_task(
                     status="open",
                     candidates_json=json.dumps(dto["candidates"]),
                     differences_json=json.dumps(dto.get("differences", {})),
+                    provenance_json=json.dumps(dto["provenance"]) if dto.get("provenance") else None,
                     recommendation_text=dto.get("recommendation_text", ""),
                     created_at=datetime.utcnow(),
                 )

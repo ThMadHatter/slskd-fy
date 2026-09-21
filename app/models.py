@@ -123,6 +123,7 @@ class BeetsReviewItem(Base):
     candidates_json = Column(String, nullable=False) # JSON list of match candidates
     selected_match_json = Column(String, nullable=True)
     differences_json = Column(String, nullable=True)
+    provenance_json = Column(String, nullable=True)
     recommendation_text = Column(String, nullable=True)
     error_message = Column(String, nullable=True)
     retry_count = Column(Integer, default=0, nullable=False)

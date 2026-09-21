@@ -43,7 +43,10 @@ class BeetsServiceClient:
         loaded_plugins = []
 
         try:
+            import beets
             from beets.plugins import load_plugins, find_plugins
+            if os.path.isfile(active_config_path):
+                beets.config.set_file(active_config_path)
             load_plugins()
             loaded_plugins = [p.name for p in find_plugins()]
         except Exception as e:
@@ -112,7 +115,10 @@ class BeetsServiceClient:
         missing_dependencies = []
 
         try:
+            import beets
             from beets.plugins import load_plugins, find_plugins
+            if config_path and os.path.isfile(config_path):
+                beets.config.set_file(config_path)
             load_plugins()
             plugins_obj = find_plugins()
             if plugins_obj:
@@ -144,10 +150,11 @@ class BeetsServiceClient:
         # Test MusicBrainz connectivity
         mb_connected = False
         try:
-            from app.services.musicbrainz_service import MusicBrainzService
-            # Quick check
-            mb_connected = True
-        except Exception:
+            with httpx.Client(timeout=2.0) as client:
+                res = client.get("https://musicbrainz.org/ws/2/annotation?query=test&fmt=json", headers={"User-Agent": "TrackPortal/2.0.0"})
+                mb_connected = res.status_code in (200, 400, 429)
+        except Exception as e:
+            logger.debug(f"MusicBrainz connectivity ping failed: {e}")
             mb_connected = False
 
         return {
@@ -165,6 +172,68 @@ class BeetsServiceClient:
             "metadata_sources": metadata_sources,
             "musicbrainz_connected": mb_connected,
             "beets_api_url": self.api_url,
+        }
+
+    def force_reload_plugins(self, config_path: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Forces Beets to re-read the configuration YAML file and reload plugins into the active runtime,
+        capturing detailed loading logs and failure diagnostics.
+        """
+        import io
+        import logging as py_logging
+        import beets
+        from beets.plugins import load_plugins, find_plugins
+
+        active_config = BeetsConfigService.resolve_config_path(config_path)
+        raw_yaml = BeetsConfigService.load_raw_yaml(active_config)
+        configured_plugins = BeetsConfigService.extract_plugins_list(raw_yaml)
+
+        log_capture = io.StringIO()
+        capture_handler = py_logging.StreamHandler(log_capture)
+        capture_handler.setLevel(py_logging.DEBUG)
+        formatter = py_logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
+        capture_handler.setFormatter(formatter)
+
+        beets_logger = py_logging.getLogger("beets")
+        beets_logger.addHandler(capture_handler)
+        beets_logger.setLevel(py_logging.DEBUG)
+
+        loaded_plugins = []
+        failed_plugins = []
+
+        try:
+            if os.path.isfile(active_config):
+                beets.config.set_file(active_config)
+
+            load_plugins()
+            loaded = find_plugins()
+            loaded_plugins = [p.name for p in loaded]
+
+            for p in configured_plugins:
+                if p not in loaded_plugins:
+                    failed_plugins.append({
+                        "name": p,
+                        "reason": "Plugin missing or dependency not installed"
+                    })
+
+            beets_logger.info(f"Successfully loaded {len(loaded_plugins)} plugins: {', '.join(loaded_plugins)}")
+        except Exception as e:
+            beets_logger.error(f"Error forcing Beets plugin reload: {e}", exc_info=True)
+            failed_plugins.append({"name": "all", "reason": str(e)})
+        finally:
+            beets_logger.removeHandler(capture_handler)
+
+        logs_str = log_capture.getvalue()
+        if not logs_str.strip():
+            logs_str = f"[INFO] Beets plugin load sequence executed for config '{active_config}'. Loaded: {', '.join(loaded_plugins)}"
+
+        return {
+            "status": "success",
+            "config_path": active_config,
+            "configured_plugins": configured_plugins,
+            "loaded_plugins": loaded_plugins,
+            "failed_plugins": failed_plugins,
+            "logs": logs_str
         }
 
     def start_import_job(self, source_path: str, config_path: Optional[str] = None) -> str:

@@ -1154,10 +1154,16 @@ async def api_beets_manual_search(
     user: User = Depends(get_current_user)
 ):
     """
-    Executes a manual MusicBrainz search query or MBID lookup for a review queue conflict.
+    Executes a manual MusicBrainz candidate search or direct MBID lookup for a review queue conflict,
+    using Beets metadata plugins (tracks_for_ids, albums_for_ids, item_candidates) and MusicBrainz API.
     Appends newly discovered candidates to the review item record in SQLite.
     """
+    import re
+    import beets.plugins
+    import beets.autotag.hooks as hooks
+    from beets.plugins import metadata_plugins
     from app.models import BeetsReviewItem
+    from app.services.beets_collector import clean_query_hint
     from app.services.musicbrainz_service import MusicBrainzService
 
     item = db.query(BeetsReviewItem).filter(
@@ -1171,70 +1177,130 @@ async def api_beets_manual_search(
     if not query_str:
         raise HTTPException(status_code=400, detail="Search query or MusicBrainz MBID required")
 
+    clean_q = clean_query_hint(query_str)
+    search_artist = clean_query_hint(payload.artist or item.artist)
+    search_title = clean_query_hint(payload.album or payload.track or item.track or item.album)
+
     found_candidates = []
+    is_mbid = bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', clean_q.strip().lower()))
 
-    # If MBID format (UUID hex with hyphens)
-    import re
-    is_mbid = bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', query_str.strip().lower()))
-
+    # Method 1 & 2: Use Beets metadata_plugins API directly
     try:
-        if is_mbid:
-            # Lookup specific release or recording
-            rel = await MusicBrainzService.fetch_release_by_id(query_str.strip(), db)
-            if rel:
-                found_candidates.append({
-                    "id": rel.get("id"),
-                    "source": "MusicBrainz MBID Lookup",
-                    "candidate_type": item.item_type,
-                    "artist": rel.get("artist_name") or rel.get("artist") or item.artist,
-                    "title": rel.get("title") or item.album,
-                    "year": rel.get("year") or 0,
-                    "release_id": rel.get("id"),
-                    "recording_id": rel.get("id") if item.item_type == "singleton" else "",
-                    "release_group_id": rel.get("release_group_id") or "",
-                    "country": rel.get("country", "US"),
-                    "label": rel.get("label", ""),
-                    "catalog_num": "",
-                    "media": "Digital Media",
-                    "format": "FLAC",
-                    "track_count": rel.get("track_count", 1),
-                    "ui_similarity_score": 100,
-                    "raw_distance": 0.0,
-                    "penalties": {},
-                    "mbid": rel.get("id"),
-                    "url": f"https://musicbrainz.org/release/{rel.get('id')}"
-                })
-        else:
-            # Free text search
-            results = await MusicBrainzService.search_releases(query_str, db)
-            for idx, rel in enumerate(results[:10]):
-                ui_score = max(50, 95 - (idx * 5))
-                found_candidates.append({
-                    "id": rel.get("id") or f"manual_{idx+1}",
-                    "source": "MusicBrainz Manual Search",
-                    "candidate_type": item.item_type,
-                    "artist": rel.get("artist_name") or item.artist,
-                    "title": rel.get("title") or item.album,
-                    "year": rel.get("year") or 0,
-                    "release_id": rel.get("id"),
-                    "recording_id": "",
-                    "release_group_id": "",
-                    "country": rel.get("country", "US"),
-                    "label": rel.get("label", ""),
-                    "catalog_num": "",
-                    "media": "Digital Media",
-                    "format": "FLAC",
-                    "track_count": rel.get("track_count", 1),
-                    "ui_similarity_score": ui_score,
-                    "raw_distance": float((100 - ui_score) / 100.0),
-                    "penalties": {},
-                    "mbid": rel.get("id"),
-                    "url": f"https://musicbrainz.org/release/{rel.get('id')}" if rel.get("id") else ""
-                })
-    except Exception as e:
-        logger.exception(f"Error performing manual MusicBrainz candidate search: {e}")
+        beets.plugins.load_plugins()
 
-    # Merge candidates into item candidates_json
+        if is_mbid:
+            mbid = clean_q.strip()
+            if item.item_type == "singleton":
+                infos = list(metadata_plugins.tracks_for_ids([mbid]))
+                for info in infos:
+                    found_candidates.append({
+                        "id": getattr(info, "track_id", mbid),
+                        "source": "Beets Metadata Plugin (MBID)",
+                        "candidate_type": "singleton",
+                        "artist": getattr(info, "artist", search_artist),
+                        "title": getattr(info, "title", search_title),
+                        "year": getattr(info, "year", 0),
+                        "release_id": getattr(info, "album_id", mbid),
+                        "recording_id": getattr(info, "track_id", mbid),
+                        "release_group_id": "",
+                        "country": "US",
+                        "label": "",
+                        "catalog_num": "",
+                        "media": "Digital Media",
+                        "format": "FLAC",
+                        "track_count": 1,
+                        "ui_similarity_score": 100,
+                        "raw_distance": 0.0,
+                        "penalties": {},
+                        "mbid": mbid,
+                        "url": f"https://musicbrainz.org/recording/{mbid}"
+                    })
+            else:
+                infos = list(metadata_plugins.albums_for_ids([mbid]))
+                for info in infos:
+                    found_candidates.append({
+                        "id": getattr(info, "album_id", mbid),
+                        "source": "Beets Metadata Plugin (MBID)",
+                        "candidate_type": "album",
+                        "artist": getattr(info, "artist", search_artist),
+                        "title": getattr(info, "album", search_title),
+                        "year": getattr(info, "year", 0),
+                        "release_id": getattr(info, "album_id", mbid),
+                        "recording_id": "",
+                        "release_group_id": getattr(info, "releasegroup_id", ""),
+                        "country": getattr(info, "country", "US"),
+                        "label": getattr(info, "label", ""),
+                        "catalog_num": getattr(info, "catalognum", ""),
+                        "media": getattr(info, "media", "Digital Media"),
+                        "format": "FLAC",
+                        "track_count": len(getattr(info, "tracks", [])) or 1,
+                        "ui_similarity_score": 100,
+                        "raw_distance": 0.0,
+                        "penalties": {},
+                        "mbid": mbid,
+                        "url": f"https://musicbrainz.org/release/{mbid}"
+                    })
+    except Exception as e:
+        logger.warning(f"Beets metadata_plugins query warning: {e}")
+
+    # Fallback Method 3: Direct MusicBrainzAPI / MusicBrainzService lookups
+    if not found_candidates:
+        try:
+            if is_mbid:
+                rel = await MusicBrainzService.fetch_release_by_id(clean_q.strip(), db)
+                if rel:
+                    found_candidates.append({
+                        "id": rel.get("id"),
+                        "source": "MusicBrainz MBID Lookup",
+                        "candidate_type": item.item_type,
+                        "artist": rel.get("artist_name") or search_artist,
+                        "title": rel.get("title") or search_title,
+                        "year": rel.get("year") or 0,
+                        "release_id": rel.get("id"),
+                        "recording_id": rel.get("id") if item.item_type == "singleton" else "",
+                        "release_group_id": rel.get("release_group_id") or "",
+                        "country": rel.get("country", "US"),
+                        "label": rel.get("label", ""),
+                        "catalog_num": "",
+                        "media": "Digital Media",
+                        "format": "FLAC",
+                        "track_count": rel.get("track_count", 1),
+                        "ui_similarity_score": 100,
+                        "raw_distance": 0.0,
+                        "penalties": {},
+                        "mbid": rel.get("id"),
+                        "url": f"https://musicbrainz.org/release/{rel.get('id')}"
+                    })
+            else:
+                results = await MusicBrainzService.search_releases(clean_q, db)
+                for idx, rel in enumerate(results[:10]):
+                    ui_score = max(50, 95 - (idx * 5))
+                    found_candidates.append({
+                        "id": rel.get("id") or f"manual_{idx+1}",
+                        "source": "MusicBrainz Search",
+                        "candidate_type": item.item_type,
+                        "artist": rel.get("artist_name") or search_artist,
+                        "title": rel.get("title") or search_title,
+                        "year": rel.get("year") or 0,
+                        "release_id": rel.get("id"),
+                        "recording_id": "",
+                        "release_group_id": "",
+                        "country": rel.get("country", "US"),
+                        "label": rel.get("label", ""),
+                        "catalog_num": "",
+                        "media": "Digital Media",
+                        "format": "FLAC",
+                        "track_count": rel.get("track_count", 1),
+                        "ui_similarity_score": ui_score,
+                        "raw_distance": float((100 - ui_score) / 100.0),
+                        "penalties": {},
+                        "mbid": rel.get("id"),
+                        "url": f"https://musicbrainz.org/release/{rel.get('id')}" if rel.get("id") else ""
+                    })
+        except Exception as e:
+            logger.exception(f"Error executing fallback MusicBrainz candidate search: {e}")
+
+    # Merge candidates into review item record in SQLite
     existing_cands = json.loads(item.candidates_json) if item.candidates_json else []
     seen_ids = {c.get("id") for c in existing_cands if c.get("id")}
 
@@ -1253,7 +1319,7 @@ async def api_beets_manual_search(
     return JSONResponse(content={
         "status": "success",
         "item_id": item.id,
-        "query": query_str,
+        "query": clean_q,
         "new_candidates_added": new_added,
         "candidates": existing_cands
     })

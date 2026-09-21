@@ -10,23 +10,26 @@ logger = logging.getLogger("track_portal.beets_collector")
 
 def clean_query_hint(raw_hint: str) -> str:
     """
-    Sanitizes search query hints by stripping technical format/uploader noise
-    (e.g., '[Flac 24-44] AtM', '[WEB FLAC]', '[24bit-96kHz]') while preserving
-    meaningful edition text like '(Deluxe Edition)'.
+    Sanitizes search query hints by stripping technical format/uploader noise,
+    release years in brackets/parentheses, and uploader tags (e.g., '(2025) [Flac 24-44] AtM')
+    while preserving clean title/album text for Beets/MusicBrainz lookups.
     Does NOT mutate raw tags on disk.
     """
     if not raw_hint:
         return ""
 
     text = raw_hint
-    # Remove bracketed technical noise
-    text = re.sub(r'\[(FLAC|MP3|WEB|24bit|16bit|24-44|24-96|24-192|AAC|WAV|Ogg|Lossless)[^\]]*\]', '', text, flags=re.IGNORECASE)
-    # Remove standalone format descriptors when surrounded by brackets or spaces
-    text = re.sub(r'(?<=\s)(24bit-96kHz|24bit|16bit|24-44|24-96|24-192)(?=\s|$)', '', text, flags=re.IGNORECASE)
-    # Remove trailing uploader handles (e.g., ' AtM')
-    text = re.sub(r'\s+[A-Z][a-zA-Z0-9]{1,3}\s*$', '', text)
 
-    # Collapse multiple spaces
+    # 1. Remove bracketed technical/uploader noise like '[Flac 24-44] AtM' or '[WEB FLAC]'
+    text = re.sub(r'\[[^\]]*\]', '', text)
+
+    # 2. Remove standalone year patterns like '(2025)' or '(2024)'
+    text = re.sub(r'\(\d{4}\)', '', text)
+
+    # 3. Remove trailing uploader handles / tags (e.g., ' AtM', ' - AtM')
+    text = re.sub(r'\s+[-–—]?\s*[A-Z][a-zA-Z0-9]{1,3}\s*$', '', text)
+
+    # 4. Collapse multiple spaces
     text = re.sub(r'\s+', ' ', text).strip()
     return text or raw_hint
 
@@ -108,11 +111,28 @@ class ConflictCollector:
         # Final active local tags (prioritizing valid embedded tags)
         artist = embedded_tags["artist"] or filename_inferred["artist"] or "Unknown Artist"
         track = embedded_tags["track"] or filename_inferred["track"] or "Unknown Track"
-        raw_album = embedded_tags["album"] or "Unknown Album"
-        album = raw_album
+        raw_album = embedded_tags["album"] or filename_inferred["album"] or "Unknown Album"
 
-        # Derive search hint by cleaning query hints without altering raw embedded tags
+        # Sanitize query hints to remove uploader tags, brackets, and year noise for candidate searching
+        clean_artist_hint = clean_query_hint(artist)
+        clean_track_hint = clean_query_hint(track)
         clean_album_hint = clean_query_hint(raw_album) if raw_album != "Unknown Album" else ""
+
+        album = clean_album_hint if clean_album_hint else raw_album
+
+        # If candidates list is empty or lacks candidates, execute a fallback search via Beets autotag/metadata plugins
+        raw_candidates = getattr(task, "candidates", None)
+        if raw_candidates is None:
+            try:
+                search_ids = [session.search_ids] if hasattr(session, "search_ids") and session.search_ids else []
+                if hasattr(task, "lookup_candidates"):
+                    task.lookup_candidates(search_ids=search_ids)
+                    raw_candidates = getattr(task, "candidates", []) or []
+            except Exception as e:
+                logger.warning(f"Error executing task.lookup_candidates(): {e}")
+                raw_candidates = []
+        else:
+            raw_candidates = raw_candidates or []
 
         fingerprint = cls.calculate_fingerprint(downloaded_path, artist, track)
 

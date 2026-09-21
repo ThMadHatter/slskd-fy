@@ -31,6 +31,9 @@ export default function ReviewQueueView() {
   const [showDevDiagnostics, setShowDevDiagnostics] = useState<boolean>(false);
   const [migratingDb, setMigratingDb] = useState<boolean>(false);
   const [migrationLog, setMigrationLog] = useState<string | null>(null);
+  const [manualSearchQuery, setManualSearchQuery] = useState<string>('');
+  const [searchingManual, setSearchingManual] = useState<boolean>(false);
+  const [manualSearchError, setManualSearchError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchQueue();
@@ -427,6 +430,56 @@ export default function ReviewQueueView() {
                     </pre>
                   </div>
                 )}
+
+                {/* Manual MusicBrainz Search / MBID Lookup Bar */}
+                <div className="border border-[#27272a] bg-[#0a0a0b] p-4 flex flex-col gap-2">
+                  <span className="font-label-caps text-xs text-[#10b981] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Disc size={14} />
+                    Manual Track Assignment / MusicBrainz MBID Pre-Selection
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter MusicBrainz Recording/Release MBID or Search Query (e.g. e165b279-15eb-442f...)"
+                      value={manualSearchQuery}
+                      onChange={(e) => setManualSearchQuery(e.target.value)}
+                      className="flex-1 bg-[#131314] border border-[#27272a] text-xs font-data-mono text-[#e5e2e3] px-3 py-2 focus:border-[#10b981] focus:outline-none"
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!manualSearchQuery.trim() || !activeItem) return;
+                        setSearchingManual(true);
+                        setManualSearchError(null);
+                        try {
+                          const res = await fetch(`/api/beets/review-queue/${activeItem.id}/search`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ query: manualSearchQuery }),
+                          });
+                          const data = await res.json();
+                          if (res.ok) {
+                            setManualSearchQuery('');
+                            fetchQueue();
+                          } else {
+                            setManualSearchError(data.detail || 'Manual search query failed.');
+                          }
+                        } catch (e: any) {
+                          setManualSearchError(e.message || 'Error executing manual search.');
+                        } finally {
+                          setSearchingManual(false);
+                        }
+                      }}
+                      disabled={searchingManual || !manualSearchQuery.trim()}
+                      className="bg-[#10b981] hover:bg-[#10b981]/90 text-[#0a0a0b] font-data-mono text-xs font-bold px-4 py-2 uppercase cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      {searchingManual ? <SonicLoader size="small" /> : <ArrowRight size={14} />}
+                      SEARCH / ASSIGN
+                    </button>
+                  </div>
+                  {manualSearchError && (
+                    <span className="text-[10px] font-data-mono text-[#fc7c78]">{manualSearchError}</span>
+                  )}
+                </div>
 
                 {/* Candidate Matches Selector list */}
                 <div className="flex flex-col gap-3">

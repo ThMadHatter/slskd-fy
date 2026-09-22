@@ -160,8 +160,17 @@ def run_beets_import_task(
         # Register plugin listener for this session
         plugin = TrackPortalBeetsPlugin(job_id=job_id, callback=on_conflict_dto)
 
-        # Instantiate ImportSession
-        session = ImportSession(
+        class NonInteractiveImportSession(ImportSession):
+            """
+            Subclass of ImportSession for headless execution.
+            Overrides choose_match to return Action.SKIP when manual intervention is required,
+            preventing NotImplementedError from being raised.
+            """
+            def choose_match(self, task):
+                return Action.SKIP
+
+        # Instantiate NonInteractiveImportSession
+        session = NonInteractiveImportSession(
             lib=lib,
             loghandler=None,
             paths=[norm_source_path],

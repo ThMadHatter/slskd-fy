@@ -34,6 +34,7 @@ export default function ReviewQueueView() {
   const [manualSearchQuery, setManualSearchQuery] = useState<string>('');
   const [searchingManual, setSearchingManual] = useState<boolean>(false);
   const [manualSearchError, setManualSearchError] = useState<string | null>(null);
+  const [scanningChroma, setScanningChroma] = useState<boolean>(false);
 
   useEffect(() => {
     fetchQueue();
@@ -474,6 +475,35 @@ export default function ReviewQueueView() {
                     >
                       {searchingManual ? <SonicLoader size="small" /> : <ArrowRight size={14} />}
                       SEARCH / ASSIGN
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        if (!activeItem) return;
+                        setScanningChroma(true);
+                        setManualSearchError(null);
+                        try {
+                          const res = await fetch(`/api/beets/review-queue/${activeItem.id}/fingerprint`, {
+                            method: 'POST',
+                          });
+                          const data = await res.json();
+                          if (res.ok) {
+                            fetchQueue();
+                          } else {
+                            setManualSearchError(data.detail || 'Chroma fingerprint scan failed.');
+                          }
+                        } catch (e: any) {
+                          setManualSearchError(e.message || 'Error scanning Chroma fingerprint.');
+                        } finally {
+                          setScanningChroma(false);
+                        }
+                      }}
+                      disabled={scanningChroma || !activeItem}
+                      className="bg-[#1c1b1c] hover:bg-[#27272a] text-[#10b981] border border-[#10b981]/40 font-data-mono text-xs font-bold px-3 py-2 uppercase cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                      title="Generates AcoustID fingerprint via fpcalc and matches direct MusicBrainz recording/release candidates"
+                    >
+                      {scanningChroma ? <SonicLoader size="small" /> : <Sparkles size={14} />}
+                      TRIGGER CHROMA SCAN
                     </button>
                   </div>
                   {manualSearchError && (

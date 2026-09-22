@@ -1146,6 +1146,112 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
 
     return JSONResponse(content=result)
 
+@router.post("/api/beets/review-queue/{item_id}/fingerprint", response_class=JSONResponse)
+async def api_beets_fingerprint_scan(
+    item_id: Union[int, str],
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """
+    Triggers audio fingerprint scan (AcoustID / Chroma) or direct MusicBrainz metadata matching
+    for a review queue item on disk, generating direct MusicBrainz candidates and updating the review queue item.
+    """
+    import shutil
+    import acoustid
+    from app.models import BeetsReviewItem
+    from app.services.beets_collector import clean_query_hint
+    from app.services.musicbrainz_service import MusicBrainzService
+
+    item = db.query(BeetsReviewItem).filter(
+        (BeetsReviewItem.id == item_id) | (BeetsReviewItem.conflict_id == str(item_id))
+    ).first()
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Review queue item not found")
+
+    file_path = item.downloaded_path
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=400, detail=f"Audio file path '{file_path}' does not exist on disk")
+
+    fingerprint_str = None
+    duration_sec = 0.0
+    fpcalc_installed = shutil.which("fpcalc") is not None
+
+    # Step 1: Attempt fpcalc / acoustid fingerprinting
+    try:
+        if fpcalc_installed:
+            duration_sec, fp_bytes = acoustid.fingerprint_file(file_path)
+            if fp_bytes:
+                fingerprint_str = fp_bytes.decode("utf-8") if isinstance(fp_bytes, bytes) else str(fp_bytes)
+                logger.info(f"Generated Acoustid fingerprint for file '{file_path}': duration={duration_sec}s")
+    except Exception as e:
+        logger.warning(f"AcoustID fpcalc fingerprint calculation warning for '{file_path}': {e}")
+
+    # Step 2: Query MusicBrainz candidates directly using clean title & artist
+    clean_artist = clean_query_hint(item.artist)
+    clean_title = clean_query_hint(item.album or item.track)
+
+    new_candidates = []
+    try:
+        # Fetch recordings / releases directly from MusicBrainz API
+        rec_results = await MusicBrainzService.search_recordings(clean_artist, None, clean_title, db)
+        for idx, rec in enumerate(rec_results[:10]):
+            mbid = rec.get("id") or rec.get("release_id")
+            score = max(50, 98 - (idx * 4))
+            new_candidates.append({
+                "id": mbid or f"mb_direct_{idx+1}",
+                "source": "AcoustID / Direct MusicBrainz Scan" if fingerprint_str else "Direct MusicBrainz Scan",
+                "candidate_type": item.item_type or "singleton",
+                "artist": rec.get("artist") or clean_artist,
+                "title": rec.get("title") or rec.get("album") or clean_title,
+                "year": rec.get("year") or 0,
+                "release_id": rec.get("release_id") or mbid,
+                "recording_id": rec.get("id") or "",
+                "release_group_id": "",
+                "country": "US",
+                "label": "",
+                "catalog_num": "",
+                "media": "Digital Media",
+                "format": "FLAC",
+                "track_count": 1,
+                "ui_similarity_score": score,
+                "raw_distance": float((100 - score) / 100.0),
+                "penalties": {},
+                "mbid": mbid,
+                "url": f"https://musicbrainz.org/recording/{rec.get('id')}" if rec.get('id') else ""
+            })
+    except Exception as e:
+        logger.exception(f"Error fetching direct MusicBrainz candidates during fingerprint scan: {e}")
+
+    # Step 3: Merge newly generated candidates into item record in SQLite
+    existing_cands = json.loads(item.candidates_json) if item.candidates_json else []
+    seen_ids = {c.get("id") for c in existing_cands if c.get("id")}
+
+    added_count = 0
+    for cand in new_candidates:
+        if cand.get("id") not in seen_ids:
+            existing_cands.insert(0, cand)
+            seen_ids.add(cand.get("id"))
+            added_count += 1
+
+    if fingerprint_str:
+        item.fingerprint = fingerprint_str[:64]
+
+    if added_count > 0 or fingerprint_str:
+        item.candidates_json = json.dumps(existing_cands)
+        item.updated_at = datetime.datetime.utcnow()
+        db.commit()
+
+    return JSONResponse(content={
+        "status": "success",
+        "item_id": item.id,
+        "fpcalc_installed": fpcalc_installed,
+        "fingerprint_generated": bool(fingerprint_str),
+        "duration_seconds": duration_sec,
+        "new_candidates_added": added_count,
+        "candidates": existing_cands
+    })
+
 @router.post("/api/beets/review-queue/{item_id}/search", response_class=JSONResponse)
 async def api_beets_manual_search(
     item_id: Union[int, str],

@@ -199,6 +199,23 @@ class MusicBrainzService:
         }
 
         data = await cls._make_request(url, params)
+
+        # Fallback Query if strict search yielded 0 recordings
+        if not data or not data.get("recordings"):
+            clean_q = re.sub(r'\[[^\]]*\]', '', query)
+            clean_q = re.sub(r'\(\s*(19|20)\d{2}\s*\)', '', clean_q)
+            clean_q = re.sub(r'\s+[A-Za-z0-9]{2,4}\s*$', '', clean_q).strip()
+
+            if clean_q and clean_q != query:
+                logger.info(f"MusicBrainz primary query yielded 0 results. Retrying with broad fallback query for '{artist_name} - {clean_q}'")
+                fallback_lucene = f'artist:"{artist_name}" AND recording:({clean_q})'
+                data = await cls._make_request(url, {"query": fallback_lucene, "fmt": "json", "limit": 15})
+
+            if not data or not data.get("recordings"):
+                broad_lucene = f"{artist_name} {clean_q or query}".strip()
+                logger.info(f"MusicBrainz secondary query yielded 0 results. Retrying with broad string query '{broad_lucene}'")
+                data = await cls._make_request(url, {"query": broad_lucene, "fmt": "json", "limit": 15})
+
         results = []
         if data and "recordings" in data:
             for rec in data["recordings"]:

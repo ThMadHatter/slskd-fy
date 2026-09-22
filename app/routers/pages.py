@@ -1170,26 +1170,24 @@ async def api_beets_fingerprint_scan(
         raise HTTPException(status_code=404, detail="Review queue item not found")
 
     file_path = item.downloaded_path
-    if not file_path or not os.path.exists(file_path):
-        raise HTTPException(status_code=400, detail=f"Audio file path '{file_path}' does not exist on disk")
-
     fingerprint_str = None
     duration_sec = 0.0
     fpcalc_installed = shutil.which("fpcalc") is not None
 
-    # Step 1: Attempt fpcalc / acoustid fingerprinting
-    try:
-        if fpcalc_installed:
-            duration_sec, fp_bytes = acoustid.fingerprint_file(file_path)
-            if fp_bytes:
-                fingerprint_str = fp_bytes.decode("utf-8") if isinstance(fp_bytes, bytes) else str(fp_bytes)
-                logger.info(f"Generated Acoustid fingerprint for file '{file_path}': duration={duration_sec}s")
-    except Exception as e:
-        logger.warning(f"AcoustID fpcalc fingerprint calculation warning for '{file_path}': {e}")
+    # Step 1: Attempt fpcalc / acoustid fingerprinting if file exists
+    if file_path and os.path.exists(file_path):
+        try:
+            if fpcalc_installed:
+                duration_sec, fp_bytes = acoustid.fingerprint_file(file_path)
+                if fp_bytes:
+                    fingerprint_str = fp_bytes.decode("utf-8") if isinstance(fp_bytes, bytes) else str(fp_bytes)
+                    logger.info(f"Generated Acoustid fingerprint for file '{file_path}': duration={duration_sec}s")
+        except Exception as e:
+            logger.warning(f"AcoustID fpcalc fingerprint calculation warning for '{file_path}': {e}")
 
     # Step 2: Query MusicBrainz candidates directly using clean title & artist
-    clean_artist = clean_query_hint(item.artist)
-    clean_title = clean_query_hint(item.album or item.track)
+    clean_artist = clean_query_hint(item.artist, is_artist=True)
+    clean_title = clean_query_hint(item.album or item.track, artist=clean_artist)
 
     new_candidates = []
     try:

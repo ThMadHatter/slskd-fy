@@ -8,30 +8,46 @@ from typing import List, Dict, Any, Optional
 logger = logging.getLogger("track_portal.beets_collector")
 
 
-def clean_query_hint(raw_hint: str) -> str:
+def clean_query_hint(raw_hint: str, is_artist: bool = False, artist: str = "") -> str:
     """
-    Sanitizes search query hints by stripping technical format noise,
-    leading folder year prefixes, and bracketed descriptors
-    while preserving full artist names (e.g. 'Brunori Sas') and titles.
+    Sanitizes search query hints by extracting file basenames, stripping extensions,
+    leading track numbers, leading year prefixes, and bracketed format tags,
+    while strictly preserving full artist names (e.g. 'Brunori Sas').
     Does NOT mutate raw tags on disk.
     """
     if not raw_hint:
         return ""
 
-    text = raw_hint
+    text = str(raw_hint)
 
-    # 1. Strip leading year prefix like '2025 - ' or '2024-'
+    # 1. If raw_hint is a file or folder path, extract basename
+    if "/" in text or "\\" in text:
+        text = os.path.basename(text)
+
+    # 2. Strip common audio/archive file extensions
+    text = re.sub(r'\.(flac|mp3|m4a|wav|aac|ogg|zip|rar|7z)$', '', text, flags=re.IGNORECASE)
+
+    # 3. Strip leading track numbers e.g. '02 - ', '01. ' (unless cleaning an artist name)
+    if not is_artist:
+        text = re.sub(r'^\s*\d{1,3}\s*[-._\s]\s*', '', text)
+
+    # 4. Strip leading year prefix like '2025 - ' or '2024-'
     text = re.sub(r'^\s*\b(19|20)\d{2}\b\s*[-–—]\s*', '', text)
 
-    # 2. Remove bracketed technical descriptors e.g. '[Flac 24-44]', '[320k]', '[WEB]'
+    # 5. Remove bracketed technical descriptors e.g. '[Flac 24-44]', '[320k]', '[WEB]'
     text = re.sub(r'\[[^\]]*\]', '', text)
 
-    # 3. Remove standalone year patterns in parentheses e.g. '(2025)'
+    # 6. Remove standalone year patterns in parentheses e.g. '(2025)'
     text = re.sub(r'\(\s*(19|20)\d{2}\s*\)', '', text)
 
-    # 4. Collapse multiple spaces
+    # 7. Strip leading artist prefix if artist provided e.g. 'Brunori Sas - L'albero delle noci' -> 'L'albero delle noci'
+    if not is_artist and artist:
+        clean_art = re.escape(artist.strip())
+        text = re.sub(rf'^{clean_art}\s*[-–—]\s*', '', text, flags=re.IGNORECASE)
+
+    # 8. Collapse multiple spaces
     text = re.sub(r'\s+', ' ', text).strip()
-    return text or raw_hint
+    return text or str(raw_hint)
 
 
 class ConflictCollector:

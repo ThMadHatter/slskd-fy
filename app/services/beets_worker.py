@@ -163,10 +163,32 @@ def run_beets_import_task(
         class NonInteractiveImportSession(ImportSession):
             """
             Subclass of ImportSession for headless execution.
-            Overrides choose_match to return Action.SKIP when manual intervention is required,
-            preventing NotImplementedError from being raised.
+            When search_ids or candidates exist during targeted resolution, applies chosen match.
+            Otherwise returns Action.SKIP to trigger review queue event without raising NotImplementedError.
             """
             def choose_match(self, task):
+                cands = getattr(task, "candidates", None) or []
+                s_ids = getattr(self, "search_ids", None)
+
+                # When search_ids or candidates exist during targeted resolution, apply candidate
+                if s_ids or cands:
+                    selected = None
+                    if s_ids:
+                        target_id = str(s_ids[0])
+                        for cand in cands:
+                            info = getattr(cand, "info", None) or cand
+                            c_id = getattr(info, "album_id", None) or getattr(info, "track_id", None) or getattr(info, "id", None)
+                            if c_id and str(c_id) == target_id:
+                                selected = cand
+                                break
+
+                    if not selected and cands and s_ids:
+                        selected = cands[0]
+
+                    if selected:
+                        task.set_choice(selected)
+                        return Action.APPLY
+
                 return Action.SKIP
 
         # Instantiate NonInteractiveImportSession

@@ -10,9 +10,9 @@ logger = logging.getLogger("track_portal.beets_collector")
 
 def clean_query_hint(raw_hint: str) -> str:
     """
-    Sanitizes search query hints by stripping technical format/uploader noise,
-    release years in brackets/parentheses, and uploader tags (e.g., '(2025) [Flac 24-44] AtM')
-    while preserving clean title/album text for Beets/MusicBrainz lookups.
+    Sanitizes search query hints by stripping technical format noise,
+    leading folder year prefixes, and bracketed descriptors
+    while preserving full artist names (e.g. 'Brunori Sas') and titles.
     Does NOT mutate raw tags on disk.
     """
     if not raw_hint:
@@ -20,14 +20,14 @@ def clean_query_hint(raw_hint: str) -> str:
 
     text = raw_hint
 
-    # 1. Remove bracketed technical/uploader noise like '[Flac 24-44] AtM' or '[WEB FLAC]'
+    # 1. Strip leading year prefix like '2025 - ' or '2024-'
+    text = re.sub(r'^\s*\b(19|20)\d{2}\b\s*[-–—]\s*', '', text)
+
+    # 2. Remove bracketed technical descriptors e.g. '[Flac 24-44]', '[320k]', '[WEB]'
     text = re.sub(r'\[[^\]]*\]', '', text)
 
-    # 2. Remove standalone year patterns like '(2025)' or '(2024)'
-    text = re.sub(r'\(\d{4}\)', '', text)
-
-    # 3. Remove trailing uploader handles / tags (e.g., ' AtM', ' - AtM')
-    text = re.sub(r'\s+[-–—]?\s*[A-Z][a-zA-Z0-9]{1,3}\s*$', '', text)
+    # 3. Remove standalone year patterns in parentheses e.g. '(2025)'
+    text = re.sub(r'\(\s*(19|20)\d{2}\s*\)', '', text)
 
     # 4. Collapse multiple spaces
     text = re.sub(r'\s+', ' ', text).strip()

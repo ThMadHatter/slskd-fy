@@ -4,8 +4,8 @@ from app.services.beets_service import BeetsServiceClient
 
 
 def test_clean_query_hint():
-    raw_1 = "Artist - Album (2025) [Flac 24-44] AtM"
-    assert clean_query_hint(raw_1) == "Artist - Album"
+    raw_1 = "2025 - Brunori Sas - L'Albero Delle Noci (2025) [Flac 24-44]"
+    assert clean_query_hint(raw_1) == "Brunori Sas - L'Albero Delle Noci"
 
     raw_2 = "Artist - Album [WEB FLAC]"
     assert clean_query_hint(raw_2) == "Artist - Album"

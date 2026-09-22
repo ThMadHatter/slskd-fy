@@ -29,6 +29,7 @@ export default function ReviewQueueView() {
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
   const [showDevDiagnostics, setShowDevDiagnostics] = useState<boolean>(false);
+  const [copiedDto, setCopiedDto] = useState<boolean>(false);
   const [migratingDb, setMigratingDb] = useState<boolean>(false);
   const [migrationLog, setMigrationLog] = useState<string | null>(null);
   const [manualSearchQuery, setManualSearchQuery] = useState<string>('');
@@ -121,7 +122,7 @@ export default function ReviewQueueView() {
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto h-[calc(100vh-80px)] flex flex-col gap-4 pb-4 animate-fade-in-up select-none">
+    <div className="w-full max-w-7xl mx-auto flex flex-col gap-6 pb-12 animate-fade-in-up select-none">
 
       {/* Top Banner Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#27272a] pb-4">
@@ -248,10 +249,10 @@ export default function ReviewQueueView() {
             <button
               onClick={() => scanLibrary()}
               disabled={scanning}
-              className="flex items-center gap-2 bg-[#10b981] text-[#0a0a0b] px-4 py-2 font-data-mono text-xs font-bold uppercase tracking-wider transition-all hover:bg-[#10b981]/90 cursor-pointer"
+            className="flex items-center gap-2 bg-[#10b981] text-[#0a0a0b] px-4 py-2 font-data-mono text-xs font-bold uppercase tracking-wider transition-all hover:bg-[#10b981]/90 cursor-pointer disabled:opacity-50"
             >
-              <RefreshCw size={14} />
-              RUN BEETS LIBRARY SCAN
+            {scanning ? <SonicLoader size="small" /> : <RefreshCw size={14} />}
+            {scanning ? 'SCANNING LIBRARY...' : 'RUN BEETS LIBRARY SCAN'}
             </button>
 
             <button
@@ -265,10 +266,10 @@ export default function ReviewQueueView() {
         </div>
       ) : (
         /* Main Linear-Style 2-Column Split View */
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-6 min-h-0 overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
 
           {/* LEFT COLUMN: Queue List (4 cols) */}
-          <div className="md:col-span-4 bg-[#131314] border border-[#27272a] flex flex-col min-h-0">
+          <div className="md:col-span-4 bg-[#131314] border border-[#27272a] flex flex-col">
             {/* Filter Search Input */}
             <div className="p-3 border-b border-[#27272a] bg-[#1c1b1c]">
               <input
@@ -280,8 +281,8 @@ export default function ReviewQueueView() {
               />
             </div>
 
-            {/* Queue Items Scrollable List */}
-            <div className="flex-1 overflow-y-auto divide-y divide-[#27272a]/50">
+            {/* Queue Items List */}
+            <div className="flex-1 divide-y divide-[#27272a]/50 max-h-[700px] overflow-y-auto">
               {filteredItems.map((item) => {
                 const isSelected = item.id === activeItem?.id;
                 return (
@@ -325,7 +326,7 @@ export default function ReviewQueueView() {
 
           {/* RIGHT COLUMN: Review Details Panel (8 cols) */}
           {activeItem && (
-            <div className="md:col-span-8 bg-[#131314] border border-[#27272a] flex flex-col justify-between p-6 min-h-0 overflow-y-auto">
+            <div className="md:col-span-8 bg-[#131314] border border-[#27272a] flex flex-col justify-between p-6">
 
               <div className="flex flex-col gap-6">
 
@@ -424,7 +425,16 @@ export default function ReviewQueueView() {
                   <div className="bg-[#0a0a0b] border border-[#27272a] p-4 font-data-mono text-xs text-[#bbcabf] flex flex-col gap-2">
                     <div className="flex items-center justify-between border-b border-[#27272a] pb-2 text-[#e5e2e3] font-bold">
                       <span>Developer Raw DTO Inspection</span>
-                      <span className="text-[10px] text-[#10b981]">Sanitized Output</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(JSON.stringify(activeItem, null, 2));
+                          setCopiedDto(true);
+                          setTimeout(() => setCopiedDto(false), 2000);
+                        }}
+                        className="bg-[#1c1b1c] hover:bg-[#27272a] text-[#10b981] border border-[#10b981]/40 px-2 py-0.5 text-[10px] font-bold uppercase cursor-pointer"
+                      >
+                        {copiedDto ? 'COPIED TO CLIPBOARD!' : 'COPY DTO'}
+                      </button>
                     </div>
                     <pre className="text-[11px] text-[#10b981] overflow-x-auto max-h-48 p-2 bg-[#131314]">
                       {JSON.stringify(activeItem, null, 2)}
@@ -557,20 +567,57 @@ export default function ReviewQueueView() {
                               </span>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-4 text-xs font-data-mono text-[#bbcabf] ml-6">
-                              <span>Source: <strong className="text-[#10b981]">{cand.source || 'MusicBrainz'}</strong></span>
-                              <span>Artist: <strong className="text-[#e5e2e3]">{cand.artist}</strong></span>
-                              <span>Year: <strong className="text-[#e5e2e3]">{cand.year || 'N/A'}</strong></span>
-                              <span>Tracks: <strong className="text-[#e5e2e3]">{cand.track_count}</strong></span>
-                              {cand.release_id && (
-                                <span className="text-[10px] opacity-70 truncate">
-                                  Release MBID: <a href={cand.url} target="_blank" rel="noreferrer" className="text-[#10b981] underline">{cand.release_id}</a>
-                                </span>
-                              )}
-                              {cand.recording_id && (
-                                <span className="text-[10px] opacity-70 truncate">
-                                  Recording MBID: <a href={cand.url} target="_blank" rel="noreferrer" className="text-[#10b981] underline">{cand.recording_id}</a>
-                                </span>
+                            <div className="flex flex-col gap-2.5 ml-6 pt-1 font-data-mono text-xs">
+                              {/* Metadata Comparison Info */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-[#131314] p-2.5 border border-[#27272a]">
+                                <div>
+                                  <span className="text-[10px] text-[#bbcabf]/60 uppercase block">Official Artist</span>
+                                  <span className={`font-bold ${
+                                    cand.artist !== activeItem.artist ? 'text-[#10b981]' : 'text-[#e5e2e3]'
+                                  }`}>
+                                    {cand.artist}
+                                    {cand.artist !== activeItem.artist && (
+                                      <span className="text-[10px] text-[#fc7c78] font-normal block">
+                                        (Raw: {activeItem.artist})
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+
+                                <div>
+                                  <span className="text-[10px] text-[#bbcabf]/60 uppercase block">Album / Release</span>
+                                  <span className={`font-bold ${
+                                    (cand.album || cand.title) !== activeItem.album ? 'text-[#10b981]' : 'text-[#e5e2e3]'
+                                  }`}>
+                                    {cand.album || cand.title || 'Unknown Album'}
+                                    {(cand.album || cand.title) !== activeItem.album && (
+                                      <span className="text-[10px] text-[#fc7c78] font-normal block">
+                                        (Raw: {activeItem.album || '[Missing]'})
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-4 text-[#bbcabf] text-[11px]">
+                                <span>Source: <strong className="text-[#10b981]">{cand.source || 'MusicBrainz'}</strong></span>
+                                <span>Year: <strong className="text-[#e5e2e3]">{cand.year || 'N/A'}</strong></span>
+                                <span>Tracks: <strong className="text-[#e5e2e3]">{cand.track_count || 1}</strong></span>
+                              </div>
+
+                              {(cand.release_id || cand.recording_id) && (
+                                <div className="flex flex-wrap items-center gap-4 text-[10px] text-[#bbcabf]/70">
+                                  {cand.release_id && (
+                                    <span className="truncate">
+                                      Release MBID: <a href={cand.url} target="_blank" rel="noreferrer" className="text-[#10b981] underline">{cand.release_id}</a>
+                                    </span>
+                                  )}
+                                  {cand.recording_id && (
+                                    <span className="truncate">
+                                      Recording MBID: <a href={cand.url} target="_blank" rel="noreferrer" className="text-[#10b981] underline">{cand.recording_id}</a>
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </div>

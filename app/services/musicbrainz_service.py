@@ -219,10 +219,23 @@ class MusicBrainzService:
 
                 cover_url = f"https://coverartarchive.org/release/{release_id}/front-250" if release_id else ""
 
+                # Extract official artist credit from MusicBrainz record if available
+                official_artist = artist_name
+                artist_credit = rec.get("artist-credit", [])
+                if artist_credit and isinstance(artist_credit, list):
+                    credit_names = []
+                    for credit in artist_credit:
+                        if isinstance(credit, dict):
+                            name = credit.get("name") or credit.get("artist", {}).get("name")
+                            if name:
+                                credit_names.append(name)
+                    if credit_names:
+                        official_artist = " ".join(credit_names)
+
                 results.append({
                     "id": rec.get("id"),
                     "title": rec.get("title"),
-                    "artist": artist_name,
+                    "artist": official_artist,
                     "album": album_name,
                     "year": year,
                     "cover_url": cover_url,

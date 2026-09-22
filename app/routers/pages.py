@@ -1198,12 +1198,17 @@ async def api_beets_fingerprint_scan(
         for idx, rec in enumerate(rec_results[:10]):
             mbid = rec.get("id") or rec.get("release_id")
             score = max(50, 98 - (idx * 4))
+            rec_artist = rec.get("artist") or clean_artist
+            rec_album = rec.get("album") or rec.get("title") or clean_title
+            rec_title = rec.get("title") or clean_title
+
             new_candidates.append({
                 "id": mbid or f"mb_direct_{idx+1}",
                 "source": "AcoustID / Direct MusicBrainz Scan" if fingerprint_str else "Direct MusicBrainz Scan",
                 "candidate_type": item.item_type or "singleton",
-                "artist": rec.get("artist") or clean_artist,
-                "title": rec.get("title") or rec.get("album") or clean_title,
+                "artist": rec_artist,
+                "album": rec_album,
+                "title": rec_title,
                 "year": rec.get("year") or 0,
                 "release_id": rec.get("release_id") or mbid,
                 "recording_id": rec.get("id") or "",
@@ -1576,18 +1581,6 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
                         artist = parsed.get("artist") or "Unknown Artist"
                         track = parsed.get("track") or file
                         album = parsed.get("album") or "Unknown Album"
-                        candidates = [
-                            {
-                                "id": f"scan_cand_{created_review_items+1}",
-                                "title": album,
-                                "artist": artist,
-                                "year": datetime.datetime.utcnow().year,
-                                "format": os.path.splitext(file)[1].lstrip(".").upper(),
-                                "track_count": 1,
-                                "confidence": 70,
-                                "source": "Library Scan Auto-Assessment"
-                            }
-                        ]
                         review_item = BeetsReviewItem(
                             artist=artist,
                             track=track,
@@ -1595,7 +1588,7 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
                             downloaded_path=file_path,
                             confidence_score=70,
                             status="review_required",
-                            candidates_json=json.dumps(candidates)
+                            candidates_json=json.dumps([])
                         )
                         db.add(review_item)
                         created_review_items += 1
@@ -1639,18 +1632,6 @@ def api_beets_seed_test_items(db: Session = Depends(get_db), user: User = Depend
                             ext = os.path.splitext(file)[1].lstrip(".").upper()
                             file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
 
-                            candidates = [
-                                {
-                                    "id": f"real_cand_{len(added_items)+1}",
-                                    "title": album,
-                                    "artist": artist,
-                                    "year": datetime.datetime.utcnow().year,
-                                    "format": ext,
-                                    "track_count": 1,
-                                    "confidence": 75,
-                                    "source": f"Discovered Audio File ({file_size} bytes)"
-                                }
-                            ]
                             item = BeetsReviewItem(
                                 artist=artist,
                                 track=track,
@@ -1658,7 +1639,7 @@ def api_beets_seed_test_items(db: Session = Depends(get_db), user: User = Depend
                                 downloaded_path=file_path,
                                 confidence_score=75,
                                 status="review_required",
-                                candidates_json=json.dumps(candidates)
+                                candidates_json=json.dumps([])
                             )
                             db.add(item)
                             added_items.append(item)

@@ -15,6 +15,7 @@ export interface MatchCandidate {
   source: string;
   candidate_type: 'album' | 'singleton';
   artist: string;
+  album?: string;
   title: string;
   year: number;
   release_id?: string;

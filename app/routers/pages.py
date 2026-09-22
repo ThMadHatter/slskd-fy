@@ -1155,13 +1155,14 @@ async def api_beets_manual_search(
 ):
     """
     Executes a manual MusicBrainz candidate search or direct MBID lookup for a review queue conflict,
-    using Beets metadata plugins (tracks_for_ids, albums_for_ids, item_candidates) and MusicBrainz API.
+    using Beets autotag/importer candidate matching and MusicBrainz API.
     Appends newly discovered candidates to the review item record in SQLite.
     """
     import re
-    import beets.plugins
-    import beets.autotag.hooks as hooks
-    from beets.plugins import metadata_plugins
+    import beets
+    import beets.autotag as autotag
+    import beets.importer as importer
+    import beets.library as library
     from app.models import BeetsReviewItem
     from app.services.beets_collector import clean_query_hint
     from app.services.musicbrainz_service import MusicBrainzService
@@ -1184,24 +1185,31 @@ async def api_beets_manual_search(
     found_candidates = []
     is_mbid = bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', clean_q.strip().lower()))
 
-    # Method 1 & 2: Use Beets metadata_plugins API directly
+    # Method 1 & 2: Use Beets autotag ImportTask API with pre-selected search_ids or text search
     try:
         beets.plugins.load_plugins()
+        target_path = item.downloaded_path if (item.downloaded_path and os.path.exists(item.downloaded_path)) else "/tmp"
+        dummy_item = library.Item(artist=search_artist, album=search_title, title=search_title)
 
-        if is_mbid:
-            mbid = clean_q.strip()
-            if item.item_type == "singleton":
-                infos = list(metadata_plugins.tracks_for_ids([mbid]))
-                for info in infos:
+        if item.item_type == "singleton":
+            task = importer.SingletonImportTask(target_path, dummy_item)
+            task.lookup_candidates(search_ids=[clean_q.strip()] if is_mbid else [])
+            raw_cands = getattr(task, "candidates", []) or []
+            for cand in raw_cands[:10]:
+                cand_info = getattr(cand, "info", None)
+                if cand_info:
+                    dist_val = float(getattr(cand, "distance", 0.5))
+                    ui_score = max(0, min(100, int((1.0 - dist_val) * 100)))
+                    track_id = str(getattr(cand_info, "track_id", clean_q.strip()))
                     found_candidates.append({
-                        "id": getattr(info, "track_id", mbid),
-                        "source": "Beets Metadata Plugin (MBID)",
+                        "id": track_id,
+                        "source": "Beets Candidate Search",
                         "candidate_type": "singleton",
-                        "artist": getattr(info, "artist", search_artist),
-                        "title": getattr(info, "title", search_title),
-                        "year": getattr(info, "year", 0),
-                        "release_id": getattr(info, "album_id", mbid),
-                        "recording_id": getattr(info, "track_id", mbid),
+                        "artist": getattr(cand_info, "artist", search_artist),
+                        "title": getattr(cand_info, "title", search_title),
+                        "year": getattr(cand_info, "year", 0),
+                        "release_id": getattr(cand_info, "album_id", track_id),
+                        "recording_id": track_id,
                         "release_group_id": "",
                         "country": "US",
                         "label": "",
@@ -1209,39 +1217,46 @@ async def api_beets_manual_search(
                         "media": "Digital Media",
                         "format": "FLAC",
                         "track_count": 1,
-                        "ui_similarity_score": 100,
-                        "raw_distance": 0.0,
+                        "ui_similarity_score": ui_score,
+                        "raw_distance": dist_val,
                         "penalties": {},
-                        "mbid": mbid,
-                        "url": f"https://musicbrainz.org/recording/{mbid}"
+                        "mbid": track_id,
+                        "url": f"https://musicbrainz.org/recording/{track_id}"
                     })
-            else:
-                infos = list(metadata_plugins.albums_for_ids([mbid]))
-                for info in infos:
+        else:
+            task = importer.ImportTask(target_path, [target_path], [dummy_item])
+            task.lookup_candidates(search_ids=[clean_q.strip()] if is_mbid else [])
+            raw_cands = getattr(task, "candidates", []) or []
+            for cand in raw_cands[:10]:
+                cand_info = getattr(cand, "info", None)
+                if cand_info:
+                    dist_val = float(getattr(cand, "distance", 0.5))
+                    ui_score = max(0, min(100, int((1.0 - dist_val) * 100)))
+                    album_id = str(getattr(cand_info, "album_id", clean_q.strip()))
                     found_candidates.append({
-                        "id": getattr(info, "album_id", mbid),
-                        "source": "Beets Metadata Plugin (MBID)",
+                        "id": album_id,
+                        "source": "Beets Candidate Search",
                         "candidate_type": "album",
-                        "artist": getattr(info, "artist", search_artist),
-                        "title": getattr(info, "album", search_title),
-                        "year": getattr(info, "year", 0),
-                        "release_id": getattr(info, "album_id", mbid),
+                        "artist": getattr(cand_info, "artist", search_artist),
+                        "title": getattr(cand_info, "album", search_title),
+                        "year": getattr(cand_info, "year", 0),
+                        "release_id": album_id,
                         "recording_id": "",
-                        "release_group_id": getattr(info, "releasegroup_id", ""),
-                        "country": getattr(info, "country", "US"),
-                        "label": getattr(info, "label", ""),
-                        "catalog_num": getattr(info, "catalognum", ""),
-                        "media": getattr(info, "media", "Digital Media"),
+                        "release_group_id": getattr(cand_info, "releasegroup_id", ""),
+                        "country": getattr(cand_info, "country", "US"),
+                        "label": getattr(cand_info, "label", ""),
+                        "catalog_num": getattr(cand_info, "catalognum", ""),
+                        "media": getattr(cand_info, "media", "Digital Media"),
                         "format": "FLAC",
-                        "track_count": len(getattr(info, "tracks", [])) or 1,
-                        "ui_similarity_score": 100,
-                        "raw_distance": 0.0,
+                        "track_count": len(getattr(cand_info, "tracks", [])) or 1,
+                        "ui_similarity_score": ui_score,
+                        "raw_distance": dist_val,
                         "penalties": {},
-                        "mbid": mbid,
-                        "url": f"https://musicbrainz.org/release/{mbid}"
+                        "mbid": album_id,
+                        "url": f"https://musicbrainz.org/release/{album_id}"
                     })
     except Exception as e:
-        logger.warning(f"Beets metadata_plugins query warning: {e}")
+        logger.warning(f"Beets ImportTask candidate lookup warning: {e}", exc_info=True)
 
     # Fallback Method 3: Direct MusicBrainzAPI / MusicBrainzService lookups
     if not found_candidates:

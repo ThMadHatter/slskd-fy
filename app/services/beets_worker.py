@@ -163,14 +163,21 @@ def run_beets_import_task(
         class NonInteractiveImportSession(ImportSession):
             """
             Subclass of ImportSession for headless execution.
-            When search_ids or candidates exist during targeted resolution, applies chosen match.
+            When search_ids or candidates exist during targeted resolution, returns the chosen candidate object.
             Otherwise returns Action.SKIP to trigger review queue event without raising NotImplementedError.
             """
             def choose_match(self, task):
-                cands = getattr(task, "candidates", None) or []
                 s_ids = getattr(self, "search_ids", None)
 
-                # When search_ids or candidates exist during targeted resolution, apply candidate
+                if not getattr(task, "candidates", None) and s_ids:
+                    try:
+                        task.lookup_candidates(search_ids=s_ids)
+                    except Exception as err:
+                        logger.warning(f"Error looking up candidates for search_ids {s_ids}: {err}")
+
+                cands = getattr(task, "candidates", None) or []
+
+                # When search_ids or candidates exist during targeted resolution, return candidate match
                 if s_ids or cands:
                     selected = None
                     if s_ids:
@@ -186,8 +193,7 @@ def run_beets_import_task(
                         selected = cands[0]
 
                     if selected:
-                        task.set_choice(selected)
-                        return Action.APPLY
+                        return selected
 
                 return Action.SKIP
 

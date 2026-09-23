@@ -180,8 +180,8 @@ class MusicBrainzService:
         cache_key = f"mb:rec_search:{clean_artist}:{artist_mbid or 'none'}:{clean_query}"
 
         cached = CacheService.get(db, cache_key, "track")
-        if cached is not None:
-            logger.info(f"MusicBrainz recordings cache hit for '{artist_name} - {query}'")
+        if cached is not None and isinstance(cached, list) and len(cached) > 0:
+            logger.info(f"MusicBrainz recordings cache hit for '{artist_name} - {query}' ({len(cached)} items)")
             return cached
 
         logger.info(f"MusicBrainz recordings cache miss for '{artist_name} - {query}'. Querying MusicBrainz...")
@@ -259,8 +259,9 @@ class MusicBrainzService:
                     "release_id": release_id
                 })
 
-        # Cache results for 1 day
-        CacheService.set(db, cache_key, results, "track", ttl_seconds=86400)
+        # Cache non-empty results for 1 day
+        if results and len(results) > 0:
+            CacheService.set(db, cache_key, results, "track", ttl_seconds=86400)
         return results
 
     @classmethod

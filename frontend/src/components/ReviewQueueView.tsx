@@ -569,7 +569,7 @@ export default function ReviewQueueView() {
 
                             <div className="flex flex-col gap-2.5 ml-6 pt-1 font-data-mono text-xs">
                               {/* Metadata Comparison Info */}
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-[#131314] p-2.5 border border-[#27272a]">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-[#131314] p-2.5 border border-[#27272a]">
                                 <div>
                                   <span className="text-[10px] text-[#bbcabf]/60 uppercase block">Official Artist</span>
                                   <span className={`font-bold ${
@@ -587,12 +587,26 @@ export default function ReviewQueueView() {
                                 <div>
                                   <span className="text-[10px] text-[#bbcabf]/60 uppercase block">Album / Release</span>
                                   <span className={`font-bold ${
-                                    (cand.album || cand.title) !== activeItem.album ? 'text-[#10b981]' : 'text-[#e5e2e3]'
+                                    cand.album && cand.album !== activeItem.album ? 'text-[#10b981]' : 'text-[#e5e2e3]'
                                   }`}>
                                     {cand.album || cand.title || 'Unknown Album'}
-                                    {(cand.album || cand.title) !== activeItem.album && (
+                                    {cand.album && cand.album !== activeItem.album && (
                                       <span className="text-[10px] text-[#fc7c78] font-normal block">
                                         (Raw: {activeItem.album || '[Missing]'})
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+
+                                <div>
+                                  <span className="text-[10px] text-[#bbcabf]/60 uppercase block">Track Title</span>
+                                  <span className={`font-bold ${
+                                    cand.title !== activeItem.track ? 'text-[#10b981]' : 'text-[#e5e2e3]'
+                                  }`}>
+                                    {cand.title}
+                                    {cand.title !== activeItem.track && (
+                                      <span className="text-[10px] text-[#fc7c78] font-normal block truncate">
+                                        (Raw: {activeItem.track})
                                       </span>
                                     )}
                                   </span>

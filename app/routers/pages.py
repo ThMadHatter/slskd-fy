@@ -1288,8 +1288,8 @@ async def api_beets_manual_search(
         raise HTTPException(status_code=400, detail="Search query or MusicBrainz MBID required")
 
     clean_q = clean_query_hint(query_str)
-    search_artist = clean_query_hint(payload.artist or item.artist)
-    search_title = clean_query_hint(payload.album or payload.track or item.track or item.album)
+    search_artist = clean_query_hint(payload.artist or item.artist, is_artist=True)
+    search_title = clean_query_hint(payload.album or payload.track or item.track or item.album, artist=search_artist)
 
     found_candidates = []
     is_mbid = bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', clean_q.strip().lower()))

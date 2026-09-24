@@ -180,8 +180,8 @@ class MusicBrainzService:
         cache_key = f"mb:rec_search:{clean_artist}:{artist_mbid or 'none'}:{clean_query}"
 
         cached = CacheService.get(db, cache_key, "track")
-        if cached is not None:
-            logger.info(f"MusicBrainz recordings cache hit for '{artist_name} - {query}'")
+        if cached is not None and isinstance(cached, list) and len(cached) > 0:
+            logger.info(f"MusicBrainz recordings cache hit for '{artist_name} - {query}' ({len(cached)} items)")
             return cached
 
         logger.info(f"MusicBrainz recordings cache miss for '{artist_name} - {query}'. Querying MusicBrainz...")
@@ -199,6 +199,23 @@ class MusicBrainzService:
         }
 
         data = await cls._make_request(url, params)
+
+        # Fallback Query if strict search yielded 0 recordings
+        if not data or not data.get("recordings"):
+            clean_q = re.sub(r'\[[^\]]*\]', '', query)
+            clean_q = re.sub(r'\(\s*(19|20)\d{2}\s*\)', '', clean_q)
+            clean_q = re.sub(r'\s+[A-Za-z0-9]{2,4}\s*$', '', clean_q).strip()
+
+            if clean_q and clean_q != query:
+                logger.info(f"MusicBrainz primary query yielded 0 results. Retrying with broad fallback query for '{artist_name} - {clean_q}'")
+                fallback_lucene = f'artist:"{artist_name}" AND recording:({clean_q})'
+                data = await cls._make_request(url, {"query": fallback_lucene, "fmt": "json", "limit": 15})
+
+            if not data or not data.get("recordings"):
+                broad_lucene = f"{artist_name} {clean_q or query}".strip()
+                logger.info(f"MusicBrainz secondary query yielded 0 results. Retrying with broad string query '{broad_lucene}'")
+                data = await cls._make_request(url, {"query": broad_lucene, "fmt": "json", "limit": 15})
+
         results = []
         if data and "recordings" in data:
             for rec in data["recordings"]:
@@ -219,18 +236,32 @@ class MusicBrainzService:
 
                 cover_url = f"https://coverartarchive.org/release/{release_id}/front-250" if release_id else ""
 
+                # Extract official artist credit from MusicBrainz record if available
+                official_artist = artist_name
+                artist_credit = rec.get("artist-credit", [])
+                if artist_credit and isinstance(artist_credit, list):
+                    credit_names = []
+                    for credit in artist_credit:
+                        if isinstance(credit, dict):
+                            name = credit.get("name") or credit.get("artist", {}).get("name")
+                            if name:
+                                credit_names.append(name)
+                    if credit_names:
+                        official_artist = " ".join(credit_names)
+
                 results.append({
                     "id": rec.get("id"),
                     "title": rec.get("title"),
-                    "artist": artist_name,
+                    "artist": official_artist,
                     "album": album_name,
                     "year": year,
                     "cover_url": cover_url,
                     "release_id": release_id
                 })
 
-        # Cache results for 1 day
-        CacheService.set(db, cache_key, results, "track", ttl_seconds=86400)
+        # Cache non-empty results for 1 day
+        if results and len(results) > 0:
+            CacheService.set(db, cache_key, results, "track", ttl_seconds=86400)
         return results
 
     @classmethod

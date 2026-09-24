@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useReviewQueueStore } from '../store/reviewQueueStore';
 import { MatchCandidate } from '../types/beets';
-import { Check, Disc, HelpCircle, ArrowRight, ShieldAlert, Sparkles, X, ChevronRight, CornerDownLeft, RefreshCw, Terminal, PlusCircle, Database } from 'lucide-react';
+import { Check, Disc, HelpCircle, ArrowRight, ShieldAlert, Sparkles, X, ChevronRight, CornerDownLeft, RefreshCw, Terminal, PlusCircle, Database, FileText, Code2, Tag, Layers } from 'lucide-react';
 import Button from './ui/Button';
 import Card from './ui/Card';
 import SonicLoader from './ui/SonicLoader';
@@ -28,6 +28,14 @@ export default function ReviewQueueView() {
 
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
+  const [showDevDiagnostics, setShowDevDiagnostics] = useState<boolean>(false);
+  const [copiedDto, setCopiedDto] = useState<boolean>(false);
+  const [migratingDb, setMigratingDb] = useState<boolean>(false);
+  const [migrationLog, setMigrationLog] = useState<string | null>(null);
+  const [manualSearchQuery, setManualSearchQuery] = useState<string>('');
+  const [searchingManual, setSearchingManual] = useState<boolean>(false);
+  const [manualSearchError, setManualSearchError] = useState<string | null>(null);
+  const [scanningChroma, setScanningChroma] = useState<boolean>(false);
 
   useEffect(() => {
     fetchQueue();
@@ -48,9 +56,7 @@ export default function ReviewQueueView() {
   // Keyboard navigation hotkeys (Linear issue workflow style)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
-
       if (!activeItem) return;
 
       if (e.key === 'a' || e.key === 'A') {
@@ -116,7 +122,7 @@ export default function ReviewQueueView() {
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto h-[calc(100vh-80px)] flex flex-col gap-4 pb-4 animate-fade-in-up select-none">
+    <div className="w-full max-w-7xl mx-auto flex flex-col gap-6 pb-12 animate-fade-in-up select-none">
 
       {/* Top Banner Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#27272a] pb-4">
@@ -142,6 +148,32 @@ export default function ReviewQueueView() {
         {/* Action Controls & Commands */}
         <div className="flex items-center gap-3">
           <button
+            onClick={async () => {
+              setMigratingDb(true);
+              setMigrationLog(null);
+              try {
+                const res = await fetch('/api/beets/migrate-database', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                  setMigrationLog(data.logs || 'Database repair executed.');
+                  fetchQueue();
+                } else {
+                  setMigrationLog(`Migration error: ${data.message || 'Unknown error'}`);
+                }
+              } catch (e: any) {
+                setMigrationLog(`Failed to connect to backend: ${e.message}`);
+              } finally {
+                setMigratingDb(false);
+              }
+            }}
+            disabled={migratingDb}
+            className="flex items-center gap-2 bg-[#10b981]/20 hover:bg-[#10b981]/30 text-[#10b981] border border-[#10b981]/40 px-3 py-1.5 font-data-mono text-xs font-bold transition-all cursor-pointer disabled:opacity-50 uppercase"
+          >
+            {migratingDb ? <SonicLoader size="small" /> : <Database size={14} />}
+            {migratingDb ? 'MIGRATING...' : 'MIGRATE SCHEMA'}
+          </button>
+
+          <button
             onClick={() => scanLibrary()}
             disabled={scanning}
             className="flex items-center gap-2 bg-[#10b981]/20 hover:bg-[#10b981]/30 text-[#10b981] border border-[#10b981]/40 px-3 py-1.5 font-data-mono text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
@@ -159,6 +191,17 @@ export default function ReviewQueueView() {
           </button>
         </div>
       </div>
+
+      {/* Migration Log Banner */}
+      {migrationLog && (
+        <div className="bg-[#0a0a0b] border border-[#10b981]/40 p-3 font-data-mono text-xs text-[#10b981] flex flex-col gap-1">
+          <div className="flex items-center justify-between border-b border-[#27272a] pb-1 font-bold">
+            <span>Database Schema Auto-Healing Output</span>
+            <button onClick={() => setMigrationLog(null)} className="text-[10px] text-[#bbcabf] hover:text-[#e5e2e3]">CLOSE</button>
+          </div>
+          <pre className="text-[11px] text-[#bbcabf] whitespace-pre-wrap">{migrationLog}</pre>
+        </div>
+      )}
 
       {/* Embedded Beets Status Engine Bar */}
       {status && (
@@ -206,10 +249,10 @@ export default function ReviewQueueView() {
             <button
               onClick={() => scanLibrary()}
               disabled={scanning}
-              className="flex items-center gap-2 bg-[#10b981] text-[#0a0a0b] px-4 py-2 font-data-mono text-xs font-bold uppercase tracking-wider transition-all hover:bg-[#10b981]/90 cursor-pointer"
+            className="flex items-center gap-2 bg-[#10b981] text-[#0a0a0b] px-4 py-2 font-data-mono text-xs font-bold uppercase tracking-wider transition-all hover:bg-[#10b981]/90 cursor-pointer disabled:opacity-50"
             >
-              <RefreshCw size={14} />
-              RUN BEETS LIBRARY SCAN
+            {scanning ? <SonicLoader size="small" /> : <RefreshCw size={14} />}
+            {scanning ? 'SCANNING LIBRARY...' : 'RUN BEETS LIBRARY SCAN'}
             </button>
 
             <button
@@ -223,10 +266,10 @@ export default function ReviewQueueView() {
         </div>
       ) : (
         /* Main Linear-Style 2-Column Split View */
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-6 min-h-0 overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
 
           {/* LEFT COLUMN: Queue List (4 cols) */}
-          <div className="md:col-span-4 bg-[#131314] border border-[#27272a] flex flex-col min-h-0">
+          <div className="md:col-span-4 bg-[#131314] border border-[#27272a] flex flex-col">
             {/* Filter Search Input */}
             <div className="p-3 border-b border-[#27272a] bg-[#1c1b1c]">
               <input
@@ -238,8 +281,8 @@ export default function ReviewQueueView() {
               />
             </div>
 
-            {/* Queue Items Scrollable List */}
-            <div className="flex-1 overflow-y-auto divide-y divide-[#27272a]/50">
+            {/* Queue Items List */}
+            <div className="flex-1 divide-y divide-[#27272a]/50 max-h-[700px] overflow-y-auto">
               {filteredItems.map((item) => {
                 const isSelected = item.id === activeItem?.id;
                 return (
@@ -253,9 +296,14 @@ export default function ReviewQueueView() {
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-label-caps text-[10px] text-[#bbcabf]/70 truncate max-w-[180px]">
-                        {item.artist}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-label-caps text-[10px] text-[#bbcabf]/70 truncate max-w-[140px]">
+                          {item.artist}
+                        </span>
+                        <span className="bg-[#1c1b1c] text-[#10b981] border border-[#27272a] font-data-mono text-[9px] px-1 uppercase font-bold">
+                          {item.item_type || 'ALBUM'}
+                        </span>
+                      </div>
                       <span className="bg-[#fc7c78]/15 text-[#fc7c78] border border-[#fc7c78]/30 font-data-mono text-[10px] px-1.5 py-0.5 font-bold">
                         {item.confidence_score}% Match
                       </span>
@@ -278,16 +326,21 @@ export default function ReviewQueueView() {
 
           {/* RIGHT COLUMN: Review Details Panel (8 cols) */}
           {activeItem && (
-            <div className="md:col-span-8 bg-[#131314] border border-[#27272a] flex flex-col justify-between p-6 min-h-0 overflow-y-auto">
+            <div className="md:col-span-8 bg-[#131314] border border-[#27272a] flex flex-col justify-between p-6">
 
               <div className="flex flex-col gap-6">
 
                 {/* Active Item Title Header */}
                 <div className="flex flex-col gap-1 border-b border-[#27272a] pb-4">
                   <div className="flex items-center justify-between">
-                    <span className="font-label-caps text-xs text-[#10b981] uppercase font-bold tracking-widest">
-                      AMBIGUOUS METADATA RESOLUTION
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-label-caps text-xs text-[#10b981] uppercase font-bold tracking-widest">
+                        AMBIGUOUS METADATA RESOLUTION
+                      </span>
+                      <span className="bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/40 font-data-mono text-[10px] px-2 py-0.5 font-bold uppercase">
+                        TASK TYPE: {activeItem.item_type || 'ALBUM'}
+                      </span>
+                    </div>
                     <span className="font-data-mono text-xs text-[#bbcabf]/50">
                       ID: #{activeItem.id}
                     </span>
@@ -300,37 +353,50 @@ export default function ReviewQueueView() {
                   </p>
                 </div>
 
-                {/* Side-by-side or comparison grid */}
+                {/* Provenance & Confidence Assessment Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                  {/* Card 1: Original Downloaded File */}
+                  {/* Provenance Card */}
                   <div className="border border-[#27272a] bg-[#0a0a0b] p-4 flex flex-col gap-3">
                     <div className="flex items-center justify-between border-b border-[#27272a] pb-2">
-                      <span className="font-label-caps text-xs text-[#bbcabf] uppercase font-bold">
-                        Raw Download Tags
+                      <span className="font-label-caps text-xs text-[#bbcabf] uppercase font-bold flex items-center gap-1.5">
+                        <Tag size={12} className="text-[#10b981]" />
+                        Metadata Provenance
                       </span>
                       <span className="bg-[#201f20] text-[#bbcabf] font-data-mono text-[10px] px-1.5 py-0.5 border border-[#27272a]">
-                        Original File
+                        Source Layers
                       </span>
                     </div>
 
                     <div className="flex flex-col gap-2 font-data-mono text-xs">
                       <div>
-                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Artist</span>
-                        <span className="text-[#e5e2e3] font-bold">{activeItem.artist}</span>
+                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Embedded Audio Tags</span>
+                        <span className="text-[#e5e2e3] font-bold">
+                          {activeItem.provenance?.embedded_tags?.artist || activeItem.artist} — {activeItem.provenance?.embedded_tags?.album || activeItem.album || 'No Album Tag'}
+                        </span>
                       </div>
                       <div>
-                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Track</span>
-                        <span className="text-[#e5e2e3] font-bold">{activeItem.track}</span>
+                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Filename Inferred</span>
+                        <span className="text-[#e5e2e3]">
+                          {activeItem.provenance?.filename_inferred?.artist || activeItem.artist} — {activeItem.provenance?.filename_inferred?.track || activeItem.track}
+                        </span>
                       </div>
                       <div>
-                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Album</span>
-                        <span className="text-[#e5e2e3] font-bold">{activeItem.album || 'Unknown'}</span>
+                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Parent Directory Inferred</span>
+                        <span className="text-[#bbcabf]">
+                          {activeItem.provenance?.parent_dir_inferred?.album || 'None'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[#bbcabf]/60 block text-[10px] uppercase">Technical Properties</span>
+                        <span className="text-[#10b981] font-bold">
+                          {activeItem.provenance?.technical_props?.format || 'FLAC'}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Card 2: Confidence Evaluation */}
+                  {/* Autotag Assessment Card */}
                   <div className="border border-[#27272a] bg-[#0a0a0b] p-4 flex flex-col gap-3">
                     <div className="flex items-center justify-between border-b border-[#27272a] pb-2">
                       <span className="font-label-caps text-xs text-[#bbcabf] uppercase font-bold">
@@ -342,9 +408,117 @@ export default function ReviewQueueView() {
                     </div>
 
                     <p className="font-data-mono text-xs text-[#bbcabf] leading-relaxed">
-                      Beets detected multiple candidate releases with sub-threshold similarity scores. Manual triage is required to confirm the canonical MusicBrainz release.
+                      {activeItem.recommendation || "Beets autotagger evaluated candidates with sub-threshold similarity scores. Manual triage is required."}
                     </p>
+
+                    <button
+                      onClick={() => setShowDevDiagnostics(!showDevDiagnostics)}
+                      className="text-[11px] font-data-mono text-[#10b981] flex items-center gap-1 hover:underline cursor-pointer mt-auto pt-2"
+                    >
+                      <Code2 size={12} /> {showDevDiagnostics ? 'Hide Dev Diagnostics' : 'Show Dev Diagnostics & Raw DTO'}
+                    </button>
                   </div>
+                </div>
+
+                {/* Dev Diagnostics Drawer */}
+                {showDevDiagnostics && (
+                  <div className="bg-[#0a0a0b] border border-[#27272a] p-4 font-data-mono text-xs text-[#bbcabf] flex flex-col gap-2">
+                    <div className="flex items-center justify-between border-b border-[#27272a] pb-2 text-[#e5e2e3] font-bold">
+                      <span>Developer Raw DTO Inspection</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(JSON.stringify(activeItem, null, 2));
+                          setCopiedDto(true);
+                          setTimeout(() => setCopiedDto(false), 2000);
+                        }}
+                        className="bg-[#1c1b1c] hover:bg-[#27272a] text-[#10b981] border border-[#10b981]/40 px-2 py-0.5 text-[10px] font-bold uppercase cursor-pointer"
+                      >
+                        {copiedDto ? 'COPIED TO CLIPBOARD!' : 'COPY DTO'}
+                      </button>
+                    </div>
+                    <pre className="text-[11px] text-[#10b981] overflow-x-auto max-h-48 p-2 bg-[#131314]">
+                      {JSON.stringify(activeItem, null, 2)}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Manual MusicBrainz Search / MBID Lookup Bar */}
+                <div className="border border-[#27272a] bg-[#0a0a0b] p-4 flex flex-col gap-2">
+                  <span className="font-label-caps text-xs text-[#10b981] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <Disc size={14} />
+                    Manual Track Assignment / MusicBrainz MBID Pre-Selection
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter MusicBrainz Recording/Release MBID or Search Query (e.g. e165b279-15eb-442f...)"
+                      value={manualSearchQuery}
+                      onChange={(e) => setManualSearchQuery(e.target.value)}
+                      className="flex-1 bg-[#131314] border border-[#27272a] text-xs font-data-mono text-[#e5e2e3] px-3 py-2 focus:border-[#10b981] focus:outline-none"
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!manualSearchQuery.trim() || !activeItem) return;
+                        setSearchingManual(true);
+                        setManualSearchError(null);
+                        try {
+                          const res = await fetch(`/api/beets/review-queue/${activeItem.id}/search`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ query: manualSearchQuery }),
+                          });
+                          const data = await res.json();
+                          if (res.ok) {
+                            setManualSearchQuery('');
+                            fetchQueue();
+                          } else {
+                            setManualSearchError(data.detail || 'Manual search query failed.');
+                          }
+                        } catch (e: any) {
+                          setManualSearchError(e.message || 'Error executing manual search.');
+                        } finally {
+                          setSearchingManual(false);
+                        }
+                      }}
+                      disabled={searchingManual || !manualSearchQuery.trim()}
+                      className="bg-[#10b981] hover:bg-[#10b981]/90 text-[#0a0a0b] font-data-mono text-xs font-bold px-4 py-2 uppercase cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      {searchingManual ? <SonicLoader size="small" /> : <ArrowRight size={14} />}
+                      SEARCH / ASSIGN
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        if (!activeItem) return;
+                        setScanningChroma(true);
+                        setManualSearchError(null);
+                        try {
+                          const res = await fetch(`/api/beets/review-queue/${activeItem.id}/fingerprint`, {
+                            method: 'POST',
+                          });
+                          const data = await res.json();
+                          if (res.ok) {
+                            fetchQueue();
+                          } else {
+                            setManualSearchError(data.detail || 'Chroma fingerprint scan failed.');
+                          }
+                        } catch (e: any) {
+                          setManualSearchError(e.message || 'Error scanning Chroma fingerprint.');
+                        } finally {
+                          setScanningChroma(false);
+                        }
+                      }}
+                      disabled={scanningChroma || !activeItem}
+                      className="bg-[#1c1b1c] hover:bg-[#27272a] text-[#10b981] border border-[#10b981]/40 font-data-mono text-xs font-bold px-3 py-2 uppercase cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                      title="Generates AcoustID fingerprint via fpcalc and matches direct MusicBrainz recording/release candidates"
+                    >
+                      {scanningChroma ? <SonicLoader size="small" /> : <Sparkles size={14} />}
+                      TRIGGER CHROMA SCAN
+                    </button>
+                  </div>
+                  {manualSearchError && (
+                    <span className="text-[10px] font-data-mono text-[#fc7c78]">{manualSearchError}</span>
+                  )}
                 </div>
 
                 {/* Candidate Matches Selector list */}
@@ -353,55 +527,118 @@ export default function ReviewQueueView() {
                     Select Best Beets Match Candidate ({activeItem.candidates.length} Found)
                   </h4>
 
-                  <div className="flex flex-col gap-2">
-                    {activeItem.candidates.map((cand) => {
-                      const isCandSelected = cand.id === selectedCandidateId;
-                      return (
-                        <div
-                          key={cand.id}
-                          onClick={() => setSelectedCandidateId(cand.id)}
-                          className={`p-4 border cursor-pointer transition-all flex flex-col gap-2 ${
-                            isCandSelected
-                              ? 'bg-[#1c1b1c] border-[#10b981] shadow-lg'
-                              : 'bg-[#0a0a0b] border-[#27272a] hover:border-[#bbcabf]/50'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                                isCandSelected ? 'border-[#10b981] bg-[#10b981]' : 'border-[#3f3f46]'
-                              }`}>
-                                {isCandSelected && <div className="w-1.5 h-1.5 rounded-full bg-[#0a0a0b]" />}
+                  {activeItem.candidates.length === 0 ? (
+                    <div className="p-6 bg-[#0a0a0b] border border-[#27272a] text-center font-data-mono text-xs text-[#bbcabf]">
+                      No external MusicBrainz candidate matches returned for this item. You may keep raw original tags or skip item.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {activeItem.candidates.map((cand) => {
+                        const isCandSelected = cand.id === selectedCandidateId;
+                        const score = cand.ui_similarity_score ?? cand.confidence ?? 70;
+                        return (
+                          <div
+                            key={cand.id}
+                            onClick={() => setSelectedCandidateId(cand.id)}
+                            className={`p-4 border cursor-pointer transition-all flex flex-col gap-2 ${
+                              isCandSelected
+                                ? 'bg-[#1c1b1c] border-[#10b981] shadow-lg'
+                                : 'bg-[#0a0a0b] border-[#27272a] hover:border-[#bbcabf]/50'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                  isCandSelected ? 'border-[#10b981] bg-[#10b981]' : 'border-[#3f3f46]'
+                                }`}>
+                                  {isCandSelected && <div className="w-1.5 h-1.5 rounded-full bg-[#0a0a0b]" />}
+                                </div>
+                                <span className="font-body-md font-bold text-[#e5e2e3]">
+                                  {cand.title}
+                                </span>
                               </div>
-                              <span className="font-body-md font-bold text-[#e5e2e3]">
-                                {cand.title}
+
+                              <span className={`font-data-mono text-xs font-bold px-2 py-0.5 ${
+                                score >= 85
+                                  ? 'bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/40'
+                                  : 'bg-[#fc7c78]/20 text-[#fc7c78] border border-[#fc7c78]/40'
+                              }`}>
+                                {score}% Match
                               </span>
                             </div>
 
-                            <span className={`font-data-mono text-xs font-bold px-2 py-0.5 ${
-                              cand.confidence >= 85
-                                ? 'bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/40'
-                                : 'bg-[#fc7c78]/20 text-[#fc7c78] border border-[#fc7c78]/40'
-                            }`}>
-                              {cand.confidence}% Match
-                            </span>
-                          </div>
+                            <div className="flex flex-col gap-2.5 ml-6 pt-1 font-data-mono text-xs">
+                              {/* Metadata Comparison Info */}
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-[#131314] p-2.5 border border-[#27272a]">
+                                <div>
+                                  <span className="text-[10px] text-[#bbcabf]/60 uppercase block">Official Artist</span>
+                                  <span className={`font-bold ${
+                                    cand.artist !== activeItem.artist ? 'text-[#10b981]' : 'text-[#e5e2e3]'
+                                  }`}>
+                                    {cand.artist}
+                                    {cand.artist !== activeItem.artist && (
+                                      <span className="text-[10px] text-[#fc7c78] font-normal block">
+                                        (Raw: {activeItem.artist})
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
 
-                          <div className="flex flex-wrap items-center gap-4 text-xs font-data-mono text-[#bbcabf] ml-6">
-                            <span>Artist: <strong className="text-[#e5e2e3]">{cand.artist}</strong></span>
-                            <span>Year: <strong className="text-[#e5e2e3]">{cand.year}</strong></span>
-                            <span>Format: <strong className="text-[#10b981]">{cand.format}</strong></span>
-                            <span>Tracks: <strong className="text-[#e5e2e3]">{cand.track_count}</strong></span>
-                            {cand.mbid && (
-                              <span className="text-[10px] opacity-60 truncate">
-                                MBID: {cand.mbid}
-                              </span>
-                            )}
+                                <div>
+                                  <span className="text-[10px] text-[#bbcabf]/60 uppercase block">Album / Release</span>
+                                  <span className={`font-bold ${
+                                    cand.album && cand.album !== activeItem.album ? 'text-[#10b981]' : 'text-[#e5e2e3]'
+                                  }`}>
+                                    {cand.album || cand.title || 'Unknown Album'}
+                                    {cand.album && cand.album !== activeItem.album && (
+                                      <span className="text-[10px] text-[#fc7c78] font-normal block">
+                                        (Raw: {activeItem.album || '[Missing]'})
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+
+                                <div>
+                                  <span className="text-[10px] text-[#bbcabf]/60 uppercase block">Track Title</span>
+                                  <span className={`font-bold ${
+                                    cand.title !== activeItem.track ? 'text-[#10b981]' : 'text-[#e5e2e3]'
+                                  }`}>
+                                    {cand.title}
+                                    {cand.title !== activeItem.track && (
+                                      <span className="text-[10px] text-[#fc7c78] font-normal block truncate">
+                                        (Raw: {activeItem.track})
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-4 text-[#bbcabf] text-[11px]">
+                                <span>Source: <strong className="text-[#10b981]">{cand.source || 'MusicBrainz'}</strong></span>
+                                <span>Year: <strong className="text-[#e5e2e3]">{cand.year || 'N/A'}</strong></span>
+                                <span>Tracks: <strong className="text-[#e5e2e3]">{cand.track_count || 1}</strong></span>
+                              </div>
+
+                              {(cand.release_id || cand.recording_id) && (
+                                <div className="flex flex-wrap items-center gap-4 text-[10px] text-[#bbcabf]/70">
+                                  {cand.release_id && (
+                                    <span className="truncate">
+                                      Release MBID: <a href={cand.url} target="_blank" rel="noreferrer" className="text-[#10b981] underline">{cand.release_id}</a>
+                                    </span>
+                                  )}
+                                  {cand.recording_id && (
+                                    <span className="truncate">
+                                      Recording MBID: <a href={cand.url} target="_blank" rel="noreferrer" className="text-[#10b981] underline">{cand.recording_id}</a>
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 

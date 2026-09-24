@@ -882,9 +882,193 @@ def api_get_version(user: User = Depends(get_current_user)):
         "beets_version": "1.6.0"
     })
 
+class BeetsConfigSaveRequest(BaseModel):
+    yaml_text: str
+
+class BeetsImportRequest(BaseModel):
+    source_path: str
+    search_ids: Optional[List[str]] = None
+
+class BeetsManualSearchRequest(BaseModel):
+    query: str
+    artist: Optional[str] = None
+    album: Optional[str] = None
+    track: Optional[str] = None
+    mbid: Optional[str] = None
+
 class BeetsReviewActionRequest(BaseModel):
-    action: str  # accept, select_candidate, keep_original, skip
+    action: str  # accept, select_candidate, keep_original, skip, ignore, retry
     candidate_id: Optional[str] = None
+    candidate_mbid: Optional[str] = None
+
+@router.get("/api/beets/config", response_class=JSONResponse)
+def api_get_beets_config(user: User = Depends(get_current_user)):
+    """
+    Returns the app-dedicated Beets YAML configuration text and effective settings metadata.
+    """
+    from app.services.beets_config_service import BeetsConfigService
+    path = BeetsConfigService.resolve_config_path()
+    raw_yaml = BeetsConfigService.load_raw_yaml(path)
+    is_valid, err, parsed = BeetsConfigService.validate_beets_structure(raw_yaml)
+    effective = BeetsConfigService.compute_effective_config(parsed) if is_valid else {}
+    configured_plugins = BeetsConfigService.extract_plugins_list(raw_yaml)
+
+    loaded_plugins = configured_plugins
+    try:
+        from beets.plugins import find_plugins
+        plugins_obj = find_plugins()
+        if plugins_obj:
+            loaded_plugins = [p.name for p in plugins_obj]
+    except Exception:
+        pass
+
+    return JSONResponse(content={
+        "config_path": path,
+        "yaml_text": raw_yaml,
+        "is_valid": is_valid,
+        "error_message": err,
+        "effective_config": effective,
+        "configured_plugins": configured_plugins,
+        "loaded_plugins": loaded_plugins,
+        "database_path": effective.get("library", "/config/beets/library.db"),
+        "music_directory": effective.get("directory", "/music")
+    })
+
+@router.post("/api/beets/config/validate", response_class=JSONResponse)
+def api_validate_beets_config(payload: BeetsConfigSaveRequest, user: User = Depends(get_current_user)):
+    """
+    Validates YAML configuration syntax and Beets structure without saving to disk.
+    """
+    from app.services.beets_config_service import BeetsConfigService
+    is_valid, err, line, col = BeetsConfigService.validate_yaml_syntax(payload.yaml_text)
+    if not is_valid:
+        return JSONResponse(content={
+            "valid": False,
+            "error": err,
+            "line": line,
+            "column": col
+        })
+
+    struct_valid, struct_err, parsed = BeetsConfigService.validate_beets_structure(payload.yaml_text)
+    plugins = BeetsConfigService.extract_plugins_list(payload.yaml_text) if struct_valid else []
+
+    return JSONResponse(content={
+        "valid": struct_valid,
+        "error": struct_err,
+        "plugins": plugins
+    })
+
+@router.post("/api/beets/plugins/reload", response_class=JSONResponse)
+def api_reload_beets_plugins(user: User = Depends(get_current_user)):
+    """
+    Forces Beets to re-read the configuration file and reload plugins into memory,
+    returning log output and failure diagnostics.
+    """
+    from app.services.beets_service import BeetsServiceClient
+    result = BeetsServiceClient().force_reload_plugins()
+    return JSONResponse(content=result)
+
+@router.post("/api/beets/migrate-database", response_class=JSONResponse)
+def api_migrate_database(user: User = Depends(get_current_user)):
+    """
+    Runs database schema migrations and auto-healing on demand from the GUI.
+    """
+    from app.main import run_migrations
+    logs = run_migrations()
+    return JSONResponse(content={
+        "status": "success",
+        "message": "Database migration and schema verification completed",
+        "logs": logs
+    })
+
+@router.post("/api/beets/config", response_class=JSONResponse)
+def api_save_beets_config(payload: BeetsConfigSaveRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Validates and atomically saves the app-dedicated Beets configuration YAML.
+    """
+    from app.services.beets_config_service import BeetsConfigService
+    success, err, path_saved = BeetsConfigService.save_config_atomic(payload.yaml_text)
+    if not success:
+        raise HTTPException(status_code=400, detail=err or "Failed to save configuration")
+
+    log_audit_action(db, "BEETS_CONFIG_SAVE", f"User saved Beets YAML configuration to '{path_saved}'.")
+    return JSONResponse(content={
+        "status": "success",
+        "message": f"Configuration saved atomically to {path_saved}",
+        "config_path": path_saved,
+        "runtime_restart_required": True
+    })
+
+@router.post("/api/beets/import", response_class=JSONResponse)
+def api_trigger_beets_import(payload: BeetsImportRequest, user: User = Depends(get_current_user)):
+    """
+    Spawns an asynchronous background import job on source_path without blocking the main GUI loop.
+    """
+    from app.services.beets_service import BeetsServiceClient
+    job_id = BeetsServiceClient().start_import_job(source_path=payload.source_path)
+    return JSONResponse(content={
+        "status": "success",
+        "job_id": job_id,
+        "message": f"Import job {job_id} queued for path '{payload.source_path}'"
+    })
+
+@router.get("/api/beets/jobs", response_class=JSONResponse)
+def api_get_beets_jobs(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Returns list of recent Beets import jobs.
+    """
+    from app.models import BeetsImportJob
+    try:
+        jobs = db.query(BeetsImportJob).order_by(BeetsImportJob.created_at.desc()).limit(20).all()
+        return JSONResponse(content=[{
+            "id": j.id,
+            "job_id": j.job_id,
+            "source_path": j.source_path,
+            "status": j.status,
+            "total_items": j.total_items,
+            "imported_items": j.imported_items,
+            "conflicts_count": j.conflicts_count,
+            "error_message": j.error_message,
+            "created_at": j.created_at.isoformat() if j.created_at else None,
+            "updated_at": j.updated_at.isoformat() if j.updated_at else None
+        } for j in jobs])
+    except Exception as e:
+        logger.exception(f"Error querying Beets import jobs: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "DATABASE_ERROR", "message": "Failed to query import jobs"}
+        )
+
+@router.get("/api/beets/jobs/{job_id}", response_class=JSONResponse)
+def api_get_beets_job_detail(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """
+    Returns details for a specific Beets import job.
+    """
+    from app.models import BeetsImportJob
+    try:
+        job = db.query(BeetsImportJob).filter(BeetsImportJob.job_id == job_id).first()
+        if not job:
+            raise HTTPException(status_code=404, detail="Import job not found")
+        return JSONResponse(content={
+            "id": job.id,
+            "job_id": job.job_id,
+            "source_path": job.source_path,
+            "status": job.status,
+            "total_items": job.total_items,
+            "imported_items": job.imported_items,
+            "conflicts_count": job.conflicts_count,
+            "error_message": job.error_message,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "updated_at": job.updated_at.isoformat() if job.updated_at else None
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error querying Beets import job '{job_id}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "DATABASE_ERROR", "message": "Failed to query import job details"}
+        )
 
 @router.get("/api/beets/review-queue", response_class=JSONResponse)
 def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -895,17 +1079,15 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
     from app.models import BeetsReviewItem
     from app.services.filename_parser import parse_filename
     try:
-        items = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").order_by(BeetsReviewItem.created_at.desc()).all()
+        items = db.query(BeetsReviewItem).filter(
+            BeetsReviewItem.status.in_(["open", "review_required"])
+        ).order_by(BeetsReviewItem.created_at.desc()).all()
     except Exception as e:
-        logger.error(f"Error querying BeetsReviewItem queue: {e}")
-        try:
-            from app.database import Base, engine
-            Base.metadata.create_all(bind=engine)
-            db.rollback()
-            items = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").order_by(BeetsReviewItem.created_at.desc()).all()
-        except Exception as inner_e:
-            logger.error(f"Failed creating beets review queue table or querying: {inner_e}")
-            return JSONResponse(content=[])
+        logger.exception(f"Error querying BeetsReviewItem queue: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "DATABASE_ERROR", "message": "Database query error fetching review queue"}
+        )
 
     updated_any = False
     result = []
@@ -936,7 +1118,11 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
 
         result.append({
             "id": item.id,
+            "conflict_id": item.conflict_id,
+            "fingerprint": item.fingerprint,
+            "job_id": item.job_id,
             "download_id": item.download_id,
+            "item_type": item.item_type,
             "artist": item.artist,
             "track": item.track,
             "album": item.album,
@@ -945,6 +1131,10 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
             "status": item.status,
             "candidates": json.loads(item.candidates_json) if item.candidates_json else [],
             "selected_match": json.loads(item.selected_match_json) if item.selected_match_json else None,
+            "differences": json.loads(item.differences_json) if item.differences_json else None,
+            "provenance": json.loads(item.provenance_json) if item.provenance_json else None,
+            "recommendation": item.recommendation_text,
+            "retry_count": item.retry_count,
             "created_at": item.created_at.isoformat() if item.created_at else None
         })
 
@@ -956,99 +1146,367 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
 
     return JSONResponse(content=result)
 
-@router.post("/api/beets/review-queue/{item_id}/action", response_class=JSONResponse)
-def api_beets_review_action(item_id: int, payload: BeetsReviewActionRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+@router.post("/api/beets/review-queue/{item_id}/fingerprint", response_class=JSONResponse)
+async def api_beets_fingerprint_scan(
+    item_id: Union[int, str],
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
     """
-    Executes a review action on a pending Beets review item:
-    - accept: accepts top match
-    - select_candidate: selects chosen candidate_id
+    Triggers audio fingerprint scan (AcoustID / Chroma) or direct MusicBrainz metadata matching
+    for a review queue item on disk, generating direct MusicBrainz candidates and updating the review queue item.
+    """
+    import shutil
+    import acoustid
+    from app.models import BeetsReviewItem
+    from app.services.beets_collector import clean_query_hint
+    from app.services.musicbrainz_service import MusicBrainzService
+
+    item = db.query(BeetsReviewItem).filter(
+        (BeetsReviewItem.id == item_id) | (BeetsReviewItem.conflict_id == str(item_id))
+    ).first()
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Review queue item not found")
+
+    file_path = item.downloaded_path
+    fingerprint_str = None
+    duration_sec = 0.0
+    fpcalc_installed = shutil.which("fpcalc") is not None
+
+    # Step 1: Attempt fpcalc / acoustid fingerprinting if file exists
+    if file_path and os.path.exists(file_path):
+        try:
+            if fpcalc_installed:
+                duration_sec, fp_bytes = acoustid.fingerprint_file(file_path)
+                if fp_bytes:
+                    fingerprint_str = fp_bytes.decode("utf-8") if isinstance(fp_bytes, bytes) else str(fp_bytes)
+                    logger.info(f"Generated Acoustid fingerprint for file '{file_path}': duration={duration_sec}s")
+        except Exception as e:
+            logger.warning(f"AcoustID fpcalc fingerprint calculation warning for '{file_path}': {e}")
+
+    # Step 2: Query MusicBrainz candidates directly using clean title & artist
+    clean_artist = clean_query_hint(item.artist, is_artist=True)
+    clean_title = clean_query_hint(item.album or item.track, artist=clean_artist)
+
+    new_candidates = []
+    try:
+        # Fetch recordings / releases directly from MusicBrainz API
+        rec_results = await MusicBrainzService.search_recordings(clean_artist, None, clean_title, db)
+        for idx, rec in enumerate(rec_results[:10]):
+            mbid = rec.get("id") or rec.get("release_id")
+            score = max(50, 98 - (idx * 4))
+            rec_artist = rec.get("artist") or clean_artist
+            rec_album = rec.get("album") or rec.get("title") or clean_title
+            rec_title = rec.get("title") or clean_title
+
+            new_candidates.append({
+                "id": mbid or f"mb_direct_{idx+1}",
+                "source": "AcoustID / Direct MusicBrainz Scan" if fingerprint_str else "Direct MusicBrainz Scan",
+                "candidate_type": item.item_type or "singleton",
+                "artist": rec_artist,
+                "album": rec_album,
+                "title": rec_title,
+                "year": rec.get("year") or 0,
+                "release_id": rec.get("release_id") or mbid,
+                "recording_id": rec.get("id") or "",
+                "release_group_id": "",
+                "country": "US",
+                "label": "",
+                "catalog_num": "",
+                "media": "Digital Media",
+                "format": "FLAC",
+                "track_count": 1,
+                "ui_similarity_score": score,
+                "raw_distance": float((100 - score) / 100.0),
+                "penalties": {},
+                "mbid": mbid,
+                "url": f"https://musicbrainz.org/recording/{rec.get('id')}" if rec.get('id') else ""
+            })
+    except Exception as e:
+        logger.exception(f"Error fetching direct MusicBrainz candidates during fingerprint scan: {e}")
+
+    # Step 3: Merge newly generated candidates into item record in SQLite
+    existing_cands = json.loads(item.candidates_json) if item.candidates_json else []
+    seen_ids = {c.get("id") for c in existing_cands if c.get("id")}
+
+    added_count = 0
+    for cand in new_candidates:
+        if cand.get("id") not in seen_ids:
+            existing_cands.insert(0, cand)
+            seen_ids.add(cand.get("id"))
+            added_count += 1
+
+    if fingerprint_str:
+        item.fingerprint = fingerprint_str[:64]
+
+    if added_count > 0 or fingerprint_str:
+        item.candidates_json = json.dumps(existing_cands)
+        item.updated_at = datetime.datetime.utcnow()
+        db.commit()
+
+    return JSONResponse(content={
+        "status": "success",
+        "item_id": item.id,
+        "fpcalc_installed": fpcalc_installed,
+        "fingerprint_generated": bool(fingerprint_str),
+        "duration_seconds": duration_sec,
+        "new_candidates_added": added_count,
+        "candidates": existing_cands
+    })
+
+@router.post("/api/beets/review-queue/{item_id}/search", response_class=JSONResponse)
+async def api_beets_manual_search(
+    item_id: Union[int, str],
+    payload: BeetsManualSearchRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """
+    Executes a manual MusicBrainz candidate search or direct MBID lookup for a review queue conflict,
+    using Beets autotag/importer candidate matching and MusicBrainz API.
+    Appends newly discovered candidates to the review item record in SQLite.
+    """
+    import re
+    import beets
+    import beets.autotag as autotag
+    import beets.importer as importer
+    import beets.library as library
+    from app.models import BeetsReviewItem
+    from app.services.beets_collector import clean_query_hint
+    from app.services.musicbrainz_service import MusicBrainzService
+
+    item = db.query(BeetsReviewItem).filter(
+        (BeetsReviewItem.id == item_id) | (BeetsReviewItem.conflict_id == str(item_id))
+    ).first()
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Review queue item not found")
+
+    query_str = payload.query or payload.mbid or f"{payload.artist or ''} {payload.album or payload.track or ''}".strip()
+    if not query_str:
+        raise HTTPException(status_code=400, detail="Search query or MusicBrainz MBID required")
+
+    clean_q = clean_query_hint(query_str)
+    search_artist = clean_query_hint(payload.artist or item.artist, is_artist=True)
+    search_title = clean_query_hint(payload.album or payload.track or item.track or item.album, artist=search_artist)
+
+    found_candidates = []
+    is_mbid = bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', clean_q.strip().lower()))
+
+    # Method 1 & 2: Use Beets autotag ImportTask API with pre-selected search_ids or text search
+    try:
+        beets.plugins.load_plugins()
+        target_path = item.downloaded_path if (item.downloaded_path and os.path.exists(item.downloaded_path)) else "/tmp"
+        dummy_item = library.Item(artist=search_artist, album=search_title, title=search_title)
+
+        if item.item_type == "singleton":
+            task = importer.SingletonImportTask(target_path, dummy_item)
+            task.lookup_candidates(search_ids=[clean_q.strip()] if is_mbid else [])
+            raw_cands = getattr(task, "candidates", []) or []
+            for cand in raw_cands[:10]:
+                cand_info = getattr(cand, "info", None)
+                if cand_info:
+                    dist_val = float(getattr(cand, "distance", 0.5))
+                    ui_score = max(0, min(100, int((1.0 - dist_val) * 100)))
+                    track_id = str(getattr(cand_info, "track_id", clean_q.strip()))
+                    found_candidates.append({
+                        "id": track_id,
+                        "source": "Beets Candidate Search",
+                        "candidate_type": "singleton",
+                        "artist": getattr(cand_info, "artist", search_artist),
+                        "title": getattr(cand_info, "title", search_title),
+                        "year": getattr(cand_info, "year", 0),
+                        "release_id": getattr(cand_info, "album_id", track_id),
+                        "recording_id": track_id,
+                        "release_group_id": "",
+                        "country": "US",
+                        "label": "",
+                        "catalog_num": "",
+                        "media": "Digital Media",
+                        "format": "FLAC",
+                        "track_count": 1,
+                        "ui_similarity_score": ui_score,
+                        "raw_distance": dist_val,
+                        "penalties": {},
+                        "mbid": track_id,
+                        "url": f"https://musicbrainz.org/recording/{track_id}"
+                    })
+        else:
+            task = importer.ImportTask(target_path, [target_path], [dummy_item])
+            task.lookup_candidates(search_ids=[clean_q.strip()] if is_mbid else [])
+            raw_cands = getattr(task, "candidates", []) or []
+            for cand in raw_cands[:10]:
+                cand_info = getattr(cand, "info", None)
+                if cand_info:
+                    dist_val = float(getattr(cand, "distance", 0.5))
+                    ui_score = max(0, min(100, int((1.0 - dist_val) * 100)))
+                    album_id = str(getattr(cand_info, "album_id", clean_q.strip()))
+                    found_candidates.append({
+                        "id": album_id,
+                        "source": "Beets Candidate Search",
+                        "candidate_type": "album",
+                        "artist": getattr(cand_info, "artist", search_artist),
+                        "title": getattr(cand_info, "album", search_title),
+                        "year": getattr(cand_info, "year", 0),
+                        "release_id": album_id,
+                        "recording_id": "",
+                        "release_group_id": getattr(cand_info, "releasegroup_id", ""),
+                        "country": getattr(cand_info, "country", "US"),
+                        "label": getattr(cand_info, "label", ""),
+                        "catalog_num": getattr(cand_info, "catalognum", ""),
+                        "media": getattr(cand_info, "media", "Digital Media"),
+                        "format": "FLAC",
+                        "track_count": len(getattr(cand_info, "tracks", [])) or 1,
+                        "ui_similarity_score": ui_score,
+                        "raw_distance": dist_val,
+                        "penalties": {},
+                        "mbid": album_id,
+                        "url": f"https://musicbrainz.org/release/{album_id}"
+                    })
+    except Exception as e:
+        logger.warning(f"Beets ImportTask candidate lookup warning: {e}", exc_info=True)
+
+    # Fallback Method 3: Direct MusicBrainzAPI / MusicBrainzService lookups
+    if not found_candidates:
+        try:
+            if is_mbid:
+                rel = await MusicBrainzService.fetch_release_by_id(clean_q.strip(), db)
+                if rel:
+                    found_candidates.append({
+                        "id": rel.get("id"),
+                        "source": "MusicBrainz MBID Lookup",
+                        "candidate_type": item.item_type,
+                        "artist": rel.get("artist_name") or search_artist,
+                        "title": rel.get("title") or search_title,
+                        "year": rel.get("year") or 0,
+                        "release_id": rel.get("id"),
+                        "recording_id": rel.get("id") if item.item_type == "singleton" else "",
+                        "release_group_id": rel.get("release_group_id") or "",
+                        "country": rel.get("country", "US"),
+                        "label": rel.get("label", ""),
+                        "catalog_num": "",
+                        "media": "Digital Media",
+                        "format": "FLAC",
+                        "track_count": rel.get("track_count", 1),
+                        "ui_similarity_score": 100,
+                        "raw_distance": 0.0,
+                        "penalties": {},
+                        "mbid": rel.get("id"),
+                        "url": f"https://musicbrainz.org/release/{rel.get('id')}"
+                    })
+            else:
+                results = await MusicBrainzService.search_releases(clean_q, db)
+                for idx, rel in enumerate(results[:10]):
+                    ui_score = max(50, 95 - (idx * 5))
+                    found_candidates.append({
+                        "id": rel.get("id") or f"manual_{idx+1}",
+                        "source": "MusicBrainz Search",
+                        "candidate_type": item.item_type,
+                        "artist": rel.get("artist_name") or search_artist,
+                        "title": rel.get("title") or search_title,
+                        "year": rel.get("year") or 0,
+                        "release_id": rel.get("id"),
+                        "recording_id": "",
+                        "release_group_id": "",
+                        "country": rel.get("country", "US"),
+                        "label": rel.get("label", ""),
+                        "catalog_num": "",
+                        "media": "Digital Media",
+                        "format": "FLAC",
+                        "track_count": rel.get("track_count", 1),
+                        "ui_similarity_score": ui_score,
+                        "raw_distance": float((100 - ui_score) / 100.0),
+                        "penalties": {},
+                        "mbid": rel.get("id"),
+                        "url": f"https://musicbrainz.org/release/{rel.get('id')}" if rel.get("id") else ""
+                    })
+        except Exception as e:
+            logger.exception(f"Error executing fallback MusicBrainz candidate search: {e}")
+
+    # Merge candidates into review item record in SQLite
+    existing_cands = json.loads(item.candidates_json) if item.candidates_json else []
+    seen_ids = {c.get("id") for c in existing_cands if c.get("id")}
+
+    new_added = 0
+    for cand in found_candidates:
+        if cand.get("id") not in seen_ids:
+            existing_cands.insert(0, cand)
+            seen_ids.add(cand.get("id"))
+            new_added += 1
+
+    if new_added > 0:
+        item.candidates_json = json.dumps(existing_cands)
+        item.updated_at = datetime.datetime.utcnow()
+        db.commit()
+
+    return JSONResponse(content={
+        "status": "success",
+        "item_id": item.id,
+        "query": clean_q,
+        "new_candidates_added": new_added,
+        "candidates": existing_cands
+    })
+
+@router.post("/api/beets/review-queue/{item_id}/action", response_class=JSONResponse)
+def api_beets_review_action(
+    item_id: Union[int, str],
+    payload: BeetsReviewActionRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """
+    Executes a review action on a pending Beets review item using BeetsServiceClient:
+    - accept / select_candidate: applies chosen candidate & executes targeted import
     - keep_original: keeps original tags without modification
     - skip: skips item for later review
+    - ignore: archives conflict event
+    - retry: re-enqueues item for Beets import
     """
     from app.models import BeetsReviewItem
-    item = db.query(BeetsReviewItem).filter(BeetsReviewItem.id == item_id).first()
+    from app.services.beets_service import BeetsServiceClient
+
+    try:
+        item = db.query(BeetsReviewItem).filter(
+            (BeetsReviewItem.id == item_id) | (BeetsReviewItem.conflict_id == str(item_id))
+        ).first()
+    except Exception as e:
+        logger.exception(f"Error querying review item {item_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "DATABASE_ERROR", "message": "Database query error finding review item"}
+        )
+
     if not item:
         raise HTTPException(status_code=404, detail="Review item not found")
 
-    action = payload.action.lower()
-    candidates = json.loads(item.candidates_json) if item.candidates_json else []
-
-    if action == "accept":
-        item.status = "imported"
-        if candidates:
-            item.selected_match_json = json.dumps(candidates[0])
-    elif action == "select_candidate":
-        candidate = next((c for c in candidates if c.get("id") == payload.candidate_id), None)
-        if candidate:
-            item.selected_match_json = json.dumps(candidate)
-            item.status = "imported"
-        else:
-            raise HTTPException(status_code=400, detail="Specified candidate_id not found")
-    elif action == "keep_original":
-        item.status = "kept_original"
-    elif action == "skip":
-        item.status = "skipped"
-    else:
-        raise HTTPException(status_code=400, detail=f"Unsupported action '{action}'")
-
-    db.commit()
-    log_audit_action(db, f"BEETS_REVIEW_{action.upper()}", f"User resolved Beets review item {item_id} ({item.artist} - {item.track}) with action '{action}'")
-    return {"status": "success", "action": action, "item_id": item_id}
+    try:
+        res = BeetsServiceClient.resolve_conflict_action(
+            item_id=item.id,
+            action=payload.action,
+            candidate_id=payload.candidate_id,
+            candidate_mbid=payload.candidate_mbid,
+            db=db,
+        )
+        log_audit_action(db, f"BEETS_REVIEW_{payload.action.upper()}", f"User resolved Beets review item {item.id} ({item.artist} - {item.track}) with action '{payload.action}'")
+        return JSONResponse(content=res)
+    except ValueError as val_err:
+        raise HTTPException(status_code=400, detail=str(val_err))
+    except Exception as e:
+        logger.exception(f"Error executing review action on item {item_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "RESOLUTION_ERROR", "message": f"Failed to execute resolution action: {str(e)}"}
+        )
 
 @router.get("/api/beets/status", response_class=JSONResponse)
 def api_get_beets_status(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """
     Returns real-time status diagnostics of the embedded Beets CLI engine & SQLite library.
     """
-    import shutil
-    import sqlite3
-    from app.models import BeetsReviewItem
-
-    beet_path = shutil.which("beet")
-    cli_available = beet_path is not None
-
-    beet_version = "2.13.1"
-    if cli_available:
-        try:
-            import subprocess
-            out = subprocess.check_output(["beet", "version"], text=True, timeout=2.0)
-            for line in out.splitlines():
-                if "beets version" in line.lower():
-                    beet_version = line.split("beets version")[-1].strip()
-                    break
-        except Exception:
-            pass
-
-    from app.config import resolve_beets_config_path
-    config_path = resolve_beets_config_path()
-
-    db_path = "/config/beets/library.db"
-    track_count = 0
-    if os.path.exists(db_path):
-        try:
-            conn = sqlite3.connect(db_path)
-            cur = conn.cursor()
-            cur.execute("SELECT COUNT(*) FROM items")
-            track_count = cur.fetchone()[0]
-            conn.close()
-        except Exception:
-            pass
-
-    pending_count = 0
-    try:
-        pending_count = db.query(BeetsReviewItem).filter(BeetsReviewItem.status == "review_required").count()
-    except Exception:
-        pass
-
-    return JSONResponse(content={
-        "beet_cli_available": cli_available,
-        "beet_version": beet_version,
-        "config_path": config_path if (config_path and os.path.exists(config_path)) else None,
-        "library_db_path": db_path if (db_path and os.path.exists(db_path)) else None,
-        "library_track_count": track_count,
-        "pending_review_count": pending_count,
-        "beets_api_url": os.getenv("BEETS_API_URL", "http://beets:8337")
-    })
+    from app.services.beets_service import BeetsServiceClient
+    status_data = BeetsServiceClient().get_status(db)
+    return JSONResponse(content=status_data)
 
 @router.post("/api/beets/scan-library", response_class=JSONResponse)
 async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -1121,18 +1579,6 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
                         artist = parsed.get("artist") or "Unknown Artist"
                         track = parsed.get("track") or file
                         album = parsed.get("album") or "Unknown Album"
-                        candidates = [
-                            {
-                                "id": f"scan_cand_{created_review_items+1}",
-                                "title": album,
-                                "artist": artist,
-                                "year": datetime.datetime.utcnow().year,
-                                "format": os.path.splitext(file)[1].lstrip(".").upper(),
-                                "track_count": 1,
-                                "confidence": 70,
-                                "source": "Library Scan Auto-Assessment"
-                            }
-                        ]
                         review_item = BeetsReviewItem(
                             artist=artist,
                             track=track,
@@ -1140,7 +1586,7 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
                             downloaded_path=file_path,
                             confidence_score=70,
                             status="review_required",
-                            candidates_json=json.dumps(candidates)
+                            candidates_json=json.dumps([])
                         )
                         db.add(review_item)
                         created_review_items += 1
@@ -1184,18 +1630,6 @@ def api_beets_seed_test_items(db: Session = Depends(get_db), user: User = Depend
                             ext = os.path.splitext(file)[1].lstrip(".").upper()
                             file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
 
-                            candidates = [
-                                {
-                                    "id": f"real_cand_{len(added_items)+1}",
-                                    "title": album,
-                                    "artist": artist,
-                                    "year": datetime.datetime.utcnow().year,
-                                    "format": ext,
-                                    "track_count": 1,
-                                    "confidence": 75,
-                                    "source": f"Discovered Audio File ({file_size} bytes)"
-                                }
-                            ]
                             item = BeetsReviewItem(
                                 artist=artist,
                                 track=track,
@@ -1203,7 +1637,7 @@ def api_beets_seed_test_items(db: Session = Depends(get_db), user: User = Depend
                                 downloaded_path=file_path,
                                 confidence_score=75,
                                 status="review_required",
-                                candidates_json=json.dumps(candidates)
+                                candidates_json=json.dumps([])
                             )
                             db.add(item)
                             added_items.append(item)

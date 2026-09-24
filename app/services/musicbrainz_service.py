@@ -186,8 +186,12 @@ class MusicBrainzService:
 
         logger.info(f"MusicBrainz recordings cache miss for '{artist_name} - {query}'. Querying MusicBrainz...")
 
+        is_unknown_artist = not artist_name or artist_name.strip().lower() in ("unknown", "unknown artist")
+
         if artist_mbid:
             lucene_query = f"arid:{artist_mbid} AND recording:{query}"
+        elif is_unknown_artist:
+            lucene_query = f"recording:\"{query}\""
         else:
             lucene_query = f"artist:\"{artist_name}\" AND recording:\"{query}\""
 
@@ -208,11 +212,11 @@ class MusicBrainzService:
 
             if clean_q and clean_q != query:
                 logger.info(f"MusicBrainz primary query yielded 0 results. Retrying with broad fallback query for '{artist_name} - {clean_q}'")
-                fallback_lucene = f'artist:"{artist_name}" AND recording:({clean_q})'
+                fallback_lucene = f'recording:({clean_q})' if is_unknown_artist else f'artist:"{artist_name}" AND recording:({clean_q})'
                 data = await cls._make_request(url, {"query": fallback_lucene, "fmt": "json", "limit": 15})
 
             if not data or not data.get("recordings"):
-                broad_lucene = f"{artist_name} {clean_q or query}".strip()
+                broad_lucene = (clean_q or query).strip() if is_unknown_artist else f"{artist_name} {clean_q or query}".strip()
                 logger.info(f"MusicBrainz secondary query yielded 0 results. Retrying with broad string query '{broad_lucene}'")
                 data = await cls._make_request(url, {"query": broad_lucene, "fmt": "json", "limit": 15})
 

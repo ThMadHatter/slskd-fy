@@ -1448,6 +1448,33 @@ async def api_beets_manual_search(
         "candidates": existing_cands
     })
 
+@router.post("/api/beets/review-queue/skip-all", response_class=JSONResponse)
+def api_beets_review_skip_all(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """
+    Bulk updates all open/review_required conflicts in the review queue to 'skipped'.
+    """
+    from app.models import BeetsReviewItem
+    try:
+        updated = db.query(BeetsReviewItem).filter(
+            BeetsReviewItem.status.in_(["open", "review_required"])
+        ).update({"status": "skipped"}, synchronize_session=False)
+        db.commit()
+        log_audit_action(db, "BEETS_REVIEW_SKIP_ALL", f"User skipped all {updated} pending Beets review items.")
+        return JSONResponse(content={
+            "status": "success",
+            "message": f"Successfully skipped {updated} review queue items",
+            "count": updated
+        })
+    except Exception as e:
+        logger.exception(f"Error skipping all review items: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error_code": "DATABASE_ERROR", "message": f"Failed to skip all items: {str(e)}"}
+        )
+
 @router.post("/api/beets/review-queue/{item_id}/action", response_class=JSONResponse)
 def api_beets_review_action(
     item_id: Union[int, str],

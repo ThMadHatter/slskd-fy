@@ -16,6 +16,7 @@ interface ReviewQueueState {
   selectNext: () => void;
   selectPrev: () => void;
   resolveAction: (itemId: number, action: ReviewAction, candidateId?: string) => Promise<void>;
+  skipAll: () => Promise<void>;
 }
 
 export const useReviewQueueStore = create<ReviewQueueState>((set, get) => ({
@@ -101,6 +102,21 @@ export const useReviewQueueStore = create<ReviewQueueState>((set, get) => ({
     const currentIndex = items.findIndex((i) => i.id === selectedItemId);
     if (currentIndex > 0) {
       set({ selectedItemId: items[currentIndex - 1].id });
+    }
+  },
+
+  skipAll: async () => {
+    set({ loading: true });
+    try {
+      const res = await fetch('/api/beets/review-queue/skip-all', { method: 'POST' });
+      if (res.ok) {
+        set({ items: [], selectedItemId: null });
+        await get().fetchStatus();
+      }
+    } catch (err) {
+      // Non-critical
+    } finally {
+      set({ loading: false });
     }
   },
 

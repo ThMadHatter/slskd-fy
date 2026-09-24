@@ -24,6 +24,7 @@ export default function ReviewQueueView() {
     selectNext,
     selectPrev,
     resolveAction,
+    skipAll,
   } = useReviewQueueStore();
 
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
@@ -172,6 +173,21 @@ export default function ReviewQueueView() {
             {migratingDb ? <SonicLoader size="small" /> : <Database size={14} />}
             {migratingDb ? 'MIGRATING...' : 'MIGRATE SCHEMA'}
           </button>
+
+          {items.length > 0 && (
+            <button
+              onClick={() => {
+                if (window.confirm(`Are you sure you want to skip all ${items.length} conflicts in the review queue?`)) {
+                  skipAll();
+                }
+              }}
+              disabled={loading}
+              className="flex items-center gap-2 bg-[#fc7c78]/20 hover:bg-[#fc7c78]/30 text-[#fc7c78] border border-[#fc7c78]/40 px-3 py-1.5 font-data-mono text-xs font-bold transition-all cursor-pointer disabled:opacity-50 uppercase"
+            >
+              <X size={14} />
+              SKIP ALL ({items.length})
+            </button>
+          )}
 
           <button
             onClick={() => scanLibrary()}

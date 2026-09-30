@@ -30,7 +30,8 @@ import:
   quiet: yes
   timid: no
   write: yes
-  move: yes
+  copy: yes
+  move: no
   resume: no
   incremental: yes
   quiet_fallback: skip

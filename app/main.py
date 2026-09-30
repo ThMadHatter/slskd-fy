@@ -55,15 +55,80 @@ def setup_app_logging():
     logger.addHandler(sh)
     logger.propagate = False
 
-# Programmatically run Alembic migrations on startup
-def run_migrations():
+# Programmatically run Alembic migrations on startup with defensive schema auto-healing
+def run_migrations() -> str:
+    logger.info(f"Effective DATABASE_URL: {settings.DATABASE_URL}")
     logger.info("Running database migrations via Alembic...")
+    logs = []
+
+    def log_msg(msg: str):
+        logger.info(msg)
+        logs.append(msg)
+
     try:
         alembic_cfg = Config("alembic.ini")
         command.upgrade(alembic_cfg, "head")
-        logger.info("Database migrations completed successfully!")
+
+        # Safely log current migration revision
+        from alembic.migration import MigrationContext
+        from sqlalchemy import create_engine, inspect, text
+        engine = create_engine(settings.DATABASE_URL)
+
+        with engine.connect() as conn:
+            context = MigrationContext.configure(conn)
+            current_rev = context.get_current_revision()
+            log_msg(f"Alembic migration execution completed. Current revision: {current_rev}")
+
+            # Defensive schema auto-healing for beets_review_items & beets_import_jobs
+            inspector = inspect(conn)
+            tables = inspector.get_table_names()
+
+            if "beets_import_jobs" not in tables:
+                log_msg("Auto-healing schema: creating missing 'beets_import_jobs' table...")
+                conn.execute(text("""
+                    CREATE TABLE beets_import_jobs (
+                        id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        job_id VARCHAR NOT NULL UNIQUE,
+                        source_path VARCHAR NOT NULL,
+                        status VARCHAR NOT NULL DEFAULT 'queued',
+                        total_items INTEGER NOT NULL DEFAULT 0,
+                        imported_items INTEGER NOT NULL DEFAULT 0,
+                        conflicts_count INTEGER NOT NULL DEFAULT 0,
+                        error_message VARCHAR,
+                        created_at DATETIME,
+                        updated_at DATETIME
+                    )
+                """))
+                conn.commit()
+
+            if "beets_review_items" in tables:
+                existing_cols = {c["name"] for c in inspector.get_columns("beets_review_items")}
+                missing_columns = {
+                    "conflict_id": "VARCHAR",
+                    "fingerprint": "VARCHAR",
+                    "job_id": "VARCHAR",
+                    "item_type": "VARCHAR DEFAULT 'album'",
+                    "differences_json": "VARCHAR",
+                    "provenance_json": "VARCHAR",
+                    "recommendation_text": "VARCHAR",
+                    "error_message": "VARCHAR",
+                    "retry_count": "INTEGER DEFAULT 0",
+                    "resolution_audit": "VARCHAR",
+                }
+
+                for col_name, col_type in missing_columns.items():
+                    if col_name not in existing_cols:
+                        log_msg(f"Auto-healing schema: adding missing column 'beets_review_items.{col_name}'...")
+                        conn.execute(text(f"ALTER TABLE beets_review_items ADD COLUMN {col_name} {col_type}"))
+                        conn.commit()
+
+            log_msg("Database schema verification and auto-healing completed successfully.")
     except Exception as e:
-        logger.error(f"Error running database migrations: {e}")
+        err_msg = f"Error during database migration execution: {e}"
+        logger.error(err_msg, exc_info=True)
+        logs.append(err_msg)
+
+    return "\n".join(logs)
 
 # Async context manager for startup and shutdown events
 @asynccontextmanager

@@ -140,14 +140,20 @@ The purpose of this analysis is to map visible UI components, identify fully fun
 
 ---
 
-### Component: Beets Metadata Enrichment (Beets Integration Validation)
-- **Current State:** PARTIALLY_IMPLEMENTED
+### Component: Beets Metadata Enrichment & Conflict Resolution (Beets Engine Integration)
+- **Current State:** IMPLEMENTED
 - **Backend Implementation Status:** IMPLEMENTED
-  - `BeetsServiceClient` can query `/item/query` endpoint on Beets api port.
-- **Frontend Implementation Status:** Not Exposed
-- **User Impact:** Medium. Real-world testing reveals that although the API connectivity responds with HTTP 200, Beets queries often return zero matches because `beet ls` command reveals a completely empty library cache. As a result, Beets currently provides zero scoring advantages or metadata confidence boosts to candidate ranking.
-- **Technical Complexity:** Low.
-- **Recommended Priority:** P1
+  - `BeetsConfigService` manages isolated app YAML config with atomic saving, syntax/schema validation, and backup rollback.
+  - `BeetsServiceClient` manages in-memory plugin reloading (`force_reload_plugins`) with execution logs, status diagnostics, and candidate searching.
+  - `BeetsImportWorker` runs non-blocking Beets `ImportSession` in dedicated background threads.
+  - `ConflictCollector` intercepts skipped/ambiguous tasks and extracts metadata provenance, field differences, distance penalties, and candidate mappings.
+  - `BeetsReviewItem` and `BeetsImportJob` database models persist conflicts and import jobs with backward-compatible Alembic migrations.
+- **Frontend Implementation Status:** IMPLEMENTED
+  - Settings panel features dedicated **Beets Engine (YAML)** tab with monospaced editor, atomic save, syntax error reporting, and runtime plugin execution log viewer.
+  - **Beets Review Queue Dashboard** renders metrics bar, provenance transparency, candidate cards with MBID links, field differences, manual search modal, and single-click resolution actions.
+- **User Impact:** Critical. Users can inspect, edit, and validate Beets configuration safely, view background import jobs, and resolve metadata tagging conflicts interactively.
+- **Technical Complexity:** High.
+- **Recommended Priority:** P0 (Completed)
 
 ---
 

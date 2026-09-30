@@ -355,14 +355,51 @@ class BeetsServiceClient:
 
             item.status = "resolved"
 
-        elif act == "keep_original":
-            item.status = "ignored"
+        elif act in ("delete_source", "delete_file", "remove_source"):
+            if item.downloaded_path and os.path.exists(item.downloaded_path):
+                try:
+                    if os.path.isdir(item.downloaded_path):
+                        shutil.rmtree(item.downloaded_path, ignore_errors=True)
+                    else:
+                        parent_dir = os.path.dirname(item.downloaded_path)
+                        os.remove(item.downloaded_path)
+                        if os.path.exists(parent_dir) and not os.listdir(parent_dir):
+                            if os.path.normpath(parent_dir) != os.path.normpath(settings.DOWNLOADS_PATH):
+                                try:
+                                    os.rmdir(parent_dir)
+                                except Exception:
+                                    pass
+                    logger.info(f"Deleted downloaded source file/folder at path '{item.downloaded_path}'")
+                except Exception as del_err:
+                    logger.error(f"Error deleting downloaded source path '{item.downloaded_path}': {del_err}")
+            item.status = "resolved"
 
-        elif act == "skip":
-            item.status = "skipped"
+        elif act in ("as_is", "keep_original"):
+            # Import as-is without MusicBrainz autotagging
+            if item.downloaded_path and os.path.exists(item.downloaded_path):
+                target_dir = settings.MUSIC_LIBRARY_PATH
+                filename = os.path.basename(item.downloaded_path)
+                dest_path = os.path.join(target_dir, filename)
+                try:
+                    os.makedirs(target_dir, exist_ok=True)
+                    shutil.move(item.downloaded_path, dest_path)
+                    logger.info(f"Imported file as-is from '{item.downloaded_path}' to '{dest_path}'")
+                except Exception as move_err:
+                    logger.error(f"Error moving file as-is: {move_err}")
+            item.status = "resolved"
 
-        elif act == "ignore":
-            item.status = "ignored"
+        elif act in ("remove_old", "overwrite"):
+            if item.downloaded_path and os.path.exists(item.downloaded_path):
+                BeetsImportWorker.spawn_import_job(source_path=item.downloaded_path)
+            item.status = "resolved"
+
+        elif act == "merge":
+            if item.downloaded_path and os.path.exists(item.downloaded_path):
+                BeetsImportWorker.spawn_import_job(source_path=item.downloaded_path)
+            item.status = "resolved"
+
+        elif act in ("skip", "ignore"):
+            item.status = "skipped" if act == "skip" else "ignored"
 
         elif act == "retry":
             item.status = "resolving"

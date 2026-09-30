@@ -84,7 +84,17 @@ export interface ReviewQueueItem {
   created_at?: string;
 }
 
-export type ReviewAction = 'accept' | 'select_candidate' | 'keep_original' | 'skip' | 'ignore' | 'retry';
+export type ReviewAction =
+  | 'accept'
+  | 'select_candidate'
+  | 'keep_original'
+  | 'as_is'
+  | 'delete_source'
+  | 'remove_old'
+  | 'merge'
+  | 'skip'
+  | 'ignore'
+  | 'retry';
 
 export interface FailedPlugin {
   name: string;

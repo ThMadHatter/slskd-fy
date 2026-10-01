@@ -356,6 +356,25 @@ export default function ReviewQueueView() {
 
               <div className="flex flex-col gap-6">
 
+                {/* Duplicate Release Warning Banner */}
+                {activeItem.is_duplicate && (
+                  <div className="bg-[#fc7c78]/15 border border-[#fc7c78]/40 p-4 font-data-mono text-xs text-[#fc7c78] flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <ShieldAlert size={20} className="text-[#fc7c78] shrink-0" />
+                      <div>
+                        <span className="font-bold uppercase tracking-wider block">DUPLICATE DETECTED IN MUSIC LIBRARY (/music)</span>
+                        <span className="text-[#bbcabf] text-[11px] block mt-0.5">{activeItem.duplicate_reason || 'This release is already in your music library.'}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleDeleteSource}
+                      className="bg-[#fc7c78] hover:bg-[#fc7c78]/90 text-[#0a0a0b] font-bold px-3 py-1.5 uppercase text-[11px] shrink-0 cursor-pointer flex items-center gap-1"
+                    >
+                      <Trash2 size={14} /> DELETE FROM DOWNLOADS
+                    </button>
+                  </div>
+                )}
+
                 {/* Active Item Title Header */}
                 <div className="flex flex-col gap-1 border-b border-[#27272a] pb-4">
                   <div className="flex items-center justify-between">
@@ -559,7 +578,7 @@ export default function ReviewQueueView() {
                     </div>
                   ) : (
                     <div className="flex flex-col gap-2">
-                      {activeItem.candidates.map((cand) => {
+                      {[...activeItem.candidates].sort((a, b) => (b.ui_similarity_score ?? b.confidence ?? 0) - (a.ui_similarity_score ?? a.confidence ?? 0)).map((cand) => {
                         const isCandSelected = cand.id === selectedCandidateId;
                         const score = cand.ui_similarity_score ?? cand.confidence ?? 70;
                         return (

@@ -75,6 +75,8 @@ export interface ReviewQueueItem {
   confidence_score: number;
   raw_distance?: number | null;
   status: BeetsImportStatus;
+  is_duplicate?: boolean;
+  duplicate_reason?: string | null;
   provenance?: MetadataProvenance;
   candidates: MatchCandidate[];
   selected_match?: MatchCandidate | null;

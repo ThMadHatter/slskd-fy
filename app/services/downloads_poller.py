@@ -91,10 +91,18 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
     from app.config import resolve_beets_config_path
     config_path = resolve_beets_config_path()
 
+    # If src_path is inside a subfolder under DOWNLOADS_PATH, import the parent directory to trigger album-level autotagging
+    parent_dir = os.path.dirname(src_path)
+    is_in_subfolder = (
+        os.path.normpath(parent_dir) != os.path.normpath(settings.DOWNLOADS_PATH)
+        and os.path.isdir(parent_dir)
+    )
+    target_import_path = parent_dir if is_in_subfolder else src_path
+
     cmd = ["beet"]
     if config_path and os.path.exists(config_path):
         cmd.extend(["-c", config_path])
-    cmd.extend(["import", "-q", src_path])
+    cmd.extend(["import", "-q", target_import_path])
 
     proc_exit_code = -1
     stderr_output = ""
@@ -143,25 +151,64 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
             ).first()
 
             if not existing_review:
-                candidates = [
-                    {
-                        "id": f"cand_auto_1",
-                        "title": album,
-                        "artist": artist,
-                        "year": datetime.utcnow().year,
-                        "format": os.path.splitext(filename)[1].lstrip(".").upper(),
-                        "track_count": 1,
-                        "confidence": 75,
-                        "source": "Beets Auto-Assessment"
-                    }
-                ]
+                candidates = []
+                # If artist is unknown, attempt MusicBrainz album search using folder name
+                if (artist in ("Unknown", "Unknown Artist") or not artist) and is_in_subfolder:
+                    folder_name = os.path.basename(parent_dir)
+                    from app.services.musicbrainz_service import MusicBrainzService, clean_album_name
+                    clean_title = clean_album_name(folder_name)
+                    if clean_title:
+                        try:
+                            mb_results = await MusicBrainzService.search_releases(clean_title, db)
+                            for idx, rel in enumerate(mb_results[:5]):
+                                rel_artist = rel.get("artist_name") or artist
+                                rel_title = rel.get("title") or album
+                                score = max(60, 100 - (idx * 5))
+                                candidates.append({
+                                    "id": rel.get("id") or f"cand_auto_{idx+1}",
+                                    "source": "MusicBrainz Album Auto-Match",
+                                    "candidate_type": "album",
+                                    "artist": rel_artist,
+                                    "title": rel_title,
+                                    "year": rel.get("year") or datetime.utcnow().year,
+                                    "release_id": rel.get("id"),
+                                    "mbid": rel.get("id"),
+                                    "url": f"https://musicbrainz.org/release/{rel.get('id')}" if rel.get("id") else "",
+                                    "ui_similarity_score": score,
+                                    "confidence": score,
+                                    "track_count": rel.get("track_count", 1)
+                                })
+                                if idx == 0 and rel_artist:
+                                    artist = rel_artist
+                                    if rel_title:
+                                        album = rel_title
+                        except Exception as mb_err:
+                            logger.warning(f"Error querying MusicBrainz for folder '{folder_name}': {mb_err}")
+
+                if not candidates:
+                    candidates = [
+                        {
+                            "id": f"cand_auto_1",
+                            "title": album,
+                            "artist": artist,
+                            "year": datetime.utcnow().year,
+                            "format": os.path.splitext(filename)[1].lstrip(".").upper(),
+                            "track_count": 1,
+                            "confidence": 75,
+                            "ui_similarity_score": 75,
+                            "source": "Beets Auto-Assessment"
+                        }
+                    ]
+
+                best_score = candidates[0].get("ui_similarity_score", 75) if candidates else 75
+
                 new_review = BeetsReviewItem(
                     download_id=download_record.id if download_record else None,
                     artist=artist,
                     track=track,
                     album=album,
                     downloaded_path=src_path,
-                    confidence_score=75,
+                    confidence_score=best_score,
                     status="review_required",
                     candidates_json=json.dumps(candidates)
                 )

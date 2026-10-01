@@ -152,6 +152,21 @@ async def lifespan(app: FastAPI):
     start_background_poller()
     logger.info("Startup step 4 complete")
 
+    # Beets Startup Invariants Diagnostic Logging
+    try:
+        from app.config import resolve_beets_config_path
+        from app.services.beets_config_service import BeetsConfigService
+        c_path = resolve_beets_config_path()
+        raw_yaml = BeetsConfigService.load_raw_yaml(c_path)
+        plugins_list = BeetsConfigService.extract_plugins_list(raw_yaml)
+        logger.info(f"BEETS_INVARIANTS_DIAGNOSTIC - Config Path: '{c_path}'")
+        logger.info(f"BEETS_INVARIANTS_DIAGNOSTIC - Library DB Path: '/config/beets/library.db'")
+        logger.info(f"BEETS_INVARIANTS_DIAGNOSTIC - Music Directory: '{settings.MUSIC_LIBRARY_PATH}'")
+        logger.info(f"BEETS_INVARIANTS_DIAGNOSTIC - Downloads Directory: '{settings.DOWNLOADS_PATH}'")
+        logger.info(f"BEETS_INVARIANTS_DIAGNOSTIC - Configured Plugins: {plugins_list}")
+    except Exception as diag_err:
+        logger.warning(f"Could not print Beets startup diagnostic: {diag_err}")
+
     logger.info("Startup step 5: Lifespan startup fully complete!")
     yield
     # Shutdown actions

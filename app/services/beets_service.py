@@ -377,15 +377,42 @@ class BeetsServiceClient:
         elif act in ("as_is", "keep_original"):
             # Import as-is without MusicBrainz autotagging
             if item.downloaded_path and os.path.exists(item.downloaded_path):
-                target_dir = settings.MUSIC_LIBRARY_PATH
-                filename = os.path.basename(item.downloaded_path)
-                dest_path = os.path.join(target_dir, filename)
+                target_base = settings.MUSIC_LIBRARY_PATH
                 try:
-                    os.makedirs(target_dir, exist_ok=True)
-                    shutil.move(item.downloaded_path, dest_path)
-                    logger.info(f"Imported file as-is from '{item.downloaded_path}' to '{dest_path}'")
+                    os.makedirs(target_base, exist_ok=True)
+                    parent_dir = os.path.dirname(item.downloaded_path)
+                    is_in_subfolder = (
+                        os.path.normpath(parent_dir) != os.path.normpath(settings.DOWNLOADS_PATH)
+                        and os.path.exists(parent_dir)
+                    )
+
+                    if is_in_subfolder and os.path.isdir(parent_dir):
+                        subfolder_name = os.path.basename(parent_dir)
+                        artist_name = item.artist if item.artist and item.artist != "Unknown Artist" else "Unknown Artist"
+                        dest_artist_dir = os.path.join(target_base, artist_name)
+                        os.makedirs(dest_artist_dir, exist_ok=True)
+                        dest_path = os.path.join(dest_artist_dir, subfolder_name)
+
+                        if os.path.exists(dest_path):
+                            for root, _, files in os.walk(parent_dir):
+                                for f in files:
+                                    src_f = os.path.join(root, f)
+                                    dst_f = os.path.join(dest_path, f)
+                                    if not os.path.exists(dst_f):
+                                        shutil.move(src_f, dst_f)
+                            shutil.rmtree(parent_dir, ignore_errors=True)
+                        else:
+                            shutil.move(parent_dir, dest_path)
+                        logger.info(f"Moved directory as-is from '{parent_dir}' to '{dest_path}'")
+                    else:
+                        filename = os.path.basename(item.downloaded_path)
+                        dest_path = os.path.join(target_base, filename)
+                        if os.path.exists(dest_path):
+                            os.remove(dest_path)
+                        shutil.move(item.downloaded_path, dest_path)
+                        logger.info(f"Moved file as-is from '{item.downloaded_path}' to '{dest_path}'")
                 except Exception as move_err:
-                    logger.error(f"Error moving file as-is: {move_err}")
+                    logger.error(f"Error moving file/directory as-is: {move_err}")
             item.status = "resolved"
 
         elif act in ("remove_old", "overwrite"):

@@ -64,6 +64,21 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
     if not os.path.exists(src_path):
         return None
 
+    # Check if this file path is already pending review or skipped/ignored in BeetsReviewItem
+    try:
+        db_check = SessionLocal()
+        from app.models import BeetsReviewItem
+        existing_item = db_check.query(BeetsReviewItem).filter(
+            BeetsReviewItem.downloaded_path == src_path,
+            BeetsReviewItem.status.in_(["review_required", "open", "skipped", "ignored"])
+        ).first()
+        db_check.close()
+        if existing_item:
+            logger.debug(f"Skipping repeated Beets import attempt for file already in ReviewQueue: '{src_path}'")
+            return src_path
+    except Exception as e:
+        logger.debug(f"Error checking existing BeetsReviewItem for '{src_path}': {e}")
+
     logger.info(f"Triggering Beets import for downloaded file: '{src_path}'")
     logger.debug(f"[AUDIT_POLLER] BEETS IMPORT START - src={src_path!r}")
 
@@ -436,14 +451,21 @@ async def poll_downloads():
                             logger.error(f"Failed to process orphaned file: {e}")
 
             # 2. Check for completed files in slskd even if not tracked in active_downloads
+            from app.models import BeetsReviewItem
             for sf in all_slskd_files:
                 state = sf.get("state", "")
                 if "succeeded" in state.lower() or "complete" in state.lower():
                     s_fn = sf.get("filename", "")
                     found_file_path = find_file_recursively(settings.DOWNLOADS_PATH, s_fn)
                     if found_file_path and os.path.exists(found_file_path):
-                        logger.info(f"Processing completed slskd transfer found on disk via Beets: {found_file_path}")
-                        await import_with_beets(found_file_path, settings.MUSIC_LIBRARY_PATH)
+                        # Avoid repeating import if review item already exists
+                        review_exists = db.query(BeetsReviewItem).filter(
+                            BeetsReviewItem.downloaded_path == found_file_path,
+                            BeetsReviewItem.status.in_(["review_required", "open", "skipped", "ignored"])
+                        ).first()
+                        if not review_exists:
+                            logger.info(f"Processing completed slskd transfer found on disk via Beets: {found_file_path}")
+                            await import_with_beets(found_file_path, settings.MUSIC_LIBRARY_PATH)
 
             db.commit()
             clean_empty_directories(settings.DOWNLOADS_PATH)

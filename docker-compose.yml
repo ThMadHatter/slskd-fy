@@ -40,12 +40,16 @@ services:
 
       # Configurable quality preference ranking order
       - QUALITY_RANKING=$QUALITY_RANKING
+
+      # Explicit Beets configuration directory
+      - BEETSDIR=/config/beets
     volumes:
       # Host path mounts based on context
       - /mnt/music/Music:/music
       - /mnt/music/Uploads:/uploads
       - /mnt/music/Downloads/slskd:/downloads
       - /mnt/music/Config:/config
+      - /mnt/music/Config/beets:/config/beets
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

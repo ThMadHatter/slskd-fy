@@ -167,6 +167,24 @@ async def run_audit():
     total_entries = db.query(CacheEntry).count()
     logger.info(f"Total entries in cache_entries table: {total_entries}")
 
+    # 7. PHYSICAL FILE IDENTITY DIAGNOSTICS
+    logger.info("\n--- STEP 7: PHYSICAL FILE IDENTITY DIAGNOSTICS ---")
+    candidate_db_paths = [
+        "/config/beets/library.db",
+        "/config/library.db",
+        os.path.expanduser("~/.config/beets/library.db")
+    ]
+    for p in candidate_db_paths:
+        if os.path.exists(p):
+            try:
+                st = os.stat(p)
+                real_p = os.path.realpath(p)
+                logger.info(f"DB Path: '{p}' | RealPath: '{real_p}' | Inode: {st.st_ino} | Size: {st.st_size} bytes")
+            except Exception as st_err:
+                logger.warning(f"Error inspecting DB path '{p}': {st_err}")
+        else:
+            logger.info(f"DB Path: '{p}' (Does not exist on disk)")
+
     logger.info("\n=============================================================")
     logger.info("AUDIT RUN COMPLETED")
     logger.info("=============================================================")

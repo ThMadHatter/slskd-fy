@@ -99,33 +99,13 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
     )
     target_import_path = parent_dir if is_in_subfolder else src_path
 
-    cmd = ["beet"]
-    if config_path and os.path.exists(config_path):
-        cmd.extend(["-c", config_path])
-    cmd.extend(["import", "-q", target_import_path])
-
-    proc_exit_code = -1
-    stderr_output = ""
+    from app.services.beets_worker import BeetsImportWorker
     try:
-        logger.info(f"Executing Beets CLI command: {' '.join(cmd)}")
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60.0)
-        proc_exit_code = proc.returncode
-        stdout_output = stdout.decode('utf-8', errors='ignore')
-        stderr_output = stderr.decode('utf-8', errors='ignore')
-        logger.info(f"[BEETS_CLI_STDOUT] exit_code={proc_exit_code}:\n{stdout_output.strip() or '(empty)'}")
-        if stderr_output.strip():
-            logger.info(f"[BEETS_CLI_STDERR] exit_code={proc_exit_code}:\n{stderr_output.strip()}")
-        logger.debug(f"[AUDIT_POLLER] BEETS IMPORT COMPLETE - returncode={proc_exit_code}")
-    except FileNotFoundError:
-        logger.warning("Beets binary 'beet' not found in system PATH. Falling back to direct move.")
+        logger.info(f"Triggering BeetsImportWorker job for path: '{target_import_path}'")
+        job_id = BeetsImportWorker.spawn_import_job(source_path=target_import_path, config_path=config_path)
+        logger.info(f"Spawned Beets import job {job_id} for target '{target_import_path}'")
     except Exception as e:
-        logger.error(f"Error executing Beets import process: {e}")
+        logger.error(f"Error executing BeetsImportWorker import job: {e}")
 
     # Check if Beets moved the file to target_dir (/music)
     filename = os.path.basename(src_path)

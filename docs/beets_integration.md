@@ -40,6 +40,34 @@ Beets is packaged directly within the container (`beets>=2.14.1`).
 - **Plugin Loading Failure:** Click "Force Reload Plugins" in Settings to inspect plugin import logs and verify Python dependencies.
 - **Database Lock:** SQLite transactions are scoped to short-lived background worker threads. Ensure write operations are not held across HTTP calls.
 
+## Clean Reset Procedure
+
+To perform a clean reset of application state and the Beets library database (while preserving media files):
+
+### Persistent User Media (DO NOT DELETE)
+- `/mnt/music/Music`
+- `/mnt/music/Downloads/slskd`
+
+### Application State & Database (SAFE TO RESET)
+1. Stop running containers:
+   ```bash
+   docker compose down
+   ```
+2. Remove application state and Beets database files:
+   ```bash
+   rm -f /mnt/music/Config/beets/library.db
+   rm -f track_portal.db
+   ```
+3. Re-start container infrastructure:
+   ```bash
+   docker compose up -d
+   ```
+4. Verify empty library state:
+   ```bash
+   docker exec -it slskd-fy beet stats
+   # Expected output: 0 items
+   ```
+
 ## Test Suite
 Run the test suite using pytest:
 ```bash

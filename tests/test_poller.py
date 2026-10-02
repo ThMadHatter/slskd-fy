@@ -38,10 +38,11 @@ def test_clean_empty_directories(temp_dirs):
     assert not os.path.exists(empty_sub)
 
 @pytest.mark.asyncio
+@patch("app.services.beets_worker.run_beets_import_task")
 @patch("app.services.downloads_poller.SessionLocal")
 @patch("app.services.downloads_poller.SlskdClient.get_downloads", new_callable=AsyncMock)
 @patch("asyncio.sleep", side_effect=ValueError("stop loop"))
-async def test_poll_downloads_loop_completed(mock_sleep, mock_get_downloads, mock_session_local, temp_dirs):
+async def test_poll_downloads_loop_completed(mock_sleep, mock_get_downloads, mock_session_local, mock_beets_task, temp_dirs):
     download_dir, singles_dir = temp_dirs
 
     from app.config import settings
@@ -63,12 +64,13 @@ async def test_poll_downloads_loop_completed(mock_sleep, mock_get_downloads, moc
     )
     mock_db.query().filter().all.return_value = [dl_entry]
 
+    # Return None for BeetsReviewItem query, and Wishlist item for Wishlist query
     wishlist_item = Wishlist(artist="Daft Punk", track="One More Time", status="searching")
-    mock_db.query().filter().first.return_value = wishlist_item
+    mock_db.query().filter().first.side_effect = [None, wishlist_item]
 
     mock_get_downloads.return_value = [
         {
-            "filename": "Daft Punk - One More Time.mp3",
+            "filename": "song.mp3",
             "username": "user1",
             "state": "Completed, Succeeded",
             "bytes_transferred": 5000000,
@@ -80,6 +82,13 @@ async def test_poll_downloads_loop_completed(mock_sleep, mock_get_downloads, moc
     completed_file = os.path.join(download_dir, "user1", "song.mp3")
     with open(completed_file, "w") as f:
         f.write("audio-content")
+
+    # Simulate Beets task moving file to singles_dir
+    def fake_beets_task(*args, **kwargs):
+        moved_target = os.path.join(singles_dir, "song.mp3")
+        shutil.move(completed_file, moved_target)
+
+    mock_beets_task.side_effect = fake_beets_task
 
     with pytest.raises(ValueError, match="stop loop"):
         await poll_downloads()
@@ -137,10 +146,11 @@ async def test_poll_downloads_loop_failed(mock_sleep, mock_get_downloads, mock_s
     mock_db.commit.assert_called()
 
 @pytest.mark.asyncio
+@patch("app.services.beets_worker.run_beets_import_task")
 @patch("app.services.downloads_poller.SessionLocal")
 @patch("app.services.downloads_poller.SlskdClient.get_downloads", new_callable=AsyncMock)
 @patch("asyncio.sleep", side_effect=ValueError("stop loop"))
-async def test_poll_downloads_loop_with_directories(mock_sleep, mock_get_downloads, mock_session_local, temp_dirs):
+async def test_poll_downloads_loop_with_directories(mock_sleep, mock_get_downloads, mock_session_local, mock_beets_task, temp_dirs):
     download_dir, singles_dir = temp_dirs
 
     from app.config import settings
@@ -160,6 +170,7 @@ async def test_poll_downloads_loop_with_directories(mock_sleep, mock_get_downloa
         status="downloading"
     )
     mock_db.query().filter().all.return_value = [dl_entry]
+    mock_db.query().filter().first.return_value = None
 
     mock_get_downloads.return_value = {
         "directories": [
@@ -180,6 +191,13 @@ async def test_poll_downloads_loop_with_directories(mock_sleep, mock_get_downloa
     completed_file = os.path.join(download_dir, "user1", "song.mp3")
     with open(completed_file, "w") as f:
         f.write("audio-content")
+
+    # Simulate Beets task moving file to singles_dir
+    def fake_beets_task(*args, **kwargs):
+        moved_target = os.path.join(singles_dir, "song.mp3")
+        shutil.move(completed_file, moved_target)
+
+    mock_beets_task.side_effect = fake_beets_task
 
     with pytest.raises(ValueError, match="stop loop"):
         await poll_downloads()

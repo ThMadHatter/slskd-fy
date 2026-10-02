@@ -1116,6 +1116,37 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
                 except Exception:
                     pass
 
+        cands = json.loads(item.candidates_json) if item.candidates_json else []
+        if isinstance(cands, list):
+            cands.sort(key=lambda x: x.get("ui_similarity_score", x.get("confidence", 0)), reverse=True)
+
+        # Check if release/track is already in Beets library DB
+        is_duplicate = False
+        duplicate_reason = None
+        beets_db = "/config/beets/library.db"
+        if os.path.exists(beets_db):
+            try:
+                import sqlite3
+                conn = sqlite3.connect(beets_db)
+                cur = conn.cursor()
+                clean_title = (item.track or "").strip().lower()
+                clean_alb = (item.album or "").strip().lower()
+                if clean_alb and clean_alb not in ("unknown", "unknown album"):
+                    cur.execute("SELECT artist, album FROM items WHERE LOWER(album) LIKE ? LIMIT 1", (f"%{clean_alb}%",))
+                    row = cur.fetchone()
+                    if row:
+                        is_duplicate = True
+                        duplicate_reason = f"Album '{row[1]}' by '{row[0]}' is already in Music Library (/music)"
+                elif clean_title and clean_title not in ("unknown", "unknown track"):
+                    cur.execute("SELECT artist, title FROM items WHERE LOWER(title) LIKE ? LIMIT 1", (f"%{clean_title}%",))
+                    row = cur.fetchone()
+                    if row:
+                        is_duplicate = True
+                        duplicate_reason = f"Track '{row[1]}' by '{row[0]}' is already in Music Library (/music)"
+                conn.close()
+            except Exception:
+                pass
+
         result.append({
             "id": item.id,
             "conflict_id": item.conflict_id,
@@ -1129,7 +1160,9 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
             "downloaded_path": item.downloaded_path,
             "confidence_score": item.confidence_score,
             "status": item.status,
-            "candidates": json.loads(item.candidates_json) if item.candidates_json else [],
+            "is_duplicate": is_duplicate,
+            "duplicate_reason": duplicate_reason,
+            "candidates": cands,
             "selected_match": json.loads(item.selected_match_json) if item.selected_match_json else None,
             "differences": json.loads(item.differences_json) if item.differences_json else None,
             "provenance": json.loads(item.provenance_json) if item.provenance_json else None,

@@ -64,6 +64,21 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
     if not os.path.exists(src_path):
         return None
 
+    # Check if this file path is already pending review or skipped/ignored in BeetsReviewItem
+    try:
+        db_check = SessionLocal()
+        from app.models import BeetsReviewItem
+        existing_item = db_check.query(BeetsReviewItem).filter(
+            BeetsReviewItem.downloaded_path == src_path,
+            BeetsReviewItem.status.in_(["review_required", "open", "skipped", "ignored"])
+        ).first()
+        db_check.close()
+        if existing_item:
+            logger.debug(f"Skipping repeated Beets import attempt for file already in ReviewQueue: '{src_path}'")
+            return src_path
+    except Exception as e:
+        logger.debug(f"Error checking existing BeetsReviewItem for '{src_path}': {e}")
+
     logger.info(f"Triggering Beets import for downloaded file: '{src_path}'")
     logger.debug(f"[AUDIT_POLLER] BEETS IMPORT START - src={src_path!r}")
 
@@ -76,33 +91,21 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
     from app.config import resolve_beets_config_path
     config_path = resolve_beets_config_path()
 
-    cmd = ["beet"]
-    if config_path and os.path.exists(config_path):
-        cmd.extend(["-c", config_path])
-    cmd.extend(["import", "-q", src_path])
+    # If src_path is inside a subfolder under DOWNLOADS_PATH, import the parent directory to trigger album-level autotagging
+    parent_dir = os.path.dirname(src_path)
+    is_in_subfolder = (
+        os.path.normpath(parent_dir) != os.path.normpath(settings.DOWNLOADS_PATH)
+        and os.path.isdir(parent_dir)
+    )
+    target_import_path = parent_dir if is_in_subfolder else src_path
 
-    proc_exit_code = -1
-    stderr_output = ""
+    from app.services.beets_worker import BeetsImportWorker
     try:
-        logger.info(f"Executing Beets CLI command: {' '.join(cmd)}")
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60.0)
-        proc_exit_code = proc.returncode
-        stdout_output = stdout.decode('utf-8', errors='ignore')
-        stderr_output = stderr.decode('utf-8', errors='ignore')
-        logger.info(f"[BEETS_CLI_STDOUT] exit_code={proc_exit_code}:\n{stdout_output.strip() or '(empty)'}")
-        if stderr_output.strip():
-            logger.info(f"[BEETS_CLI_STDERR] exit_code={proc_exit_code}:\n{stderr_output.strip()}")
-        logger.debug(f"[AUDIT_POLLER] BEETS IMPORT COMPLETE - returncode={proc_exit_code}")
-    except FileNotFoundError:
-        logger.warning("Beets binary 'beet' not found in system PATH. Falling back to direct move.")
+        logger.info(f"Triggering BeetsImportWorker job for path: '{target_import_path}'")
+        job_id = BeetsImportWorker.spawn_import_job(source_path=target_import_path, config_path=config_path)
+        logger.info(f"Spawned Beets import job {job_id} for target '{target_import_path}'")
     except Exception as e:
-        logger.error(f"Error executing Beets import process: {e}")
+        logger.error(f"Error executing BeetsImportWorker import job: {e}")
 
     # Check if Beets moved the file to target_dir (/music)
     filename = os.path.basename(src_path)
@@ -128,25 +131,64 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
             ).first()
 
             if not existing_review:
-                candidates = [
-                    {
-                        "id": f"cand_auto_1",
-                        "title": album,
-                        "artist": artist,
-                        "year": datetime.utcnow().year,
-                        "format": os.path.splitext(filename)[1].lstrip(".").upper(),
-                        "track_count": 1,
-                        "confidence": 75,
-                        "source": "Beets Auto-Assessment"
-                    }
-                ]
+                candidates = []
+                # If artist is unknown, attempt MusicBrainz album search using folder name
+                if (artist in ("Unknown", "Unknown Artist") or not artist) and is_in_subfolder:
+                    folder_name = os.path.basename(parent_dir)
+                    from app.services.musicbrainz_service import MusicBrainzService, clean_album_name
+                    clean_title = clean_album_name(folder_name)
+                    if clean_title:
+                        try:
+                            mb_results = await MusicBrainzService.search_releases(clean_title, db)
+                            for idx, rel in enumerate(mb_results[:5]):
+                                rel_artist = rel.get("artist_name") or artist
+                                rel_title = rel.get("title") or album
+                                score = max(60, 100 - (idx * 5))
+                                candidates.append({
+                                    "id": rel.get("id") or f"cand_auto_{idx+1}",
+                                    "source": "MusicBrainz Album Auto-Match",
+                                    "candidate_type": "album",
+                                    "artist": rel_artist,
+                                    "title": rel_title,
+                                    "year": rel.get("year") or datetime.utcnow().year,
+                                    "release_id": rel.get("id"),
+                                    "mbid": rel.get("id"),
+                                    "url": f"https://musicbrainz.org/release/{rel.get('id')}" if rel.get("id") else "",
+                                    "ui_similarity_score": score,
+                                    "confidence": score,
+                                    "track_count": rel.get("track_count", 1)
+                                })
+                                if idx == 0 and rel_artist:
+                                    artist = rel_artist
+                                    if rel_title:
+                                        album = rel_title
+                        except Exception as mb_err:
+                            logger.warning(f"Error querying MusicBrainz for folder '{folder_name}': {mb_err}")
+
+                if not candidates:
+                    candidates = [
+                        {
+                            "id": f"cand_auto_1",
+                            "title": album,
+                            "artist": artist,
+                            "year": datetime.utcnow().year,
+                            "format": os.path.splitext(filename)[1].lstrip(".").upper(),
+                            "track_count": 1,
+                            "confidence": 75,
+                            "ui_similarity_score": 75,
+                            "source": "Beets Auto-Assessment"
+                        }
+                    ]
+
+                best_score = candidates[0].get("ui_similarity_score", 75) if candidates else 75
+
                 new_review = BeetsReviewItem(
                     download_id=download_record.id if download_record else None,
                     artist=artist,
                     track=track,
                     album=album,
                     downloaded_path=src_path,
-                    confidence_score=75,
+                    confidence_score=best_score,
                     status="review_required",
                     candidates_json=json.dumps(candidates)
                 )
@@ -436,14 +478,21 @@ async def poll_downloads():
                             logger.error(f"Failed to process orphaned file: {e}")
 
             # 2. Check for completed files in slskd even if not tracked in active_downloads
+            from app.models import BeetsReviewItem
             for sf in all_slskd_files:
                 state = sf.get("state", "")
                 if "succeeded" in state.lower() or "complete" in state.lower():
                     s_fn = sf.get("filename", "")
                     found_file_path = find_file_recursively(settings.DOWNLOADS_PATH, s_fn)
                     if found_file_path and os.path.exists(found_file_path):
-                        logger.info(f"Processing completed slskd transfer found on disk via Beets: {found_file_path}")
-                        await import_with_beets(found_file_path, settings.MUSIC_LIBRARY_PATH)
+                        # Avoid repeating import if review item already exists
+                        review_exists = db.query(BeetsReviewItem).filter(
+                            BeetsReviewItem.downloaded_path == found_file_path,
+                            BeetsReviewItem.status.in_(["review_required", "open", "skipped", "ignored"])
+                        ).first()
+                        if not review_exists:
+                            logger.info(f"Processing completed slskd transfer found on disk via Beets: {found_file_path}")
+                            await import_with_beets(found_file_path, settings.MUSIC_LIBRARY_PATH)
 
             db.commit()
             clean_empty_directories(settings.DOWNLOADS_PATH)

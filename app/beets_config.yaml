@@ -20,7 +20,7 @@ chroma:
   auto: yes
 
 directory: /music
-library: ~/.config/beets/library.db
+library: /config/beets/library.db
 art_filename: albumart
 threaded: yes
 original_date: no

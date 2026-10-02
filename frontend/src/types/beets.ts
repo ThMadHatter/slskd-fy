@@ -75,6 +75,8 @@ export interface ReviewQueueItem {
   confidence_score: number;
   raw_distance?: number | null;
   status: BeetsImportStatus;
+  is_duplicate?: boolean;
+  duplicate_reason?: string | null;
   provenance?: MetadataProvenance;
   candidates: MatchCandidate[];
   selected_match?: MatchCandidate | null;
@@ -84,7 +86,17 @@ export interface ReviewQueueItem {
   created_at?: string;
 }
 
-export type ReviewAction = 'accept' | 'select_candidate' | 'keep_original' | 'skip' | 'ignore' | 'retry';
+export type ReviewAction =
+  | 'accept'
+  | 'select_candidate'
+  | 'keep_original'
+  | 'as_is'
+  | 'delete_source'
+  | 'remove_old'
+  | 'merge'
+  | 'skip'
+  | 'ignore'
+  | 'retry';
 
 export interface FailedPlugin {
   name: string;

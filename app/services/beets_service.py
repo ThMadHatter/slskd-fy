@@ -348,21 +348,78 @@ class BeetsServiceClient:
             if selected_cand:
                 item.selected_match_json = json.dumps(selected_cand)
 
-            # Trigger targeted import if file exists
             if item.downloaded_path and os.path.exists(item.downloaded_path):
                 search_ids = [selected_cand.get("mbid")] if selected_cand and selected_cand.get("mbid") else None
-                BeetsImportWorker.spawn_import_job(source_path=item.downloaded_path, search_ids=search_ids)
+                item.status = "resolving"
+                BeetsImportWorker.spawn_import_job(
+                    source_path=item.downloaded_path,
+                    search_ids=search_ids,
+                    action_mode="select_candidate",
+                    review_item_id=item.id
+                )
+            else:
+                item.status = "resolved"
 
+        elif act in ("delete_source", "delete_file", "remove_source"):
+            if item.downloaded_path and os.path.exists(item.downloaded_path):
+                try:
+                    if os.path.isdir(item.downloaded_path):
+                        shutil.rmtree(item.downloaded_path, ignore_errors=True)
+                    else:
+                        parent_dir = os.path.dirname(item.downloaded_path)
+                        os.remove(item.downloaded_path)
+                        if os.path.exists(parent_dir) and not os.listdir(parent_dir):
+                            if os.path.normpath(parent_dir) != os.path.normpath(settings.DOWNLOADS_PATH):
+                                try:
+                                    os.rmdir(parent_dir)
+                                except Exception:
+                                    pass
+                    logger.info(f"Deleted downloaded source file/folder at path '{item.downloaded_path}'")
+                except Exception as del_err:
+                    logger.error(f"Error deleting downloaded source path '{item.downloaded_path}': {del_err}")
             item.status = "resolved"
 
-        elif act == "keep_original":
-            item.status = "ignored"
+        elif act in ("as_is", "keep_original"):
+            if item.downloaded_path and os.path.exists(item.downloaded_path):
+                parent_dir = os.path.dirname(item.downloaded_path)
+                is_in_subfolder = (
+                    os.path.normpath(parent_dir) != os.path.normpath(settings.DOWNLOADS_PATH)
+                    and os.path.isdir(parent_dir)
+                )
+                import_path = parent_dir if is_in_subfolder else item.downloaded_path
+                item.status = "resolving"
+                BeetsImportWorker.spawn_import_job(
+                    source_path=import_path,
+                    action_mode="as_is",
+                    review_item_id=item.id
+                )
+            else:
+                item.status = "resolved"
 
-        elif act == "skip":
-            item.status = "skipped"
+        elif act in ("remove_old", "overwrite"):
+            if item.downloaded_path and os.path.exists(item.downloaded_path):
+                item.status = "resolving"
+                BeetsImportWorker.spawn_import_job(
+                    source_path=item.downloaded_path,
+                    action_mode="overwrite",
+                    review_item_id=item.id
+                )
+            else:
+                item.status = "resolved"
 
-        elif act == "ignore":
-            item.status = "ignored"
+        elif act == "merge":
+            if item.downloaded_path and os.path.exists(item.downloaded_path):
+                item.status = "resolving"
+                BeetsImportWorker.spawn_import_job(
+                    source_path=item.downloaded_path,
+                    action_mode="merge",
+                    review_item_id=item.id
+                )
+            else:
+                item.status = "resolved"
+
+        elif act in ("skip", "ignore"):
+            item.status = "skipped" if act == "skip" else "ignored"
 
         elif act == "retry":
             item.status = "resolving"

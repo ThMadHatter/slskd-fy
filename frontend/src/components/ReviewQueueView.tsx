@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useReviewQueueStore } from '../store/reviewQueueStore';
 import { MatchCandidate } from '../types/beets';
-import { Check, Disc, HelpCircle, ArrowRight, ShieldAlert, Sparkles, X, ChevronRight, CornerDownLeft, RefreshCw, Terminal, PlusCircle, Database, FileText, Code2, Tag, Layers } from 'lucide-react';
+import { Check, Disc, HelpCircle, ArrowRight, ShieldAlert, Sparkles, X, ChevronRight, CornerDownLeft, RefreshCw, Terminal, PlusCircle, Database, FileText, Code2, Tag, Layers, Trash2 } from 'lucide-react';
 import Button from './ui/Button';
 import Card from './ui/Card';
 import SonicLoader from './ui/SonicLoader';
@@ -63,9 +63,12 @@ export default function ReviewQueueView() {
       if (e.key === 'a' || e.key === 'A') {
         e.preventDefault();
         handleAccept();
-      } else if (e.key === 'k' || e.key === 'K') {
+      } else if (e.key === 'd' || e.key === 'D') {
         e.preventDefault();
-        handleKeepOriginal();
+        handleDeleteSource();
+      } else if (e.key === 'i' || e.key === 'I') {
+        e.preventDefault();
+        handleImportAsIs();
       } else if (e.key === 'x' || e.key === 'X') {
         e.preventDefault();
         handleSkip();
@@ -101,9 +104,16 @@ export default function ReviewQueueView() {
     }
   };
 
-  const handleKeepOriginal = () => {
+  const handleImportAsIs = () => {
     if (!activeItem) return;
-    resolveAction(activeItem.id, 'keep_original');
+    resolveAction(activeItem.id, 'as_is');
+  };
+
+  const handleDeleteSource = () => {
+    if (!activeItem) return;
+    if (window.confirm(`Are you sure you want to permanently delete the source file/directory "${activeItem.downloaded_path}" from /downloads?`)) {
+      resolveAction(activeItem.id, 'delete_source');
+    }
   };
 
   const handleSkip = () => {
@@ -346,6 +356,25 @@ export default function ReviewQueueView() {
 
               <div className="flex flex-col gap-6">
 
+                {/* Duplicate Release Warning Banner */}
+                {activeItem.is_duplicate && (
+                  <div className="bg-[#fc7c78]/15 border border-[#fc7c78]/40 p-4 font-data-mono text-xs text-[#fc7c78] flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <ShieldAlert size={20} className="text-[#fc7c78] shrink-0" />
+                      <div>
+                        <span className="font-bold uppercase tracking-wider block">DUPLICATE DETECTED IN MUSIC LIBRARY (/music)</span>
+                        <span className="text-[#bbcabf] text-[11px] block mt-0.5">{activeItem.duplicate_reason || 'This release is already in your music library.'}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleDeleteSource}
+                      className="bg-[#fc7c78] hover:bg-[#fc7c78]/90 text-[#0a0a0b] font-bold px-3 py-1.5 uppercase text-[11px] shrink-0 cursor-pointer flex items-center gap-1"
+                    >
+                      <Trash2 size={14} /> DELETE FROM DOWNLOADS
+                    </button>
+                  </div>
+                )}
+
                 {/* Active Item Title Header */}
                 <div className="flex flex-col gap-1 border-b border-[#27272a] pb-4">
                   <div className="flex items-center justify-between">
@@ -549,7 +578,7 @@ export default function ReviewQueueView() {
                     </div>
                   ) : (
                     <div className="flex flex-col gap-2">
-                      {activeItem.candidates.map((cand) => {
+                      {[...activeItem.candidates].sort((a, b) => (b.ui_similarity_score ?? b.confidence ?? 0) - (a.ui_similarity_score ?? a.confidence ?? 0)).map((cand) => {
                         const isCandSelected = cand.id === selectedCandidateId;
                         const score = cand.ui_similarity_score ?? cand.confidence ?? 70;
                         return (
@@ -660,7 +689,7 @@ export default function ReviewQueueView() {
 
               {/* Linear-Style Fixed Action Bar */}
               <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#27272a] pt-6 mt-6 select-none">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <Button
                     onClick={handleAccept}
                     variant="primary"
@@ -672,13 +701,24 @@ export default function ReviewQueueView() {
                   </Button>
 
                   <Button
-                    onClick={handleKeepOriginal}
+                    onClick={handleImportAsIs}
                     variant="secondary"
                     className="font-bold border-[#27272a]"
                   >
-                    KEEP ORIGINAL TAGS
-                    <span className="font-data-mono text-[10px] border border-current px-1 ml-1 opacity-60">K</span>
+                    <FileText size={16} />
+                    IMPORT AS-IS
+                    <span className="font-data-mono text-[10px] border border-current px-1 ml-1 opacity-60">I</span>
                   </Button>
+
+                  <button
+                    onClick={handleDeleteSource}
+                    className="flex items-center gap-1.5 bg-[#fc7c78]/20 hover:bg-[#fc7c78]/30 text-[#fc7c78] border border-[#fc7c78]/40 px-3 py-2 font-data-mono text-xs font-bold transition-all cursor-pointer uppercase"
+                    title="Permanently deletes the downloaded file/folder from /downloads so it never appears in scans again"
+                  >
+                    <Trash2 size={16} />
+                    DELETE FROM DOWNLOADS
+                    <span className="font-data-mono text-[10px] border border-current px-1 ml-1 opacity-80">D</span>
+                  </button>
                 </div>
 
                 <button

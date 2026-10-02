@@ -71,6 +71,8 @@ def run_beets_import_task(
     source_path: str,
     config_path: Optional[str] = None,
     search_ids: Optional[list] = None,
+    action_mode: Optional[str] = None,
+    review_item_id: Optional[int] = None,
 ):
     """
     Worker function executed in a background thread.
@@ -163,10 +165,15 @@ def run_beets_import_task(
         class NonInteractiveImportSession(ImportSession):
             """
             Subclass of ImportSession for headless execution.
-            When search_ids or candidates exist during targeted resolution, returns the chosen candidate object.
-            Otherwise returns Action.SKIP to trigger review queue event without raising NotImplementedError.
+            Handles explicit action_mode overrides (ASIS, APPLY, MERGE, OVERWRITE) natively.
             """
             def choose_match(self, task):
+                act_mode = getattr(self, "action_mode", None)
+                if act_mode in ("as_is", "keep_original"):
+                    if hasattr(Action, "ASIS"):
+                        return Action.ASIS
+                    return Action.SKIP
+
                 s_ids = getattr(self, "search_ids", None)
 
                 if not getattr(task, "candidates", None) and s_ids:
@@ -177,7 +184,6 @@ def run_beets_import_task(
 
                 cands = getattr(task, "candidates", None) or []
 
-                # When search_ids or candidates exist during targeted resolution, return candidate match
                 if s_ids or cands:
                     selected = None
                     if s_ids:
@@ -207,9 +213,24 @@ def run_beets_import_task(
 
         if search_ids:
             session.search_ids = search_ids
+        if action_mode:
+            session.action_mode = action_mode
 
         # Run import session
         session.run()
+
+        # If import task was run for a review item resolution, mark it as resolved on success
+        if review_item_id:
+            try:
+                db_item = SessionLocal()
+                rev_item = db_item.query(BeetsReviewItem).filter(BeetsReviewItem.id == review_item_id).first()
+                if rev_item:
+                    rev_item.status = "resolved"
+                    rev_item.updated_at = datetime.utcnow()
+                    db_item.commit()
+                db_item.close()
+            except Exception as r_err:
+                logger.error(f"Error updating review item #{review_item_id} to resolved: {r_err}")
 
         # Refresh job state in database
         job = db.query(BeetsImportJob).filter(BeetsImportJob.job_id == job_id).first()
@@ -246,7 +267,12 @@ class BeetsImportWorker:
 
     @classmethod
     def spawn_import_job(
-        cls, source_path: str, config_path: Optional[str] = None, search_ids: Optional[list] = None
+        cls,
+        source_path: str,
+        config_path: Optional[str] = None,
+        search_ids: Optional[list] = None,
+        action_mode: Optional[str] = None,
+        review_item_id: Optional[int] = None,
     ) -> str:
         """
         Creates a new BeetsImportJob and starts background worker thread.
@@ -268,7 +294,7 @@ class BeetsImportWorker:
 
         thread = threading.Thread(
             target=run_beets_import_task,
-            args=(job_id, norm_path, config_path, search_ids),
+            args=(job_id, norm_path, config_path, search_ids, action_mode, review_item_id),
             daemon=True,
             name=f"BeetsWorkerThread-{job_id[:8]}",
         )

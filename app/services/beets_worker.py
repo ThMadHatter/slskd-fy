@@ -73,6 +73,7 @@ def run_beets_import_task(
     search_ids: Optional[list] = None,
     action_mode: Optional[str] = None,
     review_item_id: Optional[int] = None,
+    download_id: Optional[int] = None,
 ):
     """
     Worker function executed in a background thread.
@@ -116,9 +117,18 @@ def run_beets_import_task(
         # Persist conflict in database
         try:
             db_inner = SessionLocal()
+            filter_conditions = []
+            if dto.get("fingerprint"):
+                filter_conditions.append(BeetsReviewItem.fingerprint == dto["fingerprint"])
+            if dto.get("downloaded_path"):
+                filter_conditions.append(BeetsReviewItem.downloaded_path == dto["downloaded_path"])
+            if download_id:
+                filter_conditions.append(BeetsReviewItem.download_id == download_id)
+
+            from sqlalchemy import or_
             existing = (
                 db_inner.query(BeetsReviewItem)
-                .filter(BeetsReviewItem.fingerprint == dto["fingerprint"])
+                .filter(or_(*filter_conditions))
                 .first()
             )
 
@@ -127,6 +137,7 @@ def run_beets_import_task(
                     conflict_id=dto["conflict_id"],
                     fingerprint=dto["fingerprint"],
                     job_id=dto["job_id"],
+                    download_id=download_id,
                     item_type=dto["item_type"],
                     artist=dto["artist"],
                     track=dto["track"],
@@ -143,6 +154,10 @@ def run_beets_import_task(
                 db_inner.add(item)
                 db_inner.commit()
                 logger.info(f"Persisted new conflict event #{dto['conflict_id']} for path '{dto['downloaded_path']}'")
+            else:
+                if download_id and not existing.download_id:
+                    existing.download_id = download_id
+                    db_inner.commit()
             db_inner.close()
         except Exception as err:
             logger.error(f"Failed to persist conflict DTO: {err}")
@@ -273,6 +288,7 @@ class BeetsImportWorker:
         search_ids: Optional[list] = None,
         action_mode: Optional[str] = None,
         review_item_id: Optional[int] = None,
+        download_id: Optional[int] = None,
     ) -> str:
         """
         Creates a new BeetsImportJob and starts background worker thread.
@@ -294,7 +310,7 @@ class BeetsImportWorker:
 
         thread = threading.Thread(
             target=run_beets_import_task,
-            args=(job_id, norm_path, config_path, search_ids, action_mode, review_item_id),
+            args=(job_id, norm_path, config_path, search_ids, action_mode, review_item_id, download_id),
             daemon=True,
             name=f"BeetsWorkerThread-{job_id[:8]}",
         )

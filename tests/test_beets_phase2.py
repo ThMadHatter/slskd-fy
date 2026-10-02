@@ -9,8 +9,9 @@ def test_phase2_invariant1_config_and_library_path():
     """INVARIANT 1 & 2: Production library path resolves to /config/beets/library.db."""
     config_path = resolve_beets_config_path()
     assert config_path is not None
+    import yaml
     raw_yaml = BeetsConfigService.load_raw_yaml(config_path)
-    parsed = BeetsConfigService.load_yaml(raw_yaml)
+    parsed = yaml.safe_load(raw_yaml)
     assert parsed.get("library") == "/config/beets/library.db"
 
 def test_phase2_invariant4_no_fake_unknown_artist():

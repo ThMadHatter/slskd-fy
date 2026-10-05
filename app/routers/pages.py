@@ -1468,9 +1468,9 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
                     if not existing:
                         clean_fn = clean_query_hint(file)
                         review_item = BeetsReviewItem(
-                            artist=None,
+                            artist="",
                             track=clean_fn or file,
-                            album=None,
+                            album="",
                             downloaded_path=file_path,
                             confidence_score=50,
                             status="review_required",
@@ -1515,9 +1515,9 @@ def api_beets_seed_test_items(db: Session = Depends(get_db), user: User = Depend
                             parent_alb = clean_query_hint(os.path.basename(root))
 
                             item = BeetsReviewItem(
-                                artist=None,
+                                artist="",
                                 track=clean_fn or file,
-                                album=None,
+                                album="",
                                 downloaded_path=file_path,
                                 confidence_score=50,
                                 status="review_required",

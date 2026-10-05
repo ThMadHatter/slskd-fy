@@ -10,7 +10,15 @@ from app.database import SessionLocal
 from app.config import settings
 from app.models import DownloadHistory, Wishlist
 from app.services.slskd import SlskdClient
-from app.services.duplicate_detector import calculate_file_hash
+import hashlib
+
+def calculate_file_hash(filepath: str) -> str:
+    """Calculates SHA-256 hash of a file."""
+    hasher = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        while chunk := f.read(65536):
+            hasher.update(chunk)
+    return hasher.hexdigest()
 
 logger = logging.getLogger("track_portal.poller")
 
@@ -197,11 +205,8 @@ async def _handle_stalled_download(download: DownloadHistory, db: Session):
 
     # Query next best choice candidate [RSL-002]
     try:
-        from app.services.search_ranking_service import SearchRankingService
-        from app.contracts.schemas import SearchQuery, SlskdResult
-
         logger.info(f"Autonomously searching and enqueuing next best choice peer for '{download.track}'")
-        search_query = f"{download.artist} {download.track}"
+        search_query = f"{download.artist} {download.track}".strip()
         search_obj = await slskd_client.search(search_query)
         search_id = search_obj.get("id")
         if not search_id:
@@ -223,21 +228,19 @@ async def _handle_stalled_download(download: DownloadHistory, db: Session):
                 size = f.get("size", 0)
                 bitrate = f.get("bitRate", 0) or f.get("bitrate", 0) or 0
 
-                if SearchRankingService.should_reject_result(filename, ext):
+                # Basic format filtering
+                if ext not in ["flac", "mp3", "m4a", "wav", "aac", "ogg", "alac"]:
                     continue
 
-                res_model = SlskdResult(
-                    filename=filename,
-                    size=size,
-                    username=username,
-                    format=ext,
-                    bitrate=bitrate
-                )
-                query_model = SearchQuery(artist=download.artist, track=download.track)
-                diag = SearchRankingService().score_result(res_model, query_model)
-                candidates.append((diag["final_score"], username, filename, size, ext, bitrate))
+                score = 50
+                if ext == "flac":
+                    score += 30
+                elif bitrate >= 320:
+                    score += 20
 
-        # Sort based on ranking quality score
+                candidates.append((score, username, filename, size, ext, bitrate))
+
+        # Sort based on quality score
         candidates.sort(key=lambda x: x[0], reverse=True)
         if candidates:
             best_score, next_user, next_file, next_size, next_ext, next_bitrate = candidates[0]

@@ -56,40 +56,13 @@ def clean_empty_directories(base_dir: str):
 
 async def import_with_beets(src_path: str, target_dir: str, download_record: Optional[DownloadHistory] = None) -> Optional[str]:
     """
-    Parses and imports the downloaded file using Beets CLI ('beet import -q -y').
-    Moves the file to target_dir (/music).
-    Creates a BeetsReviewItem if autotagging requires triage/review.
-    Returns the final file path.
+    Imports downloaded audio files using Beets engine.
+    If Beets autotags and imports the files into target_dir (/music), returns the destination file path.
+    If Beets skips import because user intervention is required, transitions the download status to 'review_required',
+    preserves the BeetsReviewItem conflict metadata, leaves source files untouched in /downloads, and returns None.
     """
     if not os.path.exists(src_path):
         return None
-
-    # Check if this file path is already pending review or skipped/ignored in BeetsReviewItem
-    try:
-        db_check = SessionLocal()
-        from app.models import BeetsReviewItem
-        existing_item = db_check.query(BeetsReviewItem).filter(
-            BeetsReviewItem.downloaded_path == src_path,
-            BeetsReviewItem.status.in_(["review_required", "open", "skipped", "ignored"])
-        ).first()
-        db_check.close()
-        if existing_item:
-            logger.debug(f"Skipping repeated Beets import attempt for file already in ReviewQueue: '{src_path}'")
-            return src_path
-    except Exception as e:
-        logger.debug(f"Error checking existing BeetsReviewItem for '{src_path}': {e}")
-
-    logger.info(f"Triggering Beets import for downloaded file: '{src_path}'")
-    logger.debug(f"[AUDIT_POLLER] BEETS IMPORT START - src={src_path!r}")
-
-    try:
-        os.makedirs("/config/beets", exist_ok=True)
-        os.makedirs(target_dir, exist_ok=True)
-    except Exception as e:
-        logger.debug(f"Could not create /config/beets directory: {e}")
-
-    from app.config import resolve_beets_config_path
-    config_path = resolve_beets_config_path()
 
     # If src_path is inside a subfolder under DOWNLOADS_PATH, import the parent directory to trigger album-level autotagging
     parent_dir = os.path.dirname(src_path)
@@ -99,119 +72,89 @@ async def import_with_beets(src_path: str, target_dir: str, download_record: Opt
     )
     target_import_path = parent_dir if is_in_subfolder else src_path
 
-    from app.services.beets_worker import BeetsImportWorker
+    # Check if this file path or download is already pending review or skipped/ignored in BeetsReviewItem
     try:
-        logger.info(f"Triggering BeetsImportWorker job for path: '{target_import_path}'")
-        job_id = BeetsImportWorker.spawn_import_job(source_path=target_import_path, config_path=config_path)
-        logger.info(f"Spawned Beets import job {job_id} for target '{target_import_path}'")
+        db_check = SessionLocal()
+        from app.models import BeetsReviewItem
+        from sqlalchemy import or_
+
+        filter_conds = [
+            BeetsReviewItem.downloaded_path == src_path,
+            BeetsReviewItem.downloaded_path == target_import_path,
+        ]
+        if download_record and download_record.id:
+            filter_conds.append(BeetsReviewItem.download_id == download_record.id)
+
+        existing_item = db_check.query(BeetsReviewItem).filter(
+            or_(*filter_conds),
+            BeetsReviewItem.status.in_(["review_required", "open", "skipped", "ignored"])
+        ).first()
+
+        if existing_item:
+            logger.info(f"Skipping repeated Beets import attempt for file already in ReviewQueue: '{src_path}'")
+            if download_record and download_record.status == "downloading":
+                download_record.status = "review_required"
+                db_check.merge(download_record)
+                db_check.commit()
+            db_check.close()
+            return None
+        db_check.close()
     except Exception as e:
-        logger.error(f"Error executing BeetsImportWorker import job: {e}")
+        logger.debug(f"Error checking existing BeetsReviewItem for '{src_path}': {e}")
+
+    logger.info(f"Triggering Beets import for downloaded file/directory: '{target_import_path}'")
+    logger.debug(f"[AUDIT_POLLER] BEETS IMPORT START - src={src_path!r}, target_import_path={target_import_path!r}")
+
+    try:
+        os.makedirs("/config/beets", exist_ok=True)
+        os.makedirs(target_dir, exist_ok=True)
+    except Exception as e:
+        logger.debug(f"Could not create directories: {e}")
+
+    from app.config import resolve_beets_config_path
+    config_path = resolve_beets_config_path()
+
+    import uuid
+    from app.services.beets_worker import run_beets_import_task
+    job_id = str(uuid.uuid4())
+    download_id_val = download_record.id if download_record else None
+
+    try:
+        logger.info(f"Executing Beets import task job_id '{job_id}' for path: '{target_import_path}'")
+        await asyncio.to_thread(
+            run_beets_import_task,
+            job_id,
+            target_import_path,
+            config_path,
+            None,
+            None,
+            None,
+            download_id_val,
+        )
+    except Exception as e:
+        logger.error(f"Error executing Beets import task for '{target_import_path}': {e}")
 
     # Check if Beets moved the file to target_dir (/music)
     filename = os.path.basename(src_path)
     found_in_target = find_file_recursively(target_dir, filename)
     if found_in_target and os.path.exists(found_in_target):
+        logger.info(f"Beets import succeeded and file was moved to target: '{found_in_target}'")
         return found_in_target
 
-    # If Beets import exited with non-zero or skipped auto-import, create a review queue item if needed
-    if proc_exit_code != 0 or not found_in_target:
+    # If Beets skipped import (0 files imported), transition to 'review_required' and leave source path untouched
+    logger.info(f"Beets import for '{target_import_path}' completed without moving files; transitioning download record to review_required state.")
+    if download_record:
         try:
-            db = SessionLocal()
-            from app.models import BeetsReviewItem
-            from app.services.filename_parser import parse_filename
-
-            parsed = parse_filename(src_path)
-            artist = (download_record.artist if download_record and download_record.artist and download_record.artist != "Unknown" else parsed.get("artist")) or "Unknown Artist"
-            track = (download_record.track if download_record and download_record.track and download_record.track != "Unknown" else parsed.get("track")) or filename
-            album = (download_record.album if download_record and download_record.album and download_record.album != "Unknown Album" else parsed.get("album")) or "Unknown Album"
-
-            existing_review = db.query(BeetsReviewItem).filter(
-                BeetsReviewItem.downloaded_path == src_path,
-                BeetsReviewItem.status == "review_required"
-            ).first()
-
-            if not existing_review:
-                candidates = []
-                # If artist is unknown, attempt MusicBrainz album search using folder name
-                if (artist in ("Unknown", "Unknown Artist") or not artist) and is_in_subfolder:
-                    folder_name = os.path.basename(parent_dir)
-                    from app.services.musicbrainz_service import MusicBrainzService, clean_album_name
-                    clean_title = clean_album_name(folder_name)
-                    if clean_title:
-                        try:
-                            mb_results = await MusicBrainzService.search_releases(clean_title, db)
-                            for idx, rel in enumerate(mb_results[:5]):
-                                rel_artist = rel.get("artist_name") or artist
-                                rel_title = rel.get("title") or album
-                                score = max(60, 100 - (idx * 5))
-                                candidates.append({
-                                    "id": rel.get("id") or f"cand_auto_{idx+1}",
-                                    "source": "MusicBrainz Album Auto-Match",
-                                    "candidate_type": "album",
-                                    "artist": rel_artist,
-                                    "title": rel_title,
-                                    "year": rel.get("year") or datetime.utcnow().year,
-                                    "release_id": rel.get("id"),
-                                    "mbid": rel.get("id"),
-                                    "url": f"https://musicbrainz.org/release/{rel.get('id')}" if rel.get("id") else "",
-                                    "ui_similarity_score": score,
-                                    "confidence": score,
-                                    "track_count": rel.get("track_count", 1)
-                                })
-                                if idx == 0 and rel_artist:
-                                    artist = rel_artist
-                                    if rel_title:
-                                        album = rel_title
-                        except Exception as mb_err:
-                            logger.warning(f"Error querying MusicBrainz for folder '{folder_name}': {mb_err}")
-
-                if not candidates:
-                    candidates = [
-                        {
-                            "id": f"cand_auto_1",
-                            "title": album,
-                            "artist": artist,
-                            "year": datetime.utcnow().year,
-                            "format": os.path.splitext(filename)[1].lstrip(".").upper(),
-                            "track_count": 1,
-                            "confidence": 75,
-                            "ui_similarity_score": 75,
-                            "source": "Beets Auto-Assessment"
-                        }
-                    ]
-
-                best_score = candidates[0].get("ui_similarity_score", 75) if candidates else 75
-
-                new_review = BeetsReviewItem(
-                    download_id=download_record.id if download_record else None,
-                    artist=artist,
-                    track=track,
-                    album=album,
-                    downloaded_path=src_path,
-                    confidence_score=best_score,
-                    status="review_required",
-                    candidates_json=json.dumps(candidates)
-                )
-                db.add(new_review)
-                db.commit()
-                logger.info(f"Created BeetsReviewItem for file requiring review: {src_path}")
-            db.close()
+            db_up = SessionLocal()
+            rec = db_up.query(DownloadHistory).filter(DownloadHistory.id == download_record.id).first()
+            if rec:
+                rec.status = "review_required"
+                db_up.commit()
+            db_up.close()
         except Exception as e:
-            logger.error(f"Failed to record BeetsReviewItem for file {src_path}: {e}")
+            logger.error(f"Error updating DownloadHistory status to review_required: {e}")
 
-    # If file still exists at src_path, manually move it to target_dir
-    if os.path.exists(src_path):
-        os.makedirs(target_dir, exist_ok=True)
-        dest_file_path = os.path.join(target_dir, filename)
-        try:
-            logger.info(f"Moving completed track: {src_path} -> {dest_file_path}")
-            shutil.move(src_path, dest_file_path)
-            return dest_file_path
-        except Exception as e:
-            logger.error(f"Failed to move file to destination: {e}")
-            return src_path
-
-    return found_in_target or src_path
+    return None
 
 async def _handle_stalled_download(download: DownloadHistory, db: Session):
     """

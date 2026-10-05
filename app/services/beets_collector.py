@@ -109,32 +109,16 @@ class ConflictCollector:
             technical_props["bitrate"] = getattr(first_item, "bitrate", None)
             technical_props["sample_rate"] = getattr(first_item, "samplerate", None)
 
-        # Inferred metadata from filename & parent folder
-        if downloaded_path:
+        # Inferred path structure for provenance tracking
+        if downloaded_path and downloaded_path != "Unknown Path":
             try:
-                from app.services.filename_parser import parse_filename
-                parsed = parse_filename(downloaded_path)
-                filename_inferred["artist"] = parsed.get("artist")
-                filename_inferred["track"] = parsed.get("track")
-                filename_inferred["album"] = parsed.get("album")
-
+                base_fn = os.path.basename(downloaded_path)
                 parent_dir = os.path.basename(os.path.dirname(downloaded_path))
+                filename_inferred["track"] = clean_query_hint(base_fn)
                 if parent_dir:
-                    parent_dir_inferred["album"] = parent_dir
+                    parent_dir_inferred["album"] = clean_query_hint(parent_dir)
             except Exception:
                 pass
-
-        # Final active local tags (prioritizing valid embedded tags)
-        artist = embedded_tags["artist"] or filename_inferred["artist"] or "Unknown Artist"
-        track = embedded_tags["track"] or filename_inferred["track"] or "Unknown Track"
-        raw_album = embedded_tags["album"] or filename_inferred["album"] or "Unknown Album"
-
-        # Sanitize query hints to remove uploader tags, brackets, and year noise for candidate searching
-        clean_artist_hint = clean_query_hint(artist)
-        clean_track_hint = clean_query_hint(track)
-        clean_album_hint = clean_query_hint(raw_album) if raw_album != "Unknown Album" else ""
-
-        album = clean_album_hint if clean_album_hint else raw_album
 
         # If candidates list is empty or lacks candidates, execute a fallback search via Beets autotag/metadata plugins
         raw_candidates = getattr(task, "candidates", None)
@@ -150,19 +134,15 @@ class ConflictCollector:
         else:
             raw_candidates = raw_candidates or []
 
-        fingerprint = cls.calculate_fingerprint(downloaded_path, artist, track)
-
         # Candidate Extraction from Beets Match Candidates
         candidates_list: List[Dict[str, Any]] = []
-        raw_candidates = getattr(task, "candidates", []) or []
-
         best_confidence = 0
         raw_distance = None
 
         for idx, cand in enumerate(raw_candidates[:10]):
             # Extract rich MusicBrainz metadata
-            cand_artist = str(getattr(cand, "artist", "") or getattr(cand, "albumartist", "") or artist)
-            cand_title = str(getattr(cand, "album", "") or getattr(cand, "title", "") or track)
+            cand_artist = str(getattr(cand, "artist", "") or getattr(cand, "albumartist", "") or "Unknown Artist")
+            cand_title = str(getattr(cand, "album", "") or getattr(cand, "title", "") or "Unknown Track")
             cand_year = int(getattr(cand, "year", 0) or 0)
 
             release_id = str(getattr(cand, "album_id", "") or getattr(cand, "release_id", "") or getattr(cand, "id", "") or "")
@@ -223,6 +203,20 @@ class ConflictCollector:
                 "mbid": cand_mbid,
                 "url": cand_url,
             })
+
+        # Primary metadata derived strictly from Beets candidates or embedded tags (no local parser defaults)
+        top_cand = candidates_list[0] if candidates_list else None
+        artist = embedded_tags["artist"] or (top_cand["artist"] if top_cand else "Unknown Artist")
+        track = embedded_tags["track"] or (top_cand["title"] if top_cand else filename_inferred.get("track") or "Unknown Track")
+        raw_album = embedded_tags["album"] or (top_cand["title"] if top_cand else parent_dir_inferred.get("album") or "Unknown Album")
+
+        # Sanitize query hints to remove uploader tags, brackets, and year noise for candidate searching
+        clean_artist_hint = clean_query_hint(artist, is_artist=True)
+        clean_track_hint = clean_query_hint(track, artist=clean_artist_hint)
+        clean_album_hint = clean_query_hint(raw_album, artist=clean_artist_hint) if raw_album != "Unknown Album" else ""
+
+        album = clean_album_hint if clean_album_hint else raw_album
+        fingerprint = cls.calculate_fingerprint(downloaded_path, artist, track)
 
         # Dynamic Assessment Text Generation based on true candidate counts and confidence
         candidate_count = len(candidates_list)

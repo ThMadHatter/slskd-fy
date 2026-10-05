@@ -1074,10 +1074,8 @@ def api_get_beets_job_detail(job_id: str, db: Session = Depends(get_db), user: U
 def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """
     Returns pending items requiring human review for ambiguous Beets matches.
-    Re-parses full file path if existing items have 'Unknown' artist or album.
     """
     from app.models import BeetsReviewItem
-    from app.services.filename_parser import parse_filename
     try:
         items = db.query(BeetsReviewItem).filter(
             BeetsReviewItem.status.in_(["open", "review_required"])
@@ -1089,33 +1087,8 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
             detail={"error_code": "DATABASE_ERROR", "message": "Database query error fetching review queue"}
         )
 
-    updated_any = False
     result = []
     for item in items:
-        if item.downloaded_path and (item.artist in ("Unknown", "Unknown Artist") or item.album in ("Unknown", "Unknown Album", "")):
-            parsed = parse_filename(item.downloaded_path)
-            if parsed.get("artist") and parsed.get("artist") != "Unknown":
-                item.artist = parsed["artist"]
-                updated_any = True
-            if parsed.get("track") and parsed.get("track") != "Unknown":
-                item.track = parsed["track"]
-                updated_any = True
-            if parsed.get("album") and parsed.get("album") != "Unknown Album":
-                item.album = parsed["album"]
-                updated_any = True
-
-            if updated_any and item.candidates_json:
-                try:
-                    cands = json.loads(item.candidates_json)
-                    for c in cands:
-                        if c.get("artist") in ("Unknown", "Unknown Artist") and parsed.get("artist"):
-                            c["artist"] = parsed["artist"]
-                        if c.get("title") in ("Unknown", "Unknown Album") and parsed.get("album"):
-                            c["title"] = parsed["album"]
-                    item.candidates_json = json.dumps(cands)
-                except Exception:
-                    pass
-
         cands = json.loads(item.candidates_json) if item.candidates_json else []
         if isinstance(cands, list):
             cands.sort(key=lambda x: x.get("ui_similarity_score", x.get("confidence", 0)), reverse=True)
@@ -1170,12 +1143,6 @@ def api_get_beets_review_queue(db: Session = Depends(get_db), user: User = Depen
             "retry_count": item.retry_count,
             "created_at": item.created_at.isoformat() if item.created_at else None
         })
-
-    if updated_any:
-        try:
-            db.commit()
-        except Exception as e:
-            logger.error(f"Error saving updated review item metadata: {e}")
 
     return JSONResponse(content=result)
 
@@ -1624,27 +1591,26 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
     except Exception as e:
         logger.error(f"Error running Beets scan subprocess: {e}")
 
-    # Inspect /downloads directory for files requiring metadata review
+    # Inspect /downloads directory for files requiring metadata review via Beets worker
     if os.path.exists(downloads_dir):
+        from app.services.beets_collector import clean_query_hint
         for root, _, files in os.walk(downloads_dir):
             for file in files:
-                if file.lower().endswith(('.flac', '.mp3', '.m4a', '.wav', '.aac', '.ogg', '.zip', '.rar', '.7z')):
+                if file.lower().endswith(('.flac', '.mp3', '.m4a', '.wav', '.aac', '.ogg')):
                     file_path = os.path.join(root, file)
                     existing = db.query(BeetsReviewItem).filter(
                         BeetsReviewItem.downloaded_path == file_path,
-                        BeetsReviewItem.status == "review_required"
+                        BeetsReviewItem.status.in_(["review_required", "open"])
                     ).first()
                     if not existing:
-                        parsed = parse_filename(file_path)
-                        artist = parsed.get("artist") or "Unknown Artist"
-                        track = parsed.get("track") or file
-                        album = parsed.get("album") or "Unknown Album"
+                        clean_fn = clean_query_hint(file)
+                        parent_alb = clean_query_hint(os.path.basename(root))
                         review_item = BeetsReviewItem(
-                            artist=artist,
-                            track=track,
-                            album=album,
+                            artist="Unknown Artist",
+                            track=clean_fn or file,
+                            album=parent_alb or "Unknown Album",
                             downloaded_path=file_path,
-                            confidence_score=70,
+                            confidence_score=50,
                             status="review_required",
                             candidates_json=json.dumps([])
                         )
@@ -1669,7 +1635,7 @@ def api_beets_seed_test_items(db: Session = Depends(get_db), user: User = Depend
     Scans real files in /downloads or /music to populate review queue items from actual files on disk.
     """
     from app.models import BeetsReviewItem
-    from app.services.filename_parser import parse_filename
+    from app.services.beets_collector import clean_query_hint
 
     downloads_dir = settings.DOWNLOADS_PATH
     music_dir = settings.MUSIC_LIBRARY_PATH
@@ -1683,19 +1649,15 @@ def api_beets_seed_test_items(db: Session = Depends(get_db), user: User = Depend
                         file_path = os.path.join(root, file)
                         existing = db.query(BeetsReviewItem).filter(BeetsReviewItem.downloaded_path == file_path).first()
                         if not existing:
-                            parsed = parse_filename(file_path)
-                            artist = parsed.get("artist") or "Unknown Artist"
-                            track = parsed.get("track") or file
-                            album = parsed.get("album") or "Unknown Album"
-                            ext = os.path.splitext(file)[1].lstrip(".").upper()
-                            file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+                            clean_fn = clean_query_hint(file)
+                            parent_alb = clean_query_hint(os.path.basename(root))
 
                             item = BeetsReviewItem(
-                                artist=artist,
-                                track=track,
-                                album=album,
+                                artist="Unknown Artist",
+                                track=clean_fn or file,
+                                album=parent_alb or "Unknown Album",
                                 downloaded_path=file_path,
-                                confidence_score=75,
+                                confidence_score=50,
                                 status="review_required",
                                 candidates_json=json.dumps([])
                             )

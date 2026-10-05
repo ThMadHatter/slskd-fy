@@ -7,6 +7,62 @@ import { Check, Disc, HelpCircle, ArrowRight, ShieldAlert, Sparkles, X, ChevronR
 import Button from './ui/Button';
 import Card from './ui/Card';
 import SonicLoader from './ui/SonicLoader';
+import { ReviewQueueItem } from '../types/beets';
+
+export function isInvalidMetadata(val: string | null | undefined): boolean {
+  if (!val) return true;
+  const normalized = val.trim().toLowerCase();
+  return (
+    normalized === '' ||
+    normalized === 'unknown' ||
+    normalized === 'unknown artist' ||
+    normalized === 'unknown album' ||
+    normalized === 'unknown track' ||
+    normalized === 'n/a'
+  );
+}
+
+export function getDisplayMetadata(item: ReviewQueueItem, selectedCandidateId?: string | null) {
+  let bestCandidate: MatchCandidate | null = null;
+
+  if (selectedCandidateId && item.candidates && item.candidates.length > 0) {
+    bestCandidate = item.candidates.find((c) => c.id === selectedCandidateId) || null;
+  }
+  if (!bestCandidate && item.selected_match) {
+    bestCandidate = item.selected_match;
+  }
+  if (!bestCandidate && item.candidates && item.candidates.length > 0) {
+    bestCandidate = [...item.candidates].sort(
+      (a, b) => (b.ui_similarity_score ?? b.confidence ?? 0) - (a.ui_similarity_score ?? a.confidence ?? 0)
+    )[0];
+  }
+
+  const candArtist = bestCandidate?.artist;
+  const candAlbum = bestCandidate?.album || bestCandidate?.title;
+  const candTrack = bestCandidate?.title;
+
+  const displayArtist = !isInvalidMetadata(candArtist)
+    ? (candArtist as string)
+    : (!isInvalidMetadata(item.artist) ? item.artist : 'Unknown Artist');
+
+  const displayAlbum = !isInvalidMetadata(candAlbum)
+    ? (candAlbum as string)
+    : (!isInvalidMetadata(item.album) ? (item.album as string) : 'Unknown Album');
+
+  const displayTrack = !isInvalidMetadata(candTrack)
+    ? (candTrack as string)
+    : (!isInvalidMetadata(item.track) ? item.track : 'Unknown Track');
+
+  return {
+    displayArtist,
+    displayAlbum,
+    displayTrack,
+    bestCandidate,
+    sourceArtist: item.artist,
+    sourceAlbum: item.album || 'Unknown Album',
+    sourceTrack: item.track,
+  };
+}
 
 export default function ReviewQueueView() {
   const {
@@ -44,6 +100,7 @@ export default function ReviewQueueView() {
   }, [fetchQueue, fetchStatus]);
 
   const activeItem = items.find((i) => i.id === selectedItemId) || items[0] || null;
+  const activeDisplay = activeItem ? getDisplayMetadata(activeItem, selectedCandidateId) : null;
 
   // Set default selected candidate when active item changes
   useEffect(() => {
@@ -311,6 +368,7 @@ export default function ReviewQueueView() {
             <div className="flex-1 divide-y divide-[#27272a]/50 max-h-[700px] overflow-y-auto">
               {filteredItems.map((item) => {
                 const isSelected = item.id === activeItem?.id;
+                const { displayArtist, displayTrack, displayAlbum } = getDisplayMetadata(item);
                 return (
                   <button
                     key={item.id}
@@ -324,7 +382,7 @@ export default function ReviewQueueView() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
                         <span className="font-label-caps text-[10px] text-[#bbcabf]/70 truncate max-w-[140px]">
-                          {item.artist}
+                          {displayArtist}
                         </span>
                         <span className="bg-[#1c1b1c] text-[#10b981] border border-[#27272a] font-data-mono text-[9px] px-1 uppercase font-bold">
                           {item.item_type || 'ALBUM'}
@@ -336,12 +394,12 @@ export default function ReviewQueueView() {
                     </div>
 
                     <h4 className="font-body-md font-bold text-[#e5e2e3] truncate leading-tight">
-                      {item.track}
+                      {displayTrack}
                     </h4>
 
-                    {item.album && (
+                    {displayAlbum && (
                       <span className="font-data-mono text-[11px] text-[#bbcabf]/60 truncate">
-                        {item.album}
+                        {displayAlbum}
                       </span>
                     )}
                   </button>
@@ -391,7 +449,7 @@ export default function ReviewQueueView() {
                     </span>
                   </div>
                   <h3 className="font-headline-md text-headline-md font-bold text-[#e5e2e3]">
-                    {activeItem.artist} — {activeItem.track}
+                    {activeDisplay?.displayArtist} — {activeDisplay?.displayTrack}
                   </h3>
                   <p className="font-data-mono text-xs text-[#bbcabf]/70 truncate mt-1">
                     Path: <span className="text-[#e5e2e3] select-all">{activeItem.downloaded_path}</span>

@@ -1134,9 +1134,11 @@ async def api_beets_fingerprint_scan(
 
         dummy_item = library.Item.from_path(file_path) if os.path.isfile(file_path) else library.Item(artist=item.artist or "", album=item.album or "", title=item.track or "")
 
+        beets_log = beets.logging.getLogger("beets.chroma")
         try:
-            chroma.fingerprint_item(dummy_item)
-            fingerprint_str = getattr(dummy_item, "chroma_fingerprint", None) or getattr(dummy_item, "acoustid_fingerprint", None)
+            fingerprint_str = chroma.fingerprint_item(beets_log, dummy_item)
+            if not fingerprint_str:
+                fingerprint_str = getattr(dummy_item, "chroma_fingerprint", None) or getattr(dummy_item, "acoustid_fingerprint", None)
         except Exception as chroma_err:
             logger.warning(f"Beets Chroma fingerprint_item warning: {chroma_err}")
 
@@ -1444,7 +1446,7 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
     from app.config import resolve_beets_config_path
     config_path = resolve_beets_config_path()
 
-    target = music_dir if os.path.exists(music_dir) else downloads_dir
+    target = downloads_dir if os.path.exists(downloads_dir) else music_dir
     created_review_items = 0
 
     from app.services.beets_worker import BeetsImportWorker

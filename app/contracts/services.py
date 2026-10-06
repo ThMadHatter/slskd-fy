@@ -18,34 +18,17 @@ class CacheProviderContract(Protocol):
         ...
 
 
-class SearchProviderContract(Protocol):
-    """
-    [CDA-001] Protocol defining the Search Provider strategy interface.
-    Controls query generation and ranking policies.
-    """
-    def generate_queries(self, query: SearchQuery) -> List[str]:
-        """
-        [QG-002] Generates optimized search queries based on target mode.
-        """
-        ...
-
-    def score_result(
-        self,
-        result: SlskdResult,
-        query: SearchQuery
-    ) -> Dict[str, Any]:
-        """
-        [UX-003] Computes candidate score and matches classifications.
-        """
-        ...
-
-
 class SlskdClientContract(Protocol):
     """
     [CDA-001] Protocol defining the Slskd REST interaction contract.
     Decouples raw API invocations.
     """
-    async def search(self, query: str) -> Dict[str, Any]:
+    async def search(
+        self,
+        query: str,
+        timeout_sec: int = 15,
+        wait_until_complete: bool = False
+    ) -> Dict[str, Any]:
         """
         Launches an asynchronous search on the slskd backend.
         """
@@ -95,17 +78,5 @@ class TelemetryContract(Protocol):
     def get_aggregate_stats(self) -> Dict[str, Any]:
         """
         Retrieves formatted performance statistics.
-        """
-        ...
-
-
-class SearchExecutorContract(Protocol):
-    """
-    [CDA-001] Interface for executing progressive search queries with fallback policies.
-    """
-    async def execute_search(self, query: SearchQuery) -> List[SlskdResult]:
-        """
-        [QG-002] Progressively executes query strategies (STRICT -> BALANCED -> AGGRESSIVE)
-        until candidates are found or all modes are exhausted.
         """
         ...

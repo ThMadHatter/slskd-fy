@@ -122,6 +122,11 @@ def run_migrations() -> str:
                         conn.execute(text(f"ALTER TABLE beets_review_items ADD COLUMN {col_name} {col_type}"))
                         conn.commit()
 
+                # Clean up legacy 'Unknown Artist' and 'Unknown Album' strings
+                conn.execute(text("UPDATE beets_review_items SET artist = '' WHERE artist = 'Unknown Artist'"))
+                conn.execute(text("UPDATE beets_review_items SET album = '' WHERE album = 'Unknown Album'"))
+                conn.commit()
+
             log_msg("Database schema verification and auto-healing completed successfully.")
     except Exception as e:
         err_msg = f"Error during database migration execution: {e}"

@@ -1096,15 +1096,14 @@ async def api_beets_fingerprint_scan(
     user: User = Depends(get_current_user)
 ):
     """
-    Triggers Beets Chroma audio fingerprinting plugin (beetsplug.chroma)
-    for a review queue item on disk to retrieve MusicBrainz identification candidates.
+    Triggers Beets candidate identification (including Chroma + MusicBrainz plugins)
+    for a review queue item on disk.
     """
     import shutil
     import beets
     import beets.plugins
     import beets.importer as importer
     import beets.library as library
-    import beetsplug.chroma as chroma
     from app.models import BeetsReviewItem
 
     item = db.query(BeetsReviewItem).filter(
@@ -1126,21 +1125,11 @@ async def api_beets_fingerprint_scan(
     if not file_path or not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"File not found on disk for fingerprint scan: {file_path}")
 
-    fingerprint_str = None
     chroma_candidates = []
-
     try:
         beets.plugins.load_plugins()
 
         dummy_item = library.Item.from_path(file_path) if os.path.isfile(file_path) else library.Item(artist=item.artist or "", album=item.album or "", title=item.track or "")
-
-        beets_log = beets.logging.getLogger("beets.chroma")
-        try:
-            fingerprint_str = chroma.fingerprint_item(beets_log, dummy_item)
-            if not fingerprint_str:
-                fingerprint_str = getattr(dummy_item, "chroma_fingerprint", None) or getattr(dummy_item, "acoustid_fingerprint", None)
-        except Exception as chroma_err:
-            logger.warning(f"Beets Chroma fingerprint_item warning: {chroma_err}")
 
         if item.item_type == "singleton":
             task = importer.SingletonImportTask(file_path, dummy_item)
@@ -1153,8 +1142,8 @@ async def api_beets_fingerprint_scan(
                     ui_score = max(0, min(100, int((1.0 - dist_val) * 100)))
                     track_id = str(getattr(cand_info, "track_id", ""))
                     chroma_candidates.append({
-                        "id": track_id or f"chroma_{len(chroma_candidates)+1}",
-                        "source": "Beets Chroma Scan",
+                        "id": track_id or f"cand_{len(chroma_candidates)+1}",
+                        "source": "Beets Identification",
                         "candidate_type": "singleton",
                         "artist": getattr(cand_info, "artist", item.artist or ""),
                         "title": getattr(cand_info, "title", item.track or ""),
@@ -1167,8 +1156,8 @@ async def api_beets_fingerprint_scan(
                         "url": f"https://musicbrainz.org/recording/{track_id}" if track_id else ""
                     })
     except Exception as e:
-        logger.error(f"Beets Chroma plugin scan execution failed for '{file_path}': {e}")
-        raise HTTPException(status_code=500, detail=f"Beets Chroma scan failed: {str(e)}")
+        logger.error(f"Beets candidate lookup failed for '{file_path}': {e}")
+        raise HTTPException(status_code=500, detail=f"Beets candidate lookup failed: {str(e)}")
 
     existing_cands = json.loads(item.candidates_json) if item.candidates_json else []
     seen_ids = {c.get("id") for c in existing_cands if c.get("id")}
@@ -1180,10 +1169,7 @@ async def api_beets_fingerprint_scan(
             seen_ids.add(cand.get("id"))
             added_count += 1
 
-    if fingerprint_str:
-        item.fingerprint = str(fingerprint_str)[:64]
-
-    if added_count > 0 or fingerprint_str:
+    if added_count > 0:
         item.candidates_json = json.dumps(existing_cands)
         item.updated_at = datetime.datetime.utcnow()
         db.commit()
@@ -1192,8 +1178,6 @@ async def api_beets_fingerprint_scan(
         "status": "success",
         "item_id": item.id,
         "fpcalc_installed": True,
-        "fingerprint_generated": bool(fingerprint_str),
-        "fingerprint": str(fingerprint_str)[:64] if fingerprint_str else None,
         "new_candidates_added": added_count,
         "candidates": existing_cands
     })

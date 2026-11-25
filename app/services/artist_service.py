@@ -1,7 +1,7 @@
 import logging
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
-from app.services.musicbrainz_service import MusicBrainzService
+from app.services.beets_service import BeetsServiceClient
 from app.services.ext_integrations import LidarrIntegrationClient
 from app.models import DownloadHistory, CacheEntry
 
@@ -11,138 +11,57 @@ class ArtistService:
     @staticmethod
     async def autocomplete(query: str, db: Session) -> List[Dict[str, Any]]:
         """
-        Autocomplete artist suggestions.
-        Priority:
-        1. MusicBrainz
-        2. Lidarr API
-        3. Local cache/database
+        Autocomplete artist suggestions using Beets library, Lidarr API, and local DB.
         """
         logger.info(f"ArtistService.autocomplete initiated: query='{query}'")
         if not query or len(query.strip()) < 2:
-            logger.info("ArtistService.autocomplete query too short (length < 2), returning empty.")
             return []
 
         clean_query = query.strip()
+        results: List[Dict[str, Any]] = []
+        seen_names = set()
 
-        # 1. Try MusicBrainz
+        # 1. Beets Library
         try:
-            logger.debug(f"ArtistService.autocomplete: Attempting MusicBrainz lookup for '{clean_query}'")
-            mb_results = await MusicBrainzService.search_artists(clean_query, db)
-            if mb_results:
-                scored_results = []
-                discarded_results = []
-                threshold = 40  # Keep contains-match or better (at least 40 points)
-
-                for artist in mb_results:
-                    name = artist.get("name", "")
-                    name_lower = name.lower().strip()
-                    q_lower = clean_query.lower().strip()
-
-                    # Calculate Autocomplete Scoring & Ranking (Task 4)
-                    score = 0
-                    if name_lower == q_lower:
-                        score = 100
-                        reason = "Exact Match"
-                    elif name_lower.startswith(q_lower):
-                        score = 80
-                        reason = "Starts With Match"
-                    elif any(word.startswith(q_lower) for word in name_lower.split()):
-                        score = 60
-                        reason = "Word Prefix Match"
-                    elif q_lower in name_lower:
-                        score = 40
-                        reason = "Contains Match"
-                    else:
-                        score = 10
-                        reason = "Weak or Unrelated Match"
-
-                    artist["score"] = score
-                    artist["match_type"] = reason
-
-                    if score >= threshold:
-                        scored_results.append(artist)
-                    else:
-                        discarded_results.append((artist, f"Score {score} is below threshold {threshold} ({reason})"))
-
-                # Sort by score descending to rank best prefix matches first
-                scored_results.sort(key=lambda x: x["score"], reverse=True)
-
-                # Task 4: Detailed debug logs showing returned, discarded, and discard reason
-                logger.info(f"--- Autocomplete Artist Ranking Report for Query '{clean_query}' ---")
-                logger.info(f"Returned Artists (Total {len(scored_results)}):")
-                for artist in scored_results:
-                    logger.info(f"  - '{artist['name']}' (ID: {artist['id']}) [Score: {artist['score']}, Match: {artist['match_type']}]")
-
-                logger.info(f"Discarded Artists (Total {len(discarded_results)}):")
-                for artist, reason in discarded_results:
-                    logger.info(f"  - '{artist['name']}' (ID: {artist['id']}) [Reason: {reason}]")
-                logger.info("----------------------------------------------------------------")
-
-                if scored_results:
-                    return scored_results
-            else:
-                logger.debug(f"ArtistService.autocomplete: No results found from MusicBrainz for '{clean_query}'")
+            beets_client = BeetsServiceClient()
+            beets_items = await beets_client.search_items(clean_query)
+            for item in beets_items:
+                name = item.get("artist")
+                if name and name.lower() not in seen_names and clean_query.lower() in name.lower():
+                    seen_names.add(name.lower())
+                    results.append({
+                        "id": item.get("mb_artistid"),
+                        "name": name,
+                        "type": "Artist",
+                        "country": "",
+                        "disambiguation": "Beets Library"
+                    })
         except Exception as e:
-            logger.error(f"Error in MusicBrainz artist search: {e}")
+            logger.error(f"Error in Beets artist search: {e}")
 
-        # 2. Try Lidarr API
-        # Since Lidarr API is a stub, we simulate or handle it gracefully
+        # 2. Lidarr API
         try:
-            logger.debug(f"ArtistService.autocomplete: Attempting Lidarr API lookup for '{clean_query}'")
             lidarr = LidarrIntegrationClient()
-            # If Lidarr had a search_artist method, we'd use it. We'll handle it gracefully.
             if hasattr(lidarr, "search_artists"):
                 lidarr_results = await lidarr.search_artists(clean_query)
-                if lidarr_results:
-                    logger.info(f"ArtistService.autocomplete MATCH [Lidarr] found {len(lidarr_results)} artists for query='{clean_query}'")
-                    return lidarr_results
+                for a in lidarr_results:
+                    name = a.get("name")
+                    if name and name.lower() not in seen_names:
+                        seen_names.add(name.lower())
+                        results.append(a)
         except Exception as e:
             logger.error(f"Error in Lidarr artist search: {e}")
 
-        # 3. Try Local cache/database fallback
-        logger.info(f"ArtistService.autocomplete [Fallback] Querying local DB/cache for query='{clean_query}'")
-        local_results = []
-        seen_names = set()
-
-        # Check existing cached artists in CacheEntry
-        try:
-            cached_entries = db.query(CacheEntry).filter(
-                CacheEntry.entity_type == "artist",
-                CacheEntry.key.contains(clean_query.lower())
-            ).all()
-            logger.debug(f"ArtistService.autocomplete: Found {len(cached_entries)} cache entries matching key containing '{clean_query.lower()}'")
-            for entry in cached_entries:
-                # Value is stored as JSON array of dicts
-                import json
-                try:
-                    cached_artists = json.loads(entry.value)
-                    for a in cached_artists:
-                        name = a.get("name")
-                        if name and name.lower() not in seen_names and clean_query.lower() in name.lower():
-                            seen_names.add(name.lower())
-                            local_results.append({
-                                "id": a.get("id"),
-                                "name": name,
-                                "type": a.get("type", "Artist"),
-                                "country": a.get("country", ""),
-                                "disambiguation": a.get("disambiguation", "Local Cache")
-                            })
-                except Exception as ex:
-                    logger.warning(f"Failed to parse cached artist JSON for entry {entry.key}: {ex}")
-        except Exception as e:
-            logger.error(f"Error reading artist cache database: {e}")
-
-        # Check Download History
+        # 3. Local Cache & Download History
         try:
             history_matches = db.query(DownloadHistory).filter(
                 DownloadHistory.artist.like(f"%{clean_query}%")
             ).all()
-            logger.debug(f"ArtistService.autocomplete: Found {len(history_matches)} download history matches for '{clean_query}'")
             for record in history_matches:
                 name = record.artist
                 if name and name.lower() not in seen_names:
                     seen_names.add(name.lower())
-                    local_results.append({
+                    results.append({
                         "id": None,
                         "name": name,
                         "type": "Artist",
@@ -152,5 +71,4 @@ class ArtistService:
         except Exception as e:
             logger.error(f"Error querying download history for artists: {e}")
 
-        logger.info(f"ArtistService.autocomplete COMPLETED: query='{clean_query}', returned count={len(local_results[:10])} (source=Local Cache/DB Fallback)")
-        return local_results[:10]
+        return results[:10]

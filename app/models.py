@@ -114,7 +114,7 @@ class BeetsReviewItem(Base):
     job_id = Column(String, nullable=True)
     download_id = Column(Integer, nullable=True)
     item_type = Column(String, default="album", nullable=False) # album or singleton
-    artist = Column(String, nullable=False)
+    artist = Column(String, nullable=True)
     track = Column(String, nullable=False)
     album = Column(String, nullable=True)
     downloaded_path = Column(String, nullable=False)

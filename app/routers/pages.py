@@ -7,14 +7,12 @@ from typing import Optional, List, Dict, Any, Union
 from fastapi import APIRouter, Depends, Request, HTTPException, status, Form
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse
 import json
-from app.services.filename_parser import parse_filename
-from app.services.search_ranking_service import SearchRankingService
 from pydantic import BaseModel
 
 from app.config import settings
 from app.contracts.schemas import SearchQuery, SlskdResult
-from app.contracts.services import SlskdClientContract, SearchExecutorContract
-from app.dependencies import get_slskd_client, get_search_executor
+from app.contracts.services import SlskdClientContract
+from app.dependencies import get_slskd_client
 from app.database import get_db
 from app.auth import (
     get_current_user,
@@ -32,7 +30,7 @@ from app.otp import verify_totp, generate_totp_secret
 from app.models import User
 from app.services.artist_service import ArtistService
 from app.services.track_service import TrackService
-from app.services.musicbrainz_service import MusicBrainzService, clean_album_name
+from app.services.beets_service import BeetsServiceClient
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger("track_portal.pages")
@@ -138,13 +136,12 @@ async def get_spa(request: Request):
 @router.post("/api/search")
 async def api_search(
     payload: SearchRequest,
-    search_executor: SearchExecutorContract = Depends(get_search_executor),
+    slskd_client: SlskdClientContract = Depends(get_slskd_client),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
     """
-    Triggers progressive fallback query generation, executes on slskd,
-    and returns an incremental JSON StreamingResponse to update results as soon as they are found.
+    Executes search on slskd and streams back results enriched via Beets.
     """
     artist = (payload.artist or "").strip()
     track_or_album = (payload.track_or_album or "").strip()
@@ -155,167 +152,104 @@ async def api_search(
     search_timeout = payload.timeout_sec or 15
     wait_until_complete = bool(payload.wait_until_complete)
 
-    query_obj = SearchQuery(
-        artist=artist,
-        track=track_or_album,
-        mode=payload.mode or "A",
-        timeout_sec=search_timeout,
-        wait_until_complete=wait_until_complete
-    )
+    search_query_str = f"{artist} {track_or_album}".strip()
 
     async def event_generator():
         seen_keys = set()
+        beets_client = BeetsServiceClient()
 
-        # 1. Resolve / Fetch complete Artist Catalog with strict 30-day pre-caching [RSL-001]
-        artist_mbid = payload.artist_mbid
-        catalog = []
-        search_artist = artist
-
-        if not artist_mbid and search_artist:
-            try:
-                artists = await MusicBrainzService.search_artists(search_artist, db)
-                if artists:
-                    artist_mbid = artists[0].get("id")
-                    official_name = artists[0].get("name")
-                    if official_name:
-                        logger.info(f"Enriching search artist '{search_artist}' -> '{official_name}' via MusicBrainz")
-                        search_artist = official_name
-            except Exception as e:
-                logger.error(f"Error resolving artist MBID dynamically: {e}")
-
-        if artist_mbid:
-            try:
-                catalog = await MusicBrainzService.fetch_artist_releases(artist_mbid, db)
-            except Exception as e:
-                logger.exception(f"Error pre-fetching artist releases catalog: {e}")
-
-        # Clear any active/stuck slskd searches first
+        # Clear active searches if method exists
         try:
-            if hasattr(search_executor.slskd_client, "clear_active_searches"):
-                await search_executor.slskd_client.clear_active_searches()
+            if hasattr(slskd_client, "clear_active_searches"):
+                await slskd_client.clear_active_searches()
         except Exception as e:
             logger.warning(f"Could not clear active slskd searches: {e}")
 
-        # 2. Sequential fallback search loop matching & yielding chunks incrementally
-        query_strings = search_executor.generate_progressive_queries(search_artist, track_or_album)
-        logger.info(f"BENCHMARK - Generated progressive queries for '{search_artist}' / '{track_or_album}': {query_strings}")
-        for idx, q_str in enumerate(query_strings):
-            responses = []
-            search_id = None
-            start_time = time.time()
-            try:
-                logger.info(f"Incremental Search - Executing query: '{q_str}' (timeout_sec={search_timeout}, wait_until_complete={wait_until_complete})")
-                search_obj = await search_executor.slskd_client.search(q_str, timeout_sec=search_timeout, wait_until_complete=wait_until_complete)
-                search_id = search_obj.get("id") or search_obj.get("Id") if isinstance(search_obj, dict) else None
-                if search_id:
-                    poll_interval = 0.5
-                    max_poll_time = 120.0 if wait_until_complete else float(search_timeout)
-                    elapsed = 0.0
-
-                    while elapsed < max_poll_time:
-                        await asyncio.sleep(poll_interval)
-                        elapsed += poll_interval
-
-                        try:
-                            batch = await search_executor.slskd_client.get_search_responses(search_id)
-                            if batch:
-                                responses = batch
-                        except Exception as e:
-                            logger.warning(f"Error fetching search responses for {search_id}: {e}", exc_info=True)
-
-                        # Check search state
-                        try:
-                            if hasattr(search_executor.slskd_client, "get_search_state"):
-                                state = await search_executor.slskd_client.get_search_state(search_id)
-                                state_str = (state.get("state") or state.get("State") or "").lower()
-                                is_complete = state.get("isComplete") or state.get("IsComplete") or False
-                                if state_str in ("complete", "timed_out", "cancelled", "completed", "timedout") or is_complete:
-                                    logger.info(f"Search {search_id} state reached final status '{state_str}' (isComplete={is_complete}) after {elapsed:.2f}s")
-                                    break
-                        except Exception as e:
-                            logger.debug(f"Could not check search state for {search_id}: {e}")
-
-                        if not wait_until_complete and len(responses) >= 10:
-                            break
-
-                    duration = time.time() - start_time
-                    logger.info(f"BENCHMARK - Query '{q_str}' search completed in {duration:.2f}s with {len(responses)} peer responses")
-            except Exception as e:
-                err_msg = f"slskd search failed for '{q_str}': {e}"
-                logger.error(err_msg)
-                yield json.dumps({"error": err_msg}) + "\n"
-                break
-
-            chunk_results = []
-            for resp in responses:
-                username = resp.get("username", "")
-                queue_length = resp.get("queueLength", 0) or resp.get("queue_length", 0) or 0
-                files = resp.get("files", [])
-                for f in files:
-                    filename = f.get("filename", "")
-                    ext = os.path.splitext(filename)[1].lstrip(".").lower()
-                    size = f.get("size", 0)
-                    bitrate = f.get("bitRate", 0) or f.get("bitrate", 0) or 0
-                    sample_rate = f.get("sampleRate", 0) or f.get("sample_rate", 0) or 0
-
-                    if SearchRankingService.should_reject_result(filename, ext):
-                        continue
-
-                    key = (username, filename)
-                    if key not in seen_keys:
-                        seen_keys.add(key)
-
-                        parsed = parse_filename(filename)
-                        res_model = SlskdResult(
-                            filename=filename,
-                            size=size,
-                            username=username,
-                            format=ext,
-                            bitrate=bitrate,
-                            sample_rate=sample_rate,
-                            queue_length=queue_length,
-                            parsed_artist=parsed.get("artist") or search_artist or "Unknown",
-                            parsed_track=parsed.get("track") or track_or_album or "Unknown",
-                            parsed_album=parsed.get("album") or "",
-                            parsed_year=parsed.get("year") or None
-                        )
-
-                        # Local Fuzzy Matching
-                        match = None
-                        if res_model.parsed_album:
-                            cleaned = clean_album_name(res_model.parsed_album)
-                            if cleaned:
-                                match = match_catalog_release(cleaned, catalog)
-                        if match:
-                            res_model.canonical_album = match["release_name"]
-                            res_model.canonical_year = match["release_year"]
-                            res_model.canonical_mbid = match["release_mbid"]
-                            res_model.canonical_confidence = match["confidence_score"]
-                            res_model.canonical_verified = True
-                        else:
-                            res_model.canonical_album = res_model.parsed_album
-                            res_model.canonical_year = res_model.parsed_year
-                            res_model.canonical_verified = False
-
-                        # Final Ranking
-                        scores = SearchRankingService.score_candidate(res_model, query_obj, beets_confidence=False)
-                        res_model.score = scores["final_score"]
-                        res_model.score_reasons = scores.get("score_reasons")
-                        chunk_results.append(res_model.model_dump())
-
-            # Clean up slskd search
+        responses = []
+        search_id = None
+        try:
+            search_obj = await slskd_client.search(search_query_str, timeout_sec=search_timeout, wait_until_complete=wait_until_complete)
+            search_id = search_obj.get("id") or search_obj.get("Id") if isinstance(search_obj, dict) else None
             if search_id:
-                try:
-                    await search_executor.slskd_client.delete_search(search_id)
-                except Exception as e:
-                    logger.warning(f"Failed to delete search {search_id}: {e}")
+                poll_interval = 0.5
+                max_poll_time = 120.0 if wait_until_complete else float(search_timeout)
+                elapsed = 0.0
 
-            if chunk_results:
-                yield json.dumps({"results": chunk_results}) + "\n"
+                while elapsed < max_poll_time:
+                    await asyncio.sleep(poll_interval)
+                    elapsed += poll_interval
 
-            # If we already have plenty of results, stop early to optimize performance
-            if len(seen_keys) >= 25:
-                break
+                    try:
+                        batch = await slskd_client.get_search_responses(search_id)
+                        if batch:
+                            responses = batch
+                    except Exception as e:
+                        logger.warning(f"Error fetching search responses: {e}")
+
+                    if not wait_until_complete and len(responses) >= 10:
+                        break
+        except Exception as e:
+            err_msg = f"slskd search failed: {e}"
+            logger.error(err_msg)
+            yield json.dumps({"error": err_msg}) + "\n"
+            return
+
+        chunk_results = []
+        for resp in responses:
+            username = resp.get("username", "")
+            queue_length = resp.get("queueLength", 0) or resp.get("queue_length", 0) or 0
+            files = resp.get("files", [])
+            for f in files:
+                filename = f.get("filename", "")
+                ext = os.path.splitext(filename)[1].lstrip(".").lower()
+                size = f.get("size", 0)
+                bitrate = f.get("bitRate", 0) or f.get("bitrate", 0) or 0
+
+                if ext not in ["flac", "mp3", "m4a", "wav", "aac", "ogg", "alac"]:
+                    continue
+
+                key = (username, filename)
+                if key not in seen_keys:
+                    seen_keys.add(key)
+
+                    score = 50
+                    if ext == "flac":
+                        score += 30
+                    elif bitrate >= 320:
+                        score += 20
+
+                    beets_conf = False
+                    try:
+                        beets_matches = await beets_client.search_items(f'artist:"{artist}" title:"{track_or_album}"')
+                        if beets_matches:
+                            beets_conf = True
+                            score += 15
+                    except Exception:
+                        pass
+
+                    res_model = SlskdResult(
+                        filename=filename,
+                        size=size,
+                        username=username,
+                        format=ext,
+                        bitrate=bitrate,
+                        queue_length=queue_length,
+                        parsed_artist=artist or "",
+                        parsed_track=track_or_album or "",
+                        parsed_album="",
+                        beets_confidence=beets_conf,
+                        score=score
+                    )
+                    chunk_results.append(res_model.model_dump())
+
+        if search_id:
+            try:
+                await slskd_client.delete_search(search_id)
+            except Exception:
+                pass
+
+        if chunk_results:
+            yield json.dumps({"results": chunk_results}) + "\n"
 
     return StreamingResponse(event_generator(), media_type="application/x-json-stream")
 
@@ -396,19 +330,28 @@ async def search_results_legacy(
     track: str = Form(...),
     search_mode: Optional[str] = Form("A"),
     sort_by: Optional[str] = Form("quality"),
-    search_executor: SearchExecutorContract = Depends(get_search_executor)
+    slskd_client: SlskdClientContract = Depends(get_slskd_client)
 ):
     """
     Legacy search results endpoint required by tests.
     """
-    query_obj = SearchQuery(artist=artist, track=track, mode=search_mode)
-    results = await search_executor.execute_search(query_obj)
+    q_str = f"{artist} {track}".strip()
+    search_obj = await slskd_client.search(q_str)
+    search_id = search_obj.get("id") or search_obj.get("Id") if isinstance(search_obj, dict) else None
+
+    responses = []
+    if search_id:
+        await asyncio.sleep(1.0)
+        try:
+            responses = await slskd_client.get_search_responses(search_id)
+        except Exception:
+            pass
 
     # Track details for SearchDebugTracker
     SearchDebugTracker.last_artist = artist
     SearchDebugTracker.last_track = track
     SearchDebugTracker.last_generated_query = f'"{artist}" "{track}"'
-    SearchDebugTracker.last_queries_telemetry = [{"query": f"{artist} {track}", "results_count": len(results)}]
+    SearchDebugTracker.last_queries_telemetry = [{"query": q_str, "results_count": len(responses)}]
 
     return HTMLResponse(content=f"<div>Results for {artist} - {track}</div>")
 
@@ -1153,14 +1096,15 @@ async def api_beets_fingerprint_scan(
     user: User = Depends(get_current_user)
 ):
     """
-    Triggers audio fingerprint scan (AcoustID / Chroma) or direct MusicBrainz metadata matching
-    for a review queue item on disk, generating direct MusicBrainz candidates and updating the review queue item.
+    Triggers Beets candidate identification (including Chroma + MusicBrainz plugins)
+    for a review queue item on disk.
     """
     import shutil
-    import acoustid
+    import beets
+    import beets.plugins
+    import beets.importer as importer
+    import beets.library as library
     from app.models import BeetsReviewItem
-    from app.services.beets_collector import clean_query_hint
-    from app.services.musicbrainz_service import MusicBrainzService
 
     item = db.query(BeetsReviewItem).filter(
         (BeetsReviewItem.id == item_id) | (BeetsReviewItem.conflict_id == str(item_id))
@@ -1170,77 +1114,62 @@ async def api_beets_fingerprint_scan(
         raise HTTPException(status_code=404, detail="Review queue item not found")
 
     file_path = item.downloaded_path
-    fingerprint_str = None
-    duration_sec = 0.0
     fpcalc_installed = shutil.which("fpcalc") is not None
 
-    # Step 1: Attempt fpcalc / acoustid fingerprinting if file exists
-    if file_path and os.path.exists(file_path):
-        try:
-            if fpcalc_installed:
-                duration_sec, fp_bytes = acoustid.fingerprint_file(file_path)
-                if fp_bytes:
-                    fingerprint_str = fp_bytes.decode("utf-8") if isinstance(fp_bytes, bytes) else str(fp_bytes)
-                    logger.info(f"Generated Acoustid fingerprint for file '{file_path}': duration={duration_sec}s")
-        except Exception as e:
-            logger.warning(f"AcoustID fpcalc fingerprint calculation warning for '{file_path}': {e}")
+    if not fpcalc_installed:
+        raise HTTPException(
+            status_code=500,
+            detail="fpcalc binary not found. Beets Chroma fingerprinting requires libchromaprint-tools / fpcalc installed."
+        )
 
-    # Step 2: Query MusicBrainz candidates directly using clean title & artist
-    clean_artist = clean_query_hint(item.artist, is_artist=True)
-    clean_title = clean_query_hint(item.album or item.track, artist=clean_artist)
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"File not found on disk for fingerprint scan: {file_path}")
 
-    new_candidates = []
+    chroma_candidates = []
     try:
-        # Fetch recordings / releases directly from MusicBrainz API
-        rec_results = await MusicBrainzService.search_recordings(clean_artist, None, clean_title, db)
-        for idx, rec in enumerate(rec_results[:10]):
-            mbid = rec.get("id") or rec.get("release_id")
-            score = max(50, 98 - (idx * 4))
-            rec_artist = rec.get("artist") or clean_artist
-            rec_album = rec.get("album") or rec.get("title") or clean_title
-            rec_title = rec.get("title") or clean_title
+        beets.plugins.load_plugins()
 
-            new_candidates.append({
-                "id": mbid or f"mb_direct_{idx+1}",
-                "source": "AcoustID / Direct MusicBrainz Scan" if fingerprint_str else "Direct MusicBrainz Scan",
-                "candidate_type": item.item_type or "singleton",
-                "artist": rec_artist,
-                "album": rec_album,
-                "title": rec_title,
-                "year": rec.get("year") or 0,
-                "release_id": rec.get("release_id") or mbid,
-                "recording_id": rec.get("id") or "",
-                "release_group_id": "",
-                "country": "US",
-                "label": "",
-                "catalog_num": "",
-                "media": "Digital Media",
-                "format": "FLAC",
-                "track_count": 1,
-                "ui_similarity_score": score,
-                "raw_distance": float((100 - score) / 100.0),
-                "penalties": {},
-                "mbid": mbid,
-                "url": f"https://musicbrainz.org/recording/{rec.get('id')}" if rec.get('id') else ""
-            })
+        dummy_item = library.Item.from_path(file_path) if os.path.isfile(file_path) else library.Item(artist=item.artist or "", album=item.album or "", title=item.track or "")
+
+        if item.item_type == "singleton":
+            task = importer.SingletonImportTask(file_path, dummy_item)
+            task.lookup_candidates()
+            raw_cands = getattr(task, "candidates", []) or []
+            for cand in raw_cands[:10]:
+                cand_info = getattr(cand, "info", None)
+                if cand_info:
+                    dist_val = float(getattr(cand, "distance", 0.5))
+                    ui_score = max(0, min(100, int((1.0 - dist_val) * 100)))
+                    track_id = str(getattr(cand_info, "track_id", ""))
+                    chroma_candidates.append({
+                        "id": track_id or f"cand_{len(chroma_candidates)+1}",
+                        "source": "Beets Identification",
+                        "candidate_type": "singleton",
+                        "artist": getattr(cand_info, "artist", item.artist or ""),
+                        "title": getattr(cand_info, "title", item.track or ""),
+                        "year": getattr(cand_info, "year", 0),
+                        "release_id": getattr(cand_info, "album_id", track_id),
+                        "recording_id": track_id,
+                        "ui_similarity_score": ui_score,
+                        "raw_distance": dist_val,
+                        "mbid": track_id,
+                        "url": f"https://musicbrainz.org/recording/{track_id}" if track_id else ""
+                    })
     except Exception as e:
-        logger.exception(f"Error fetching direct MusicBrainz candidates during fingerprint scan: {e}")
+        logger.error(f"Beets candidate lookup failed for '{file_path}': {e}")
+        raise HTTPException(status_code=500, detail=f"Beets candidate lookup failed: {str(e)}")
 
-    # Step 3: Merge newly generated candidates into item record in SQLite
     existing_cands = json.loads(item.candidates_json) if item.candidates_json else []
     seen_ids = {c.get("id") for c in existing_cands if c.get("id")}
 
     added_count = 0
-    for cand in new_candidates:
+    for cand in chroma_candidates:
         if cand.get("id") not in seen_ids:
             existing_cands.insert(0, cand)
             seen_ids.add(cand.get("id"))
             added_count += 1
 
-    if fingerprint_str:
-        item.fingerprint = fingerprint_str[:64]
-
-    if added_count > 0 or fingerprint_str:
+    if added_count > 0:
         item.candidates_json = json.dumps(existing_cands)
         item.updated_at = datetime.datetime.utcnow()
         db.commit()
@@ -1248,9 +1177,7 @@ async def api_beets_fingerprint_scan(
     return JSONResponse(content={
         "status": "success",
         "item_id": item.id,
-        "fpcalc_installed": fpcalc_installed,
-        "fingerprint_generated": bool(fingerprint_str),
-        "duration_seconds": duration_sec,
+        "fpcalc_installed": True,
         "new_candidates_added": added_count,
         "candidates": existing_cands
     })
@@ -1274,7 +1201,6 @@ async def api_beets_manual_search(
     import beets.library as library
     from app.models import BeetsReviewItem
     from app.services.beets_collector import clean_query_hint
-    from app.services.musicbrainz_service import MusicBrainzService
 
     item = db.query(BeetsReviewItem).filter(
         (BeetsReviewItem.id == item_id) | (BeetsReviewItem.conflict_id == str(item_id))
@@ -1294,7 +1220,7 @@ async def api_beets_manual_search(
     found_candidates = []
     is_mbid = bool(re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', clean_q.strip().lower()))
 
-    # Method 1 & 2: Use Beets autotag ImportTask API with pre-selected search_ids or text search
+    # Use Beets autotag ImportTask API with pre-selected search_ids or text search
     try:
         beets.plugins.load_plugins()
         target_path = item.downloaded_path if (item.downloaded_path and os.path.exists(item.downloaded_path)) else "/tmp"
@@ -1366,63 +1292,6 @@ async def api_beets_manual_search(
                     })
     except Exception as e:
         logger.warning(f"Beets ImportTask candidate lookup warning: {e}", exc_info=True)
-
-    # Fallback Method 3: Direct MusicBrainzAPI / MusicBrainzService lookups
-    if not found_candidates:
-        try:
-            if is_mbid:
-                rel = await MusicBrainzService.fetch_release_by_id(clean_q.strip(), db)
-                if rel:
-                    found_candidates.append({
-                        "id": rel.get("id"),
-                        "source": "MusicBrainz MBID Lookup",
-                        "candidate_type": item.item_type,
-                        "artist": rel.get("artist_name") or search_artist,
-                        "title": rel.get("title") or search_title,
-                        "year": rel.get("year") or 0,
-                        "release_id": rel.get("id"),
-                        "recording_id": rel.get("id") if item.item_type == "singleton" else "",
-                        "release_group_id": rel.get("release_group_id") or "",
-                        "country": rel.get("country", "US"),
-                        "label": rel.get("label", ""),
-                        "catalog_num": "",
-                        "media": "Digital Media",
-                        "format": "FLAC",
-                        "track_count": rel.get("track_count", 1),
-                        "ui_similarity_score": 100,
-                        "raw_distance": 0.0,
-                        "penalties": {},
-                        "mbid": rel.get("id"),
-                        "url": f"https://musicbrainz.org/release/{rel.get('id')}"
-                    })
-            else:
-                results = await MusicBrainzService.search_releases(clean_q, db)
-                for idx, rel in enumerate(results[:10]):
-                    ui_score = max(50, 95 - (idx * 5))
-                    found_candidates.append({
-                        "id": rel.get("id") or f"manual_{idx+1}",
-                        "source": "MusicBrainz Search",
-                        "candidate_type": item.item_type,
-                        "artist": rel.get("artist_name") or search_artist,
-                        "title": rel.get("title") or search_title,
-                        "year": rel.get("year") or 0,
-                        "release_id": rel.get("id"),
-                        "recording_id": "",
-                        "release_group_id": "",
-                        "country": rel.get("country", "US"),
-                        "label": rel.get("label", ""),
-                        "catalog_num": "",
-                        "media": "Digital Media",
-                        "format": "FLAC",
-                        "track_count": rel.get("track_count", 1),
-                        "ui_similarity_score": ui_score,
-                        "raw_distance": float((100 - ui_score) / 100.0),
-                        "penalties": {},
-                        "mbid": rel.get("id"),
-                        "url": f"https://musicbrainz.org/release/{rel.get('id')}" if rel.get("id") else ""
-                    })
-        except Exception as e:
-            logger.exception(f"Error executing fallback MusicBrainz candidate search: {e}")
 
     # Merge candidates into review item record in SQLite
     existing_cands = json.loads(item.candidates_json) if item.candidates_json else []
@@ -1543,7 +1412,6 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
     """
     import shutil
     from app.models import BeetsReviewItem
-    from app.services.filename_parser import parse_filename
 
     beet_bin = shutil.which("beet")
     if not beet_bin:
@@ -1562,34 +1430,15 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
     from app.config import resolve_beets_config_path
     config_path = resolve_beets_config_path()
 
-    cmd = ["beet"]
-    if config_path and os.path.exists(config_path):
-        cmd.extend(["-c", config_path])
-    cmd.extend(["import", "-q"])
-
-    target = music_dir if os.path.exists(music_dir) else downloads_dir
-    cmd.append(target)
-
-    scanned_count = 0
+    target = downloads_dir if os.path.exists(downloads_dir) else music_dir
     created_review_items = 0
+
+    from app.services.beets_worker import BeetsImportWorker
     try:
-        logger.info(f"Executing Beets scan library command: {' '.join(cmd)}")
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60.0)
-        proc_exit_code = proc.returncode
-        out_str = stdout.decode("utf-8", errors="ignore")
-        err_str = stderr.decode("utf-8", errors="ignore")
-        logger.info(f"[BEETS_CLI_STDOUT] exit_code={proc_exit_code}:\n{out_str.strip() or '(empty)'}")
-        if err_str.strip():
-            logger.info(f"[BEETS_CLI_STDERR] exit_code={proc_exit_code}:\n{err_str.strip()}")
-        scanned_count = len([line for line in out_str.splitlines() if line.strip()])
+        logger.info(f"Executing Beets import job on target directory: {target}")
+        BeetsImportWorker.spawn_import_job(source_path=target, config_path=config_path)
     except Exception as e:
-        logger.error(f"Error running Beets scan subprocess: {e}")
+        logger.error(f"Error executing Beets scan import task: {e}")
 
     # Inspect /downloads directory for files requiring metadata review via Beets worker
     if os.path.exists(downloads_dir):
@@ -1604,11 +1453,10 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
                     ).first()
                     if not existing:
                         clean_fn = clean_query_hint(file)
-                        parent_alb = clean_query_hint(os.path.basename(root))
                         review_item = BeetsReviewItem(
-                            artist="Unknown Artist",
+                            artist="",
                             track=clean_fn or file,
-                            album=parent_alb or "Unknown Album",
+                            album="",
                             downloaded_path=file_path,
                             confidence_score=50,
                             status="review_required",
@@ -1625,7 +1473,7 @@ async def api_beets_scan_library(db: Session = Depends(get_db), user: User = Dep
         "status": "success",
         "message": f"Beets library scan executed on {target}",
         "scanned_target": target,
-        "output_lines": scanned_count,
+        "output_lines": created_review_items,
         "new_review_items_created": created_review_items
     })
 
@@ -1653,9 +1501,9 @@ def api_beets_seed_test_items(db: Session = Depends(get_db), user: User = Depend
                             parent_alb = clean_query_hint(os.path.basename(root))
 
                             item = BeetsReviewItem(
-                                artist="Unknown Artist",
+                                artist="",
                                 track=clean_fn or file,
-                                album=parent_alb or "Unknown Album",
+                                album="",
                                 downloaded_path=file_path,
                                 confidence_score=50,
                                 status="review_required",

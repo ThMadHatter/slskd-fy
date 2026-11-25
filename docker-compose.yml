@@ -1,57 +1,38 @@
+# Ricostruzione dello stack "music_stack" dai container attualmente running.
+# Verificato il 2026-11-25 su hermes-tmp@192.168.1.93.
+# NON avviare con "up" senza aver prima confrontato il piano: i container
+# esistenti hanno un config-hash diverso e verrebbero ricreati.
+
+# Nome esplicito: senza di esso il project name deriverebbe dalla cartella
+# "deploy" e verrebbero creati rete/container nuovi invece di riusare quelli live.
+name: music_stack
+
 services:
-  track-portal:
-    build: .
-    container_name: track_portal
+  slskd:
+    image: slskd/slskd:latest
+    container_name: slskd
     restart: unless-stopped
     ports:
-      - "8000:8000"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "5030:5030"
+      - "5031:5031"
+      - "50300:50300"
     environment:
-      # slskd API connection
-      - SLSKD_API_URL=$SLSKD_API_URL
-      - SLSKD_API_KEY=$SLSKD_API_KEY
-
-      # Container paths mapped to mounted directories
-      - MUSIC_LIBRARY_PATH=$MUSIC_LIBRARY_PATH
-      - UPLOADS_PATH=$UPLOADS_PATH
-      - SINGLES_PATH=$SINGLES_PATH
-      - DOWNLOADS_PATH=$DOWNLOADS_PATH
-
-      # SQLite Database location inside config folder
-      - DATABASE_URL=$DATABASE_URL
-
-      # Beets service URL
-      - BEETS_API_URL=http://beets:8337
-
-      # Administration security & auth
-      - SECRET_KEY=$SECRET_KEY
-      - ADMIN_USERNAME=$ADMIN_USERNAME
-      - ADMIN_PASSWORD=$ADMIN_PASSWORD
-
-      # Navidrome connection
-      - NAVIDROME_URL=$NAVIDROME_URL
-      - NAVIDROME_USER=$NAVIDROME_USER
-      - NAVIDROME_PASSWORD=$NAVIDROME_PASSWORD
-
-      # Optional external dashboard links
-      - FILEBROWSER_URL=$FILEBROWSER_URL
-      - NAVIDROME_UI_URL=$NAVIDROME_UI_URL
-
-      # Configurable quality preference ranking order
-      - QUALITY_RANKING=$QUALITY_RANKING
+      APP_UID: 1654
+      SLSKD_APP_DIR: /app
+      SLSKD_HTTP_PORT: 5030
+      SLSKD_HTTPS_PORT: 5031
+      SLSKD_SLSK_LISTEN_PORT: 50300
+      SLSKD_UMASK: "0022"
     volumes:
-      # Host path mounts based on context
-      - /mnt/music/Music:/music
-      - /mnt/music/Uploads:/uploads
+      - /mnt/music/Config/slskd:/app
       - /mnt/music/Downloads/slskd:/downloads
-      - /mnt/music/Config:/config
+      - /mnt/music/Music:/music:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 5s
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:5030/health"]
+      interval: 60s
+      timeout: 3s
       retries: 3
-      start_period: 10s
+      start_period: 3600s
 
   beets:
     image: linuxserver/beets:latest
@@ -60,10 +41,74 @@ services:
     ports:
       - "8337:8337"
     environment:
-      - PUID=1000
-      - PGID=1000
+      PUID: 1000
+      PGID: 1000
+      BEETSDIR: /config/beets
     volumes:
-      - /mnt/music/Config/beets:/config
-      - /mnt/music/Music:/music
+      # /config e' volume anonimo ereditato dall'immagine linuxserver;
+      # la configurazione reale sta in /config/beets.
+      - /mnt/music/Config/beets:/config/beets
       - /mnt/music/Downloads/slskd:/downloads
-    command: beet web
+      - /mnt/music/Music:/music
+
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    restart: unless-stopped
+    ports:
+      - "4533:4533"
+    environment:
+      ND_MUSICFOLDER: /music
+      ND_DATAFOLDER: /data
+      ND_CONFIGFILE: /data/navidrome.toml
+      ND_PORT: 4533
+    volumes:
+      - /mnt/music/Config/navidrome:/data
+      - /mnt/music/Music:/music:ro
+
+  slskd-fy:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: music_stack-slskd-fy
+    container_name: slskd-fy
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      - slskd
+      - beets
+      - navidrome
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Segreti (SLSKD_API_KEY, ADMIN_PASSWORD, SECRET_KEY, NAVIDROME_PASSWORD,
+    # NAVIDROME_TOKEN, NAVIDROME_SALT) letti dal .env esistente, mai copiati qui.
+    env_file:
+      - ../.env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      LOG_LEVEL: DEBUG
+      BEETSDIR: /config/beets
+      SLSKD_API_URL: http://192.168.1.93:5030/api/v0
+      NAVIDROME_URL: http://192.168.1.93:4533
+      NAVIDROME_USER: slskd-fy
+      FILEBROWSER_URL: http://192.168.1.93:8080
+      NAVIDROME_UI_URL: http://192.168.1.93:4533
+      DOWNLOADS_PATH: /downloads
+      UPLOADS_PATH: /uploads
+      SINGLES_PATH: /uploads/Singles
+      MUSIC_LIBRARY_PATH: /music
+      DATABASE_URL: sqlite:////config/track_portal.db
+      QUALITY_RANKING: flac,alac,wav,aac,mp3_320,mp3_v0
+    volumes:
+      - /mnt/music/Config/track-portal:/config
+      - /mnt/music/Config/beets:/config/beets
+      - /mnt/music/Downloads/slskd:/downloads
+      - /mnt/music/Music:/music
+      - /mnt/music/Uploads:/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
